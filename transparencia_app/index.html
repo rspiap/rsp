@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cercador d'Entitats - Transparència Catalunya</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="background-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <main class="container">
+        <header class="app-header">
+            <h1>Transparència <span class="highlight">Catalunya</span></h1>
+            <p class="subtitle">Explora els partícips de les entitats públiques</p>
+        </header>
+
+        <section class="search-section glass-panel">
+            <div class="search-container">
+                <svg xmlns="http://www.w3.org/2000/svg" class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="searchInput" placeholder="Cerca una entitat (ex: Salut, Institut...)" autocomplete="off">
+            </div>
+        </section>
+
+        <section id="resultsContainer" class="results-grid">
+            <!-- Results will be injected here -->
+            <div class="empty-state">
+                <p>Comença a escriure per cercar entitats...</p>
+            </div>
+        </section>
+    </main>
+
+    <div id="modalOverlay" class="modal-overlay hidden">
+        <div class="modal glass-panel">
+            <button id="closeModal" class="close-btn">&times;</button>
+            <div id="modalContent">
+                <!-- Modal content will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
