@@ -60,19 +60,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (data && data.length > 0) {
             console.log("Dades carregades des d'IndexedDB:", data.length);
             allRecords = data;
+            
+            // 2. Render inicial IMMEDIAT
+            filteredRecords = [...allRecords];
+            populateDepartaments();
+            renderTable();
+            
+            // 3. Comprovar núvol en segon pla per actualitzar mapatges
+            updateCloudStatus();
         } else {
-            // Ja no hi ha fallback a data.js. L'usuari ha de sincronitzar.
-            console.log("No hi ha dades a IndexedDB.");
-            throw new Error("No s'han trobat dades locals. Cal realitzar una sincronització inicial des del núvol.");
+            console.log("No hi ha dades a IndexedDB. Iniciant sincronització inicial automàtica...");
+            // En lloc de donar error, forcem la sincronització inicial
+            handleSync();
         }
-
-        // 2. Render inicial IMMEDIAT (No esperem al núvol per mostrar dades)
-        filteredRecords = [...allRecords];
-        populateDepartaments();
-        renderTable();
-
-        // 3. Comprovar núvol en segon pla (Sense bloquejar la vista)
-        updateCloudStatus();
         setupEventListeners();
 
         // 4. Inicialitza el formulari d'edició de mapatges
