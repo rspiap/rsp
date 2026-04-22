@@ -70,15 +70,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             updateCloudStatus();
         } else {
             console.log("No hi ha dades a IndexedDB. Iniciant sincronització inicial automàtica...");
-            // En lloc de donar error, forcem la sincronització inicial
+            // Mostrem un missatge amable a la taula mentre se sincronitza
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 3rem; color: var(--primary);">
+                        <i data-lucide="refresh-cw" class="lucide-spin" style="width: 24px; margin-bottom: 1rem; display: block; margin-left: auto; margin-right: auto;"></i>
+                        <strong>Sincronitzant amb el núvol per primera vegada...</strong><br>
+                        <span style="font-size: 0.85rem; color: var(--text-muted);">Això només passarà el primer cop.</span>
+                    </td>
+                </tr>`;
+            if (window.lucide) lucide.createIcons();
+            
+            // Forcem la sincronització inicial
             handleSync();
         }
         setupEventListeners();
-
-        // 4. Inicialitza el formulari d'edició de mapatges
         initMappingEditor();
 
-        // 5. Escoltar canvis en temps real des d'altres pestanyes
+        // 4. Escoltar canvis en temps real des d'altres pestanyes
         window.addEventListener('storage', async (event) => {
             if (event.key === 'sac_update_signal') {
                 console.log("Notificació de canvi rebuda via localStorage.");
@@ -92,14 +101,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     } catch (error) {
         console.error("Error en el Dashboard:", error);
-        tableBody.innerHTML = `
-            <tr>
-                <td colspan="7" style="text-align: center; padding: 3rem; color: var(--error);">
-                    <strong>Avis: ${error.message}</strong><br><br>
-                    <button onclick="handleSync()" class="btn btn-primary">Actualitzar Dades Ara</button>
-                </td>
-            </tr>`;
-        setupEventListeners(); // Perquè el botó de sync funcioni igualment
     }
 });
 
