@@ -20,8 +20,7 @@ class SacEditor {
                 form: document.getElementById('editForm'),
                 title: document.getElementById('modalTitle'),
                 statusTag: document.getElementById('modalStatusTag'),
-                btnCancel: document.getElementById('btnCancelEdit'),
-                btnExport: document.getElementById('btnExport')
+                btnCancel: document.getElementById('btnCancelEdit')
             };
 
             // 1. Carrega immediata local (Perquè l'usuari vegi dades JA)
@@ -44,7 +43,6 @@ class SacEditor {
             this.dom.search.addEventListener('input', () => this.handleSearch());
             this.dom.form.addEventListener('submit', (e) => this.saveEntry(e));
             this.dom.btnCancel.addEventListener('click', () => this.closeModal());
-            this.dom.btnExport.addEventListener('click', () => this.exportJs());
 
             console.log('Editor inicialitzat correctament.');
 
@@ -321,28 +319,6 @@ class SacEditor {
         }
     }
 
-    exportJs() {
-        // Ordenar per entitat abans d'exportar
-        const sortedData = [...this.data].sort((a, b) => a.d.localeCompare(b.d));
-        
-        const content = [
-            '// sac_data.js - Generat automàticament des de l\'editor del Dashboard',
-            '// Aquest fitxer conté el mapatge de codis SAC per al creuament de dades.',
-            `const SAC_LOOKUP_DATA = ${JSON.stringify(sortedData, null, 2)};`
-        ].join('\n');
-
-        const blob = new Blob([content], { type: 'text/javascript' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'sac_data.js';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        alert('Fitxer generat correctament. Substitueix el fitxer "sac_data.js" de la teva carpeta per aplicar els canvis.');
-    }
 }
 
 // Inicialitzar globalment
