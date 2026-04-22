@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Importador SAC Cloud</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="lucide.min.js"></script>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-rgb: 59, 130, 246;
+            --bg: #0f172a;
+            --glass: rgba(30, 41, 59, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            background: var(--bg);
+            color: white;
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-image: radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 100%);
+        }
+
+        .importer-card {
+            width: 100%;
+            max-width: 600px;
+            padding: 2.5rem;
+            border-radius: 1.5rem;
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        h1 {
+            font-weight: 800;
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(to right, #60a5fa, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            color: #94a3b8;
+            font-size: 0.9rem;
+            margin-bottom: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #cbd5e1;
+            margin-bottom: 0.5rem;
+        }
+
+        input[type="text"], input[type="file"] {
+            width: 100%;
+            padding: 0.8rem;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--glass-border);
+            border-radius: 0.5rem;
+            color: white;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary);
+        }
+
+        .file-status {
+            font-size: 0.75rem;
+            margin-top: 0.4rem;
+            color: #94a3b8;
+        }
+
+        .btn-action {
+            width: 100%;
+            padding: 1rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 1rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-action:hover {
+            background: #2563eb;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(var(--primary-rgb), 0.3);
+        }
+
+        .btn-action:disabled {
+            background: #475569;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #log {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 0.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            height: 120px;
+            overflow-y: auto;
+            border: 1px solid var(--glass-border);
+        }
+
+        .log-entry {
+            margin-bottom: 0.3rem;
+            border-left: 2px solid var(--primary);
+            padding-left: 0.5rem;
+        }
+
+        .log-error { border-left-color: #ef4444; color: #f87171; }
+        .log-success { border-left-color: #22c55e; color: #4ade80; }
+
+        .nav-links {
+            margin-top: 2rem;
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            font-size: 0.8rem;
+        }
+
+        .nav-links a {
+            color: #94a3b8;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover { color: var(--primary); }
+    </style>
+</head>
+<body>
+    <div class="importer-card">
+        <header>
+            <h1>Importador SAC Cloud</h1>
+            <p class="subtitle">Restaura i sincronitza la base de dades des de fitxers CSV</p>
+        </header>
+
+        <div class="form-group">
+            <label for="url">URL de la Web App (Google Scripts)</label>
+            <input type="text" id="url" placeholder="https://script.google.com/macros/s/.../exec">
+        </div>
+
+        <div class="form-group">
+            <label for="masterCsv">Fitxer Mestre (sac.csv)</label>
+            <input type="file" id="masterCsv" accept=".csv">
+            <div class="file-status" id="masterStatus">Pendent de carregar</div>
+        </div>
+
+        <div class="form-group">
+            <label for="pjCsv">Fitxer Persones Jurídiques (sac_pj.csv)</label>
+            <input type="file" id="pjCsv" accept=".csv">
+            <div class="file-status" id="pjStatus">Pendent de carregar (opcional)</div>
+        </div>
+
+        <button id="btnImport" class="btn-action">
+            <i data-lucide="upload-cloud"></i>
+            Iniciar Migració Total
+        </button>
+
+        <div id="log">
+            <div class="log-entry">Llest per començar. Seleccioneu els fitxers.</div>
+        </div>
+
+        <div class="nav-links">
+            <a href="index.html">Tornar al Dashboard</a>
+            <a href="editor.html">Editor de Mapatges</a>
+        </div>
+    </div>
+
+    <script src="sac_service.js"></script>
+    <script>
+        lucide.createIcons();
+
+        const logElem = document.getElementById('log');
+        const btnImport = document.getElementById('btnImport');
+        const urlInput = document.getElementById('url');
+
+        // Intentar recuperar la URL si ja existeix a sac_service
+        if (typeof SAC_CLOUD_SERVICE !== 'undefined' && SAC_CLOUD_SERVICE.WEB_APP_URL) {
+            urlInput.value = SAC_CLOUD_SERVICE.WEB_APP_URL;
+        }
+
+        function addLog(msg, type = '') {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry ' + (type ? 'log-' + type : '');
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            logElem.appendChild(entry);
+            logElem.scrollTop = logElem.scrollHeight;
+        }
+
+        function parseCSV(text) {
+            const lines = text.split(/\r?\n/);
+            if (lines.length === 0) return [];
+
+            const header = lines[0].split(';');
+            const dIdx = header.indexOf('denominaci');
+            const mIdx = header.indexOf('membre');
+            const cIdx = header.indexOf('c_rrec_o_lloc_de_treball');
+            const kIdx = header.indexOf('SAC.codi_d_informaci');
+
+            if (dIdx === -1 || kIdx === -1) {
+                throw new Error("Format de CSV no reconegut (falten columnes clau).");
+            }
+
+            const records = [];
+            for (let i = 1; i < lines.length; i++) {
+                if (!lines[i].trim()) continue;
+                const cols = lines[i].split(';');
+                if (cols.length < Math.max(dIdx, mIdx, cIdx, kIdx)) continue;
+
+                records.push({
+                    d: cols[dIdx]?.trim() || "",
+                    m: cols[mIdx]?.trim() || "",
+                    c: cols[cIdx]?.trim() || "",
+                    k: cols[kIdx]?.trim() || ""
+                });
+            }
+            return records;
+        }
+
+        btnImport.addEventListener('click', async () => {
+            const url = urlInput.value.trim();
+            const masterFile = document.getElementById('masterCsv').files[0];
+            const pjFile = document.getElementById('pjCsv').files[0];
+
+            if (!url) { addLog("Error: Cal introduir la URL del Google Script.", "error"); return; }
+            if (!masterFile) { addLog("Error: Cal seleccionar el fitxer sac.csv.", "error"); return; }
+
+            try {
+                btnImport.disabled = true;
+                addLog("Llegint fitxers...");
+
+                // Llegir sac.csv amb codificació ISO-8859-1 (Default d'Excel a Windows) per als accents
+                const readMaster = new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve(parseCSV(e.target.result));
+                    reader.readAsText(masterFile, 'ISO-8859-1');
+                });
+
+                let pjData = [];
+                if (pjFile) {
+                    pjData = await new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => resolve(parseCSV(e.target.result));
+                        reader.readAsText(pjFile, 'UTF-8');
+                    });
+                    addLog(`Detectats ${pjData.length} mapatges de PJ.`);
+                }
+
+                const masterData = await readMaster;
+                addLog(`Detectats ${masterData.length} registres al mestre.`);
+
+                // Fusió de dades (PJ primer perquè tinguin prioritat si hi ha duplicats de clau)
+                // En aquest cas, simplement els concatenem i que el cloud els guardi tots
+                const finalData = [...pjData, ...masterData];
+                addLog(`Total a pujar: ${finalData.length} registres.`);
+
+                addLog("Enviant al núvol (Overwrite)...");
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify(finalData)
+                });
+
+                addLog("Dades enviades. Comprovant estat...", "success");
+                
+                // Esperem una mica i fem un GET per verificar
+                setTimeout(async () => {
+                    try {
+                        const check = await fetch(url);
+                        const result = await check.json();
+                        addLog(`Verificació completada. El núvol ara té ${result.length} registres.`, "success");
+                        addLog("PROCÉS FINALITZAT AMB ÈXIT.", "success");
+                    } catch(e) {
+                        addLog("No s'ha pogut verificar el recompte, però la pujada s'ha realitzat.", "success");
+                    }
+                    btnImport.disabled = false;
+                }, 2000);
+
+            } catch (err) {
+                addLog("Error: " + err.message, "error");
+                btnImport.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
