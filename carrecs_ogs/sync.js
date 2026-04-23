@@ -274,32 +274,34 @@ class DataSync {
                 if (onProgress) onProgress({ step: `Descarregant dades... (${count} registres)`, progress: 20 + Math.min(20, (count/300000)*20) });
             });
 
-            // 2b. Carregar Departaments (sexe-cpsh) per creuar (Nou)
-            if (onProgress) onProgress({ step: 'Descarregant noms de departaments...', progress: 45 });
-            const deptsRaw = await this.fetchOpenData('sexe-cpsh');
-            const deptLookup = new Map();
-            deptsRaw.forEach(d => {
-                const dept = d.departament;
-                if (!dept) return;
-
+            // 2b. Carregar Dades Extra (sexe-cpsh) per creuar: Departament i Partícip (Nou)
+            if (onProgress) onProgress({ step: 'Enriquint amb dades del Registre (sexe-cpsh)...', progress: 45 });
+            const sexeRaw = await this.fetchOpenData('sexe-cpsh');
+            const sexeLookup = new Map();
+            sexeRaw.forEach(d => {
                 const ensNameNorm = this.baseNorm(d.denominaci);
                 const membreNameNorm = this.baseNorm(d.denominaci_membre);
                 
+                const extraData = {
+                    dept: d.departament || null,
+                    partici: d.part_cip_o_organisme || null
+                };
+
                 // 1. Clau específica: Entitat + Membre
                 if (ensNameNorm && membreNameNorm) {
-                    deptLookup.set(`${ensNameNorm}|${membreNameNorm}`, dept);
+                    sexeLookup.set(`${ensNameNorm}|${membreNameNorm}`, extraData);
                 }
 
                 // 2. Clau de fallback: Número de Registre (Nivell d'Ens)
                 const reg = d.n_mero_de_registre || d.registre_del_sector_p_blic_n_mero;
                 if (reg) {
                     const normalizedReg = reg.toString().trim().replace(/^0+/, '');
-                    if (!deptLookup.has(normalizedReg)) {
-                        deptLookup.set(normalizedReg, dept);
+                    if (!sexeLookup.has(normalizedReg)) {
+                        sexeLookup.set(normalizedReg, extraData);
                     }
                 }
             });
-            console.log(`Detectats ${deptLookup.size} departaments per creuar.`);
+            console.log(`Detectades ${sexeLookup.size} entrades del Registre per enriquiment.`);
 
             // 3. Carregar SAC CSV (amb gestió d'errors millorada i suport per dades encastades)
             if (onProgress) onProgress({ step: 'Llegint mapatge SAC...', progress: 55 });
@@ -437,16 +439,21 @@ class DataSync {
                 const vPartici = p[kPartici] || "";
                 const vDesigna = p[kDesigna] || "";
 
-                // Cerca multinivell del departament (Refinat segons feedback usuari)
+                // Cerca multinivell de dades extra (Departament i Partícip)
                 const normEns = this.baseNorm(vEntitat);
                 const normMembre = this.baseNorm(vMembre);
                 const normCarrec = this.baseNorm(vCarrec);
                 const normalizedReg = vReg.toString().trim().replace(/^0+/, '');
 
-                const vDept = deptLookup.get(`${normEns}|${normMembre}`) || 
-                              deptLookup.get(`${normEns}|${normCarrec}`) || 
-                              deptLookup.get(normalizedReg) || 
-                              p[kDept] || "";
+                const extraData = sexeLookup.get(`${normEns}|${normMembre}`) || 
+                                  sexeLookup.get(`${normEns}|${normCarrec}`) || 
+                                  sexeLookup.get(normalizedReg);
+
+                const vDept = extraData ? (extraData.dept || p[kDept] || "") : (p[kDept] || "");
+                let vParticiFinal = vPartici;
+                if ((!vParticiFinal || vParticiFinal === "-" || vParticiFinal.trim() === "") && extraData && extraData.partici) {
+                    vParticiFinal = extraData.partici;
+                }
 
                 const key = this.getSmartKey(vEntitat, vMembre, vCarrec);
                 
@@ -459,7 +466,7 @@ class DataSync {
                     persona_cognoms: p.cognoms || "",
                     is_govern_superior: vOgs,
                     n_registre: vReg,
-                    part_cip_o_organisme: vPartici,
+                    part_cip_o_organisme: vParticiFinal,
                     rgan_que_designa: vDesigna,
                     codi_sac: "",
                     sac_nom_responsable: "",
