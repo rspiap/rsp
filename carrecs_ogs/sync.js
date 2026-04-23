@@ -419,6 +419,7 @@ class DataSync {
             const kReg = findKeyStrict(['registre'], ['n_mero_de_registre', 'registre_del_sector_p_blic_n_mero']);
             const kPartici = findKeyStrict(['participant', 'part_cip'], ['part_cip_o_organisme', 'part_cip_o_organisme_participant']);
             const kDesigna = findKeyStrict(['designa'], ['rgan_que_designa', 'organ_que_designa']);
+            const kNomenament = findKeyStrict(['tipus_de_nomenament'], ['tipus_de_nomenament']);
 
             console.log("🔍 Camps detectats a l'Open Data:", { kEntitat, kMembre, kCarrec, kDept });
             
@@ -468,6 +469,7 @@ class DataSync {
                     n_registre: vReg,
                     part_cip_o_organisme: vParticiFinal,
                     rgan_que_designa: vDesigna,
+                    tipus_nomenament: p[kNomenament] || "",
                     codi_sac: "",
                     sac_nom_responsable: "",
                     sac_unitat: "",
