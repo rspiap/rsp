@@ -34,18 +34,30 @@ async function updateCloudStatus(forceQuickSync = false) {
         }
     }
 
-    // Si estem al dashboard i hem detectat un canvi al núvol, refem el mapatge
+    // Si hem detectat un canvi al núvol (isNew), refem el mapatge i refresquem la vista
     if (hasNewData && typeof window.dataSync !== 'undefined' && allRecords.length > 0) {
-        console.log("Aplicant el nou mapatge de forma ràpida...");
+        console.log("☁️ Canvi detectat al núvol. Actualitzant mapatges automàticament...");
         const btnSync = document.getElementById('btnSync');
-        if (btnSync) btnSync.innerHTML = `<i data-lucide="refresh-cw" class="lucide-spin" style="width: 14px; margin-right: 4px;"></i> Actualitzant...`;
+        const originalContent = btnSync ? btnSync.innerHTML : '';
+        
+        if (btnSync) {
+            btnSync.innerHTML = `<i data-lucide="refresh-cw" class="lucide-spin" style="width: 14px; margin-right: 4px;"></i> Actualitzant...`;
+            if (window.lucide) lucide.createIcons();
+        }
 
-        await window.dataSync.quickSync(allRecords);
-        applyFilters(); // Redibuixa la taula
+        try {
+            await window.dataSync.quickSync(allRecords);
+            applyFilters(); // Redibuixa la taula amb els nous mapatges
+            console.log("✅ Taula actualitzada amb les dades del servidor.");
+        } catch (err) {
+            console.error("Error en l'auto-sincronització:", err);
+        }
 
         if (btnSync) {
-            btnSync.innerHTML = `<i data-lucide="refresh-cw" style="width: 14px; margin-right: 4px;"></i> Sincronitzar Dades`;
-            lucide.createIcons();
+            setTimeout(() => {
+                btnSync.innerHTML = originalContent;
+                if (window.lucide) lucide.createIcons();
+            }, 1000);
         }
     }
 }

@@ -1,4 +1,3 @@
-
 # Sistema de Gestió de Dades SAC (Sector Públic de Catalunya)
 
 Aquest projecte és una aplicació web "Local-First" dissenyada per gestionar, visualitzar i sincronitzar les dades del sector públic de Catalunya amb els codis d'informació del SAC (Algolia). Permet un control total sobre els mapatges entre els òrgans de govern i els seus responsables institucionals.
