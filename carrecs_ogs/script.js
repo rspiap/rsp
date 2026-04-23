@@ -1,5 +1,6 @@
 let onlyIncomplete = false;
 let onlyWithSac = false;
+let onlyVacant = false;
 let rowsShown = 100;
 const CHUNK_SIZE = 100;
 let isRendering = false; // Per evitar col·lisions en el scroll
@@ -133,6 +134,12 @@ function setupEventListeners() {
         applyFilters();
     });
 
+    document.getElementById('toggleVacant').addEventListener('click', (e) => {
+        onlyVacant = !onlyVacant;
+        e.currentTarget.classList.toggle('btn-primary', onlyVacant);
+        applyFilters();
+    });
+
     const btnSync = document.getElementById('btnSync');
     if (btnSync) {
         btnSync.addEventListener('click', () => handleSync());
@@ -232,25 +239,20 @@ function applyFilters() {
 
     filteredRecords = allRecords.filter(r => {
         // Seguretat contra nuls
-        const entitat = (r.entitat || "").toLowerCase();
-        const carrec = (r.carrec || "").toLowerCase();
-        const nomComplet = `${r.persona_nom || ""} ${r.persona_cognoms || ""}`.toLowerCase();
-        const codiSac = (r.codi_sac || "").toString().toLowerCase();
+        const searchableText = `${r.persona_nom || ''} ${r.persona_cognoms || ''} ${r.entitat || ''} ${r.carrec || ''} ${r.codi_sac || ''} ${r.qualificador || ''}`.toLowerCase();
         const sacNom = (r.sac_nom_responsable || "").toLowerCase();
 
-        const matchesSearch = !search ||
-            entitat.includes(search) ||
-            carrec.includes(search) ||
-            nomComplet.includes(search) ||
-            codiSac.includes(search) ||
-            sacNom.includes(search);
+        const matchesSearch = !search || 
+                             searchableText.includes(search) || 
+                             sacNom.includes(search);
 
         const matchesDept = !dept || r.sac_departament === dept;
         const matchesStatus = !status || r.status === status;
         const matchesGovern = !onlyIncomplete || (!r.is_govern_superior || r.is_govern_superior.trim() === "");
         const matchesSac = !onlyWithSac || (r.codi_sac && r.codi_sac.trim() !== "");
+        const matchesVacant = !onlyVacant || (r.qualificador || "").toLowerCase().includes("vacant");
 
-        return matchesSearch && matchesDept && matchesStatus && matchesGovern && matchesSac;
+        return matchesSearch && matchesDept && matchesStatus && matchesGovern && matchesSac && matchesVacant;
     });
 
     rowsShown = CHUNK_SIZE;
@@ -290,20 +292,36 @@ function renderTable(append = false) {
         const statusClass = r.status === 'Validat' ? 'badge-validat' : 'badge-pendent';
         const badgeHTML = showBadge ? `<span class="badge ${statusClass}">${r.status}</span>` : '';
 
-        // Persona: Lògica actual (comparació DO vs SAC) + Tipus de Nomenament
+        // Persona: Lògica actual (comparació DO vs SAC) + Tipus de Nomenament + P. Jurídica
         let personaHTML = '';
         const nomenamentHTML = r.tipus_nomenament ? `<div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; font-style: italic;">${r.tipus_nomenament}</div>` : '';
+        
+        let nomMostrar = `${r.persona_nom || ''} ${r.persona_cognoms || ''}`;
+        let socialHTML = '';
+
+        const qualNorm = (r.qualificador || "").toString().trim().toLowerCase();
+
+        if (r.qualificador === "P. Jurídica") {
+            nomMostrar = `${r.nom_rep || ''} ${r.cognoms_rep || ''}`;
+            if (r.denom_social) {
+                socialHTML = `<div style="font-size: 0.65rem; color: var(--primary); margin-top: 1px; font-weight: 600;">Representant de ${r.denom_social}</div>`;
+            }
+        } else if (qualNorm.includes("vacant")) {
+            nomMostrar = `<span style="color:var(--text-muted); font-style:italic;">Vacant</span>`;
+        }
 
         if (r.status === 'Validat' || !r.codi_sac) {
             personaHTML = `
                 <div class="person-cell">
-                    <div class="original-data">${r.persona_nom || ''} ${r.persona_cognoms || ''}</div>
+                    <div class="original-data">${nomMostrar}</div>
+                    ${socialHTML}
                     ${nomenamentHTML}
                 </div>`;
         } else {
             personaHTML = `
                 <div class="person-cell">
-                    <div class="original-data">${r.persona_nom || ''} ${r.persona_cognoms || ''}</div>
+                    <div class="original-data">${nomMostrar}</div>
+                    ${socialHTML}
                     ${nomenamentHTML}
                     <div style="margin-top:8px; padding-top:6px; border-top: 1px solid rgba(255,255,255,0.1);">
                         <small style="color:var(--secondary); font-size:0.75rem; display:block; margin-bottom:2px;">SAC</small>
