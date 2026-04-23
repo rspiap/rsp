@@ -290,17 +290,21 @@ function renderTable(append = false) {
         const statusClass = r.status === 'Validat' ? 'badge-validat' : 'badge-pendent';
         const badgeHTML = showBadge ? `<span class="badge ${statusClass}">${r.status}</span>` : '';
 
-        // Persona: Lògica actual (comparació DO vs SAC)
+        // Persona: Lògica actual (comparació DO vs SAC) + Tipus de Nomenament
         let personaHTML = '';
+        const nomenamentHTML = r.tipus_nomenament ? `<div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; font-style: italic;">${r.tipus_nomenament}</div>` : '';
+
         if (r.status === 'Validat' || !r.codi_sac) {
             personaHTML = `
                 <div class="person-cell">
                     <div class="original-data">${r.persona_nom || ''} ${r.persona_cognoms || ''}</div>
+                    ${nomenamentHTML}
                 </div>`;
         } else {
             personaHTML = `
                 <div class="person-cell">
                     <div class="original-data">${r.persona_nom || ''} ${r.persona_cognoms || ''}</div>
+                    ${nomenamentHTML}
                     <div style="margin-top:8px; padding-top:6px; border-top: 1px solid rgba(255,255,255,0.1);">
                         <small style="color:var(--secondary); font-size:0.75rem; display:block; margin-bottom:2px;">SAC</small>
                         <span class="sac-data">${r.sac_nom_responsable || '<span style="color:var(--error)">Dada no trobada al SAC</span>'}</span>
