@@ -330,12 +330,13 @@ function renderTable(append = false) {
             </div>
         `;
 
-        // Càrrec OGS: govern_superior | membre | participant | Nomenat per: rgan_que_designa
+        // Càrrec OGS: govern_superior | membre (participant) | Nomenat per: rgan_que_designa
         const ogsHTML = `
             <div style="font-size:0.85rem;">
                 <div style="font-weight:500;">${r.is_govern_superior || '-'}</div>
-                <div style="font-size:0.75rem; color:var(--text-muted);">${r.membre_tipus || '-'}</div>
-                <div style="font-size:0.75rem; color:var(--text-muted); font-style:italic;">${r.part_cip_o_organisme || '-'}</div>
+                <div style="font-size:0.75rem; color:var(--text-muted);">
+                    ${r.membre_tipus || '-'} <span style="font-style:italic; font-size:0.7rem;">(${r.part_cip_o_organisme || '-'})</span>
+                </div>
                 ${r.rgan_que_designa ? `<div style="font-size:0.7rem; color:var(--primary); margin-top:4px;">Nomenat per: ${r.rgan_que_designa}</div>` : ''}
             </div>
         `;
