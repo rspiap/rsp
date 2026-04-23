@@ -398,9 +398,9 @@ class DataSync {
             // Processament per lots per no penjar el navegador
             let matchedCount = 0;
             // Auto-descobriment estricte de columnes (prioritat exacta)
-            // Escanegem els primers 100 per si algun camp és opcional/buit al primer registre
+            // Escanegem els primers 1000 per si algun camp és opcional/buit al primer registre
             const fieldKeysSet = new Set();
-            persones.slice(0, 100).forEach(rec => Object.keys(rec).forEach(key => fieldKeysSet.add(key)));
+            persones.slice(0, 1000).forEach(rec => Object.keys(rec).forEach(key => fieldKeysSet.add(key)));
             const fieldKeys = Array.from(fieldKeysSet);
 
             const findKeyStrict = (keywords, exact) => {
@@ -408,7 +408,10 @@ class DataSync {
                 let found = fieldKeys.find(k => exact.includes(k));
                 if (found) return found;
                 // 2. Prioritat keyword (inclou el camp literal rgan_que_designa)
-                return fieldKeys.find(k => keywords.some(kw => k.toLowerCase().includes(kw)));
+                found = fieldKeys.find(k => keywords.some(kw => k.toLowerCase().includes(kw)));
+                if (found) return found;
+                // 3. Fallback per a camps poc freqüents que no apareixen als primers registres
+                return exact[0];
             };
             
             const kEntitat = findKeyStrict(['denominaci', 'entitat', 'ens'], ['denominaci', 'denominaci_de_l_ens_empresa_entitat_o_organisme_p_blic']);
@@ -420,6 +423,10 @@ class DataSync {
             const kPartici = findKeyStrict(['participant', 'part_cip'], ['part_cip_o_organisme', 'part_cip_o_organisme_participant']);
             const kDesigna = findKeyStrict(['designa'], ['rgan_que_designa', 'organ_que_designa']);
             const kNomenament = findKeyStrict(['tipus_de_nomenament'], ['tipus_de_nomenament']);
+            const kQualificador = findKeyStrict(['qualificador'], ['qualificador_de_persona_f_sica_jur_dica_o_vacant']);
+            const kNomRep = findKeyStrict(['nom_representant'], ['nom_representant_p_jur_dica']);
+            const kCognomRep = findKeyStrict(['cognoms_representant'], ['cognoms_representant_p_jur_dica']);
+            const kDenomSocial = findKeyStrict(['denominaci_social'], ['denominaci_social']);
 
             console.log("🔍 Camps detectats a l'Open Data:", { kEntitat, kMembre, kCarrec, kDept });
             
@@ -470,6 +477,10 @@ class DataSync {
                     part_cip_o_organisme: vParticiFinal,
                     rgan_que_designa: vDesigna,
                     tipus_nomenament: p[kNomenament] || "",
+                    qualificador: p[kQualificador] || "",
+                    nom_rep: p[kNomRep] || "",
+                    cognoms_rep: p[kCognomRep] || "",
+                    denom_social: p[kDenomSocial] || "",
                     codi_sac: "",
                     sac_nom_responsable: "",
                     sac_unitat: "",
