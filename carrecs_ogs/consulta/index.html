@@ -4,18 +4,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Consulta Sector Públic (Modular)</title>
+    <title>Dashboard Sector Públic (Modular)</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <script src="js/lucide.min.js"></script>
     <script>
+        // Captura d'errors per depuració
         window.onerror = function (msg, url, lineNo, columnNo, error) {
             const debugDiv = document.createElement('div');
-            debugDiv.style.position = 'fixed'; debugDiv.style.bottom = '0'; debugDiv.style.left = '0';
-            debugDiv.style.width = '100%'; debugDiv.style.background = '#ef4444'; debugDiv.style.color = 'white';
-            debugDiv.style.padding = '1rem'; debugDiv.style.zIndex = '9999'; debugDiv.style.fontSize = '0.8rem';
+            debugDiv.style.position = 'fixed';
+            debugDiv.style.bottom = '0';
+            debugDiv.style.left = '0';
+            debugDiv.style.width = '100%';
+            debugDiv.style.background = '#ef4444';
+            debugDiv.style.color = 'white';
+            debugDiv.style.padding = '1rem';
+            debugDiv.style.zIndex = '9999';
+            debugDiv.style.fontSize = '0.8rem';
             debugDiv.textContent = 'Error: ' + msg + ' (' + url + ':' + lineNo + ')';
             document.body.appendChild(debugDiv);
             return false;
@@ -30,21 +37,27 @@
             <div style="display: flex; justify-content: space-between; align-items: flex-end; width: 100%;">
                 <p class="subtitle">
                     Òrgans de Govern Superior
+                    <span id="cloudStatus" class="badge-pendent" style="display: none;"></span>
                 </p>
-                <div style="margin-top: 1rem;">
+                <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
                     <button id="btnSync" class="btn">
                         <i data-lucide="refresh-cw" style="width: 16px; margin-right: 8px;"></i>
-                        Actualitzar
+                        Actualitzar Dades
                     </button>
+                    <a href="editor.html" class="btn-secondary">
+                        <i data-lucide="pencil" style="width: 16px; margin-right: 8px;"></i>
+                        Gestionar Mapatge
+                    </a>
                 </div>
             </div>
         </header>
 
         <section class="controls glass">
+            <!-- Fila Superior: Cerca i Filtres Principals -->
             <div class="controls-row">
                 <div class="search-box">
                     <i data-lucide="search" class="search-icon"></i>
-                    <input type="text" id="globalSearch" placeholder="Cerca...">
+                    <input type="text" id="globalSearch" placeholder="Cerca per persona, entitat o càrrec...">
                 </div>
                 <div class="filter-group">
                     <select id="filterDepartament">
@@ -58,21 +71,45 @@
                     </select>
                 </div>
             </div>
+
+            <!-- Fila Inferior: Toggles i Accions -->
             <div class="controls-row wrap">
-                <button id="toggleSac" class="btn">Només amb codi SAC</button>
-                <button id="toggleGovern" class="btn">Sense càrrec informat</button>
-                <button id="toggleVacant" class="btn">Vacants</button>
+                <button id="toggleSac" class="btn">
+                    <i data-lucide="link" style="width: 16px; margin-right: 4px;"></i>
+                    Només amb codi SAC
+                </button>
+                <button id="toggleGovern" class="btn">
+                    <i data-lucide="alert-circle" style="width: 16px; margin-right: 4px;"></i>
+                    Sense càrrec informat
+                </button>
+                <button id="toggleVacant" class="btn">
+                    <i data-lucide="user-minus" style="width: 16px; margin-right: 4px;"></i>
+                    Vacants
+                </button>
+
                 <div class="multiselect-container">
-                    <button id="btnNomenaments" class="btn">Tipus Nomenament</button>
+                    <button id="btnNomenaments" class="btn">
+                        <i data-lucide="list-checks" style="width: 16px; margin-right: 4px;"></i>
+                        Tipus Nomenament
+                    </button>
                     <div id="dropdownNomenaments" class="multiselect-dropdown">
                         <div class="multiselect-list" id="listNomenaments">
                             <div style="padding: 1rem; text-align: center; color: var(--text-muted);">Carregant...</div>
                         </div>
                     </div>
                 </div>
-                <div style="flex: 1;"></div>
-                <button id="btnExportCSV" class="btn btn-secondary">Exportar CSV</button>
-                <button id="btnResetFilters" class="btn btn-secondary">Netejar Filtres</button>
+
+                <div style="flex: 1;"></div> <!-- Espaiador -->
+
+                <button id="btnExportCSV" class="btn btn-secondary" title="Exportar dades filtrades a CSV">
+                    <i data-lucide="download" style="width: 16px; margin-right: 4px;"></i>
+                    Exportar CSV
+                </button>
+
+                <button id="btnResetFilters" class="btn btn-secondary" title="Netejar tots els filtres">
+                    <i data-lucide="filter-x" style="width: 16px; margin-right: 4px;"></i>
+                    Netejar Filtres
+                </button>
             </div>
         </section>
 
@@ -84,11 +121,16 @@
                             <th style="width: 100px; text-align: center;">SAC</th>
                             <th style="width: 250px;">Càrrec</th>
                             <th style="width: 280px;">Entitat</th>
-                            <th style="width: 250px;">Òrgan Govern</th>
+                            <th style="width: 250px;">Òrgan / Membre</th>
                             <th>Persona / Estat</th>
                         </tr>
                     </thead>
-                    <tbody id="tableBody"></tbody>
+                    <tbody id="tableBody">
+                        <tr>
+                            <td colspan="7" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                                Carregant dades...</td>
+                        </tr>
+                    </tbody>
                 </table>
             </div>
         </main>
@@ -99,15 +141,57 @@
         <div class="modal-content glass">
             <h2>Sincronitzant Dades</h2>
             <p id="syncStep">Iniciant procés...</p>
+
+            <div id="csvFallback"
+                style="display: none; margin: 1.5rem 0; padding: 1rem; border: 1px dashed #eab308; border-radius: 0.5rem; background: rgba(234, 179, 8, 0.05);">
+                <p style="font-size: 0.85rem; color: #eab308; margin-bottom: 0.5rem;">⚠️ No s'ha pogut carregar sac.csv
+                    automàticament.</p>
+                <p style="font-size: 0.8rem; margin-bottom: 1rem;">Selecciona el fitxer <strong>sac.csv</strong> de la
+                    carpeta del projecte:</p>
+                <input type="file" id="sacFileInput" accept=".csv" style="font-size: 0.8rem;">
+            </div>
+
             <div class="progress-container">
                 <div id="syncProgressBar" class="progress-bar" style="width: 0%;"></div>
             </div>
             <p id="syncDetail" style="font-size: 0.8rem; color: #94a3b8; margin-top: 1rem;">Això pot trigar un minut
                 segons la teva connexió.</p>
+            <div id="modalControls" style="display: none; margin-top: 1.5rem;">
+                <button id="btnCancelSync" class="btn" style="padding: 0.5rem 1rem;">Tancar</button>
+            </div>
         </div>
     </div>
 
-    <script type="module" src="js/consulta.js"></script>
+    <div id="editMappingModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass" style="max-width: 600px;">
+            <h2>Editar Mapatge SAC</h2>
+            <form id="editMappingForm" style="display: flex; flex-direction: column; gap: 1rem; text-align: left;">
+                <input type="hidden" id="editMappingIndex">
+                <div class="form-group">
+                    <label>Entitat</label>
+                    <input type="text" id="editFieldEntitat" readonly class="input-readonly">
+                </div>
+                <div class="form-group">
+                    <label>Membre</label>
+                    <input type="text" id="editFieldMembre" readonly class="input-readonly">
+                </div>
+                <div class="form-group">
+                    <label>Càrrec</label>
+                    <input type="text" id="editFieldCarrec" readonly class="input-readonly">
+                </div>
+                <div class="form-group">
+                    <label style="color: var(--primary); font-weight: 600;">Nou Codi SAC</label>
+                    <input type="text" id="editFieldCodi" placeholder="Codi SAC" required>
+                </div>
+                <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+                    <button type="button" onclick="closeQuickEdit()" class="btn">Cancel·lar</button>
+                    <button type="submit" class="btn btn-primary" style="flex: 2;">Guardar Mapatge</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script type="module" src="js/dashboard.js"></script>
 </body>
 
 </html>
