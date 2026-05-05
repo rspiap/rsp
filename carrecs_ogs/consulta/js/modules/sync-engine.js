@@ -136,8 +136,11 @@ export class SyncEngine {
         const finalRecords = [];
         const total = persones.length;
 
-        // Detecció dinàmica de columnes (més robust)
-        const fieldKeys = Object.keys(persones[0] || {});
+        // Detecció dinàmica de columnes (més robust: escaneja els primers 1000 registres)
+        const fieldKeysSet = new Set();
+        persones.slice(0, 1000).forEach(rec => Object.keys(rec).forEach(key => fieldKeysSet.add(key)));
+        const fieldKeys = Array.from(fieldKeysSet);
+        
         const findK = (keys) => fieldKeys.find(k => keys.some(kw => k.toLowerCase().includes(kw))) || keys[0];
 
         const k = {
@@ -150,9 +153,9 @@ export class SyncEngine {
             partici: findK(['participant', 'part_cip']),
             designa: findK(['designa']),
             nomenament: findK(['tipus_de_nomenament']),
-            qualificador: findK(['qualificador']),
-            nomRep: findK(['nom_representant']),
-            cognomRep: findK(['cognoms_representant']),
+            qualificador: findK(['qualificador_de_persona_f_sica_jur_dica_o_vacant', 'qualificador']),
+            nomRep: findK(['nom_representant_p_jur_dica', 'nom_representant']),
+            cognomRep: findK(['cognoms_representant_p_jur_dica', 'cognoms_representant']),
             social: findK(['denominaci_social'])
         };
 
@@ -210,8 +213,14 @@ export class SyncEngine {
 
                     const n1 = baseNormPersona(`${record.persona_nom} ${record.persona_cognoms}`);
                     const n2 = baseNormPersona(record.sac_nom_responsable);
-                    if (n1 === n2 && n1 !== "") record.status = "Validat";
+                    
+                    // Validació robusta: si coincideix el nom, és Validat.
+                    if (n1 === n2 && n1 !== "") {
+                        record.status = "Validat";
+                    }
                 }
+            } else {
+                record.status = "No vinculat";
             }
 
             finalRecords.push(record);
@@ -245,7 +254,7 @@ export class SyncEngine {
             const n2 = baseNormPersona(nomSAC);
             if (n1 === n2 && n1 !== "") status = "Validat";
         } else if (!codi) {
-            status = "";
+            status = "No vinculat";
         }
 
         const updated = { ...record, ...sacFields, status };

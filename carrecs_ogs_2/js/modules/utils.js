@@ -21,14 +21,10 @@ export function baseNormPersona(raw) {
     let s = raw.toString().toLowerCase()
         .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     
-    // Eliminem el " i " en la comparació
+    // Eliminem el " i " en la comparació de noms de persones
     s = s.replace(/\bi\b/g, " ");
     
-    // Separem per qualsevol caràcter no alfanumèric, filtrem buits, ordenem i unim
-    return s.split(/[^a-z0-9]+/)
-        .filter(word => word.length > 0)
-        .sort()
-        .join("");
+    return s.replace(/[^a-z0-9]/g, "").trim();
 }
 
 /**

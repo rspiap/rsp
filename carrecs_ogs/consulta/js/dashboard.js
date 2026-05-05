@@ -1,458 +1,310 @@
 /**
- * dashboard.js - Controlador de la interfície principal
+ * dashboard.js - Controlador 5 Nivells (SAC -> Càrrec -> Entitat -> OGS -> Persona)
  */
-console.log("[JS] Dashboard carregat correctament.");
-
 import { CONFIG } from './modules/config.js';
 import { db } from './modules/db.js';
 import { syncEngine } from './modules/sync-engine.js';
 import { CloudService } from './modules/cloud.js';
 
-// Estats de l'aplicació
 let allRecords = [];
 let filteredRecords = [];
-let rowsShown = CONFIG.SYNC.CHUNK_SIZE;
-let isRendering = false;
+let rowsShown = 15;
+let filters = { search: "", dept: "", status: "", nomenaments: [], onlySac: false, onlyGovern: false, onlyVacant: false };
 
-// Filtres
-let filters = {
-    search: "",
-    dept: "",
-    status: "",
-    nomenaments: [],
-    onlySac: false,
-    onlyGovern: false,
-    onlyVacant: false
-};
-
-/**
- * Inicialització
- */
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log("[Dashboard] Inicialitzant...");
-    initUI();
-    setupEventListeners(); 
-    console.log("[Dashboard] Botons activats.");
+    setupEventListeners();
     await loadInitialData();
 });
-
-function initUI() {
-    if (window.lucide) lucide.createIcons();
-}
 
 async function loadInitialData() {
     try {
         let data = await db.getAll(CONFIG.DB.STORES.RECORDS);
         if (data && data.length > 0) {
             allRecords = data;
-            populateDepartaments();
-            populateNomenaments();
-            applyFilters();
-            checkCloudUpdates();
-        } else {
-            handleSync();
-        }
-    } catch (error) {
-        console.error("Error loading initial data:", error);
-    }
+            populateDepartaments(); populateNomenaments(); applyFilters(); checkCloudUpdates();
+        } else { handleSync(); }
+    } catch (e) { console.error(e); }
 }
 
-/**
- * Gestió de Sincronització
- */
 async function handleSync(manualCsvText = null) {
     const modal = document.getElementById('syncModal');
     const stepText = document.getElementById('syncStep');
     const progressBar = document.getElementById('syncProgressBar');
     const btnSync = document.getElementById('btnSync');
-    const csvFallback = document.getElementById('csvFallback');
-    const modalControls = document.getElementById('modalControls');
-    const icon = btnSync ? btnSync.querySelector('i') : null;
-
     try {
         if (btnSync) btnSync.disabled = true;
-        if (icon) icon.classList.add('lucide-spin');
-        
         modal.style.display = 'flex';
-        if (csvFallback) csvFallback.style.display = 'none';
-        if (modalControls) modalControls.style.display = 'none';
-        stepText.style.color = 'white';
-        stepText.textContent = "Iniciant procés...";
-        progressBar.style.width = '0%';
-
         const data = await syncEngine.runFullSync(manualCsvText, (info) => {
             if (info.step) stepText.textContent = info.step;
             if (info.progress) progressBar.style.width = `${info.progress}%`;
         });
-
         allRecords = data;
-        populateDepartaments();
-        populateNomenaments();
-        applyFilters();
-
-        setTimeout(() => {
-            modal.style.display = 'none';
-            if (btnSync) btnSync.disabled = false;
-            if (icon) icon.classList.remove('lucide-spin');
-        }, 400);
-
-    } catch (error) {
-        console.error("Sync failed:", error);
-        stepText.textContent = "Error: " + error.message;
-        stepText.style.color = '#ef4444';
-        if (btnSync) btnSync.disabled = false;
-        if (icon) icon.classList.remove('lucide-spin');
-        if (modalControls) modalControls.style.display = 'block';
-    }
+        populateDepartaments(); populateNomenaments(); applyFilters();
+        setTimeout(() => { modal.style.display = 'none'; if (btnSync) btnSync.disabled = false; }, 400);
+    } catch (e) { if (btnSync) btnSync.disabled = false; }
 }
 
 async function checkCloudUpdates() {
     const statusEl = document.getElementById('cloudStatus');
     try {
         const result = await CloudService.loadData();
-        if (result) {
+        if (result && statusEl) {
             statusEl.textContent = result.isNew ? 'Núvol Actualitzat' : 'Núvol Sincronitzat';
             statusEl.className = 'badge-validat';
             statusEl.style.display = 'inline-block';
-            if (result.isNew) handleSync(); 
+            if (result.isNew) handleSync();
         }
-    } catch (e) {
-        if (statusEl) {
-            statusEl.textContent = 'Mode Offline';
-            statusEl.className = 'badge-pendent';
-        }
-    }
+    } catch (e) { }
 }
 
-/**
- * Filtres i Renderització
- */
 function applyFilters() {
     filters.search = (document.getElementById('globalSearch').value || "").toLowerCase().trim();
     filters.dept = document.getElementById('filterDepartament').value;
     filters.status = document.getElementById('filterStatus').value;
 
     filteredRecords = allRecords.filter(r => {
-        const searchableText = `${r.persona_nom || ''} ${r.persona_cognoms || ''} ${r.entitat || ''} ${r.carrec || ''} ${r.codi_sac || ''} ${r.qualificador || ''}`.toLowerCase();
-        const sacNom = (r.sac_nom_responsable || "").toLowerCase();
-        const matchesSearch = !filters.search || searchableText.includes(filters.search) || sacNom.includes(filters.search);
-        
+        const searchableText = `${r.persona_nom || ''} ${r.persona_cognoms || ''} ${r.entitat || ''} ${r.carrec || ''} ${r.codi_sac || ''}`.toLowerCase();
+        const matchesSearch = !filters.search || searchableText.includes(filters.search);
         const valDept = r.sac_departament || r.departament || "Sense departament";
         const matchesDept = !filters.dept || valDept === filters.dept;
-        
-        const matchesStatus = !filters.status || r.status === filters.status;
+        let matchesStatus = true;
+        if (filters.status) {
+            if (filters.status === 'No aplica') {
+                matchesStatus = (r.status !== 'Validat' && r.status !== 'Pendent');
+            } else {
+                matchesStatus = (r.status === filters.status);
+            }
+        }
         const matchesNomenament = filters.nomenaments.length === 0 || filters.nomenaments.includes(r.tipus_nomenament);
         const matchesSac = !filters.onlySac || (r.codi_sac && r.codi_sac.trim() !== "");
         const matchesGovern = !filters.onlyGovern || (!r.is_govern_superior || r.is_govern_superior.trim() === "");
         const matchesVacant = !filters.onlyVacant || (r.qualificador || "").toLowerCase().includes("vacant");
-
         return matchesSearch && matchesDept && matchesStatus && matchesNomenament && matchesSac && matchesGovern && matchesVacant;
     });
 
-    rowsShown = CONFIG.SYNC.CHUNK_SIZE;
+    // Ordenar per SAC -> Càrrec -> Entitat -> OGS
+    filteredRecords.sort((a, b) => {
+        const sA = String(a.codi_sac || "ZZZZ");
+        const sB = String(b.codi_sac || "ZZZZ");
+        if (sA !== sB) return sA.localeCompare(sB);
+        const cA = String(a.carrec || "");
+        const cB = String(b.carrec || "");
+        if (cA !== cB) return cA.localeCompare(cB);
+        const eA = String(a.entitat || "");
+        const eB = String(b.entitat || "");
+        if (eA !== eB) return eA.localeCompare(eB);
+        return String(a.is_govern_superior || "").localeCompare(String(b.is_govern_superior || ""));
+    });
+
+    rowsShown = 15;
     window.scrollTo(0, 0);
     renderTable();
 }
 
-function resetFilters() {
-    filters = {
-        search: "",
-        dept: "",
-        status: "",
-        nomenaments: [],
-        onlySac: false,
-        onlyGovern: false,
-        onlyVacant: false
-    };
+function groupRecords5Levels(records) {
+    const sacGroups = [];
+    const sacMap = new Map();
 
-    document.getElementById('globalSearch').value = "";
-    document.getElementById('filterDepartament').value = "";
-    document.getElementById('filterStatus').value = "";
-    document.getElementById('toggleSac').classList.remove('btn-primary');
-    const btnGov = document.getElementById('toggleGovern'); if (btnGov) btnGov.classList.remove('btn-primary');
-    const btnVac = document.getElementById('toggleVacant'); if (btnVac) btnVac.classList.remove('btn-primary');
-    
-    updateNomenamentsUI();
-    populateNomenaments();
-    applyFilters();
-}
+    records.forEach((r, index) => {
+        // REGLA: "El buit no agrupa". Cada valor buit és únic per definició.
 
-function exportToCSV() {
-    if (filteredRecords.length === 0) {
-        alert("No hi ha dades per exportar");
-        return;
-    }
+        // 1. SAC Key
+        const sValue = r.codi_sac;
+        const sKey = sValue && sValue.trim() !== "" ? sValue : `EMPTY_SAC_${index}`;
 
-    const headers = ["Codi SAC", "Persona Nom", "Persona Cognoms", "Carrec", "Departament", "Entitat", "N. Registre", "Òrgan Govern Superior", "Tipus Membre", "Particip/Organisme", "Tipus Nomenament", "Estat", "Qualificador"];
-    
-    let csvContent = "\ufeff"; // BOM per a Excel (UTF-8)
-    csvContent += headers.join(";") + "\n";
-    
-    filteredRecords.forEach(r => {
-        const valDept = r.sac_departament || r.departament || "";
-        const row = [
-            r.codi_sac || "",
-            r.persona_nom || "",
-            r.persona_cognoms || "",
-            r.carrec || "",
-            valDept,
-            r.entitat || "",
-            r.n_registre || "",
-            r.is_govern_superior || "",
-            r.membre_tipus || "",
-            r.part_cip_o_organisme || "",
-            r.tipus_nomenament || "",
-            r.status || "",
-            r.qualificador || ""
-        ];
+        if (!sacMap.has(sKey)) {
+            const sg = { sac: sValue || '', carrecGroups: [] };
+            sacGroups.push(sg); sacMap.set(sKey, sg);
+        }
+        const sacGroup = sacMap.get(sKey);
 
-        const escapedRow = row.map(val => {
-            let str = String(val).replace(/"/g, '""');
-            if (str.includes(";") || str.includes("\n") || str.includes('"')) {
-                str = `"${str}"`;
-            }
-            return str;
-        });
-        csvContent += escapedRow.join(";") + "\n";
+        // 2. CÀRREC Key
+        const cValue = r.carrec;
+        const cKey = cValue && cValue.trim() !== "" ? `${cValue}|${r.sac_carrec || ''}|${r.sac_unitat || ''}` : `EMPTY_CARREC_${index}`;
+
+        let cg = sacGroup.carrecGroups.find(c => c.id === cKey);
+        if (!cg) {
+            cg = { id: cKey, name: cValue || '', entities: [] };
+            sacGroup.carrecGroups.push(cg);
+        }
+
+        // 3. ENTITAT Key
+        const eValue = r.entitat;
+        const eKey = eValue && eValue.trim() !== "" ? `${eValue}|${r.n_registre || ''}` : `EMPTY_ENT_${index}`;
+
+        let eg = cg.entities.find(e => e.id === eKey);
+        if (!eg) {
+            eg = { id: eKey, name: eValue || '', reg: r.n_registre, ogs: [] };
+            cg.entities.push(eg);
+        }
+
+        // 4. ÒRGAN Key
+        const oValue = r.is_govern_superior;
+        const oKey = oValue && oValue.trim() !== "" ? `${oValue}|${r.departament || ''}|${r.part_cip_o_organisme || ''}` : `EMPTY_OGS_${index}`;
+
+        let og = eg.ogs.find(o => o.id === oKey);
+        if (!og) {
+            og = { id: oKey, name: oValue || '', type: r.membre_tipus, persons: [] };
+            eg.ogs.push(og);
+        }
+        og.persons.push(r);
     });
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    const date = new Date().toISOString().slice(0,10);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `export_sector_public_${date}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    return sacGroups;
 }
 
 function renderTable(append = false) {
     const tbody = document.getElementById('tableBody');
     if (!append) tbody.innerHTML = '';
-    const start = append ? rowsShown - CONFIG.SYNC.CHUNK_SIZE : 0;
-    const end = Math.min(rowsShown, filteredRecords.length);
-    const chunk = filteredRecords.slice(start, end);
 
-    if (chunk.length === 0 && !append) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 3rem;">No s\'han trobat resultats</td></tr>';
+    const tree = groupRecords5Levels(filteredRecords);
+    const slice = tree.slice(append ? tbody.children.length : 0, rowsShown);
+
+    if (slice.length === 0 && !append) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 3rem;">No s\'han trobat resultats</td></tr>';
         return;
     }
 
-    chunk.forEach(r => {
+    slice.forEach(sg => {
         const tr = document.createElement('tr');
-        tr.innerHTML = generateRowHTML(r);
+        tr.className = 'modular-row';
+
+        let html = `<td class="level-1"><span class="parent-sac-badge">${sg.sac || '---'}</span></td>`;
+        html += `<td colspan="4" style="padding:0;"><div class="level-2-container" style="height:100%; display:flex; flex-direction:column;">`;
+
+        sg.carrecGroups.forEach(cg => {
+            const first = cg.entities[0].ogs[0].persons[0];
+            let sacHTML = '';
+            if (first.sac_carrec) {
+                sacHTML = `<div style="margin-top:8px;"><div style="font-size:0.6rem; color:var(--primary); font-weight:700;">(SAC:)</div><div style="font-size:0.75rem; color:#fff; opacity:0.9; line-height:1.2;">${first.sac_carrec.toLowerCase()}</div><div style="font-size:0.65rem; color:var(--text-muted); opacity:0.7; margin-top:2px;">${first.sac_unitat || ''} | ${first.sac_departament || ''}</div></div>`;
+            }
+
+            html += `<div class="level-2-row" style="flex:1; display:flex;"><div class="level-2-cell"><div class="carrec-text" style="font-weight:700;">${cg.name}</div>${sacHTML}</div>`;
+            html += `<div class="level-3-container" style="flex:1; display:flex; flex-direction:column;">`;
+
+            cg.entities.forEach(ent => {
+                html += `<div class="level-3-row" style="flex:1; display:flex;"><div class="level-3-cell"><div style="font-weight:700; font-size:0.85rem; color:#fff;">${ent.name}</div><div style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">Reg: ${ent.reg || '-'}</div></div>`;
+                html += `<div class="level-4-container" style="flex:1; display:flex; flex-direction:column;">`;
+
+                ent.ogs.forEach(og => {
+                    const p = og.persons[0];
+                    html += `<div class="level-4-row" style="flex:1; display:flex;"><div class="level-4-cell"><div style="font-weight:600; font-size:0.85rem; color:var(--text-main);">${og.name}</div><div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">${p.departament || ''} (-)</div><div style="margin-top:8px; font-size:0.65rem; color:var(--text-muted); border-top:1px solid rgba(255,255,255,0.05); padding-top:4px;">${p.part_cip_o_organisme || ''}</div></div>`;
+                    html += `<div class="level-5-container" style="flex:1; display:flex; flex-direction:column;">`;
+
+                    og.persons.forEach(p => {
+                        let statusBadge = '';
+                        if (p.status === 'Validat') statusBadge = '<span class="badge badge-validat">Validat</span>';
+                        else if (p.status === 'Pendent') statusBadge = '<span class="badge badge-pendent">Pendent</span>';
+                        else statusBadge = '<span class="badge badge-no-aplica">No aplica</span>';
+                        let personaFisica = `${p.persona_nom || ''} ${p.persona_cognoms || ''}`.trim();
+                        let repNom = `${p.nom_rep || ''} ${p.cognoms_rep || ''}`.trim();
+                        let entitatJuridica = p.denom_social || "";
+                        
+                        // Lògica Persona Jurídica (Amb els camps confirmats)
+                        const isJuridica = (p.qualificador || "").toLowerCase().includes("jur") || (p.membre_tipus || "").toLowerCase().includes("jur");
+                        
+                        let nomHTML = "";
+                        if (isJuridica) {
+                            // Si és jurídica, el representant és el principal i l'entitat va a sota
+                            const nomPrincipal = repNom || personaFisica || "Representant pendent";
+                            const nomEntitat = entitatJuridica || "Entitat Jurídica";
+                            
+                            nomHTML = `<div style="font-size:0.95rem; font-weight:700; color:#fff;">${nomPrincipal}</div>
+                                       <div style="font-size:0.75rem; color:#5c7cfa; font-weight:500; margin-top:3px;">Representant de ${nomEntitat}</div>`;
+                        } else if ((p.qualificador || "").toLowerCase().includes("vacant")) {
+                            nomHTML = `<div style="color:var(--text-muted); font-style:italic; opacity:0.7;">(Vacant)</div>`;
+                        } else {
+                            nomHTML = `<div style="font-size:0.95rem; font-weight:700; color:#fff;">${personaFisica || 'Sense nom'}</div>`;
+                        }
+                        
+                        let sacInfoHTML = '';
+                        if (p.codi_sac && p.sac_nom_responsable && p.status !== 'Validat') {
+                            sacInfoHTML = `<div style="margin-top: 8px; padding: 6px 10px; background: rgba(255, 107, 107, 0.05); border-radius: 6px; border-left: 2px solid #ff6b6b;"><div style="font-size: 0.55rem; text-transform: uppercase; color: #ff6b6b; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 2px;">Ref. SAC:</div><div style="font-size: 0.85rem; color: #ff9e9e; font-weight: 600;">${p.sac_nom_responsable}</div></div>`;
+                        }
+                        html += `<div class="level-5-row" style="flex:1; display:flex;"><div class="level-5-cell"><div style="font-size:0.9rem; font-weight:600;">${nomHTML}</div><div style="font-size:0.7rem; color:var(--text-muted); font-style:italic; margin-top:2px;">${p.tipus_nomenament || ''}</div>${sacInfoHTML}</div><div class="level-5-cell" style="width:100px; text-align:center; flex:none;">${statusBadge}</div><div class="level-5-cell" style="width:45px; text-align:center; flex:none;"><button class="btn-quick-edit" onclick="openQuickEdit('${p.id}')"><i data-lucide="pencil" style="width:14px;"></i></button></div></div>`;
+                    });
+                    html += `</div></div>`;
+                });
+                html += `</div></div>`;
+            });
+            html += `</div></div>`;
+        });
+        html += `</div></td>`;
+        tr.innerHTML = html;
         tbody.appendChild(tr);
     });
     if (window.lucide) lucide.createIcons();
 }
 
-function generateRowHTML(r) {
-    const statusClass = r.status === 'Validat' ? 'badge-validat' : 'badge-pendent';
-    const badgeHTML = r.status ? `<span class="badge ${statusClass}">${r.status}</span>` : '';
-    
-    let nomMostrar = `${r.persona_nom || ''} ${r.persona_cognoms || ''}`;
-    let socialHTML = '';
-    const nomenamentHTML = r.tipus_nomenament ? `<div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; font-style: italic;">${r.tipus_nomenament}</div>` : '';
-    const qualNorm = (r.qualificador || "").toString().trim().toLowerCase();
 
-    if (r.qualificador === "P. Jurídica") {
-        nomMostrar = `${r.nom_rep || ''} ${r.cognoms_rep || ''}`;
-        if (r.denom_social) socialHTML = `<div style="font-size: 0.65rem; color: var(--primary); margin-top: 1px; font-weight: 600;">Representant de ${r.denom_social}</div>`;
-    } else if (qualNorm.includes("vacant")) {
-        nomMostrar = `<span style="color:var(--text-muted); font-style:italic;">Vacant</span>`;
-    }
-
-    let personaHTML = `
-        <div class="person-cell">
-            <div class="original-data">${nomMostrar}</div>
-            ${socialHTML}
-            ${nomenamentHTML}
-            ${(r.status && r.status !== 'Validat' && r.sac_nom_responsable) ? `
-                <div style="margin-top:8px; padding-top:6px; border-top: 1px solid rgba(255,255,255,0.1);">
-                    <small style="color:var(--secondary); font-size:0.75rem; display:block; margin-bottom:2px;">SAC</small>
-                    <span class="sac-data">${r.sac_nom_responsable}</span>
-                </div>` : ''}
-        </div>`;
-
-    const carrecHTML = `
-        <div>
-            <div style="font-weight:600;">${r.carrec || '-'}</div>
-            ${r.sac_carrec ? `
-            <div style="margin-top:6px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.05);">
-                <small style="color:var(--secondary); font-size:0.7rem; display:block;">(SAC:)</small>
-                <div style="font-size:0.8rem;">${r.sac_carrec}</div>
-                <div style="font-size:0.75rem; color:var(--text-muted);">${r.sac_unitat || ''} | ${r.sac_departament || ''}</div>
-            </div>` : ''}
-        </div>`;
-
-    const entitatHTML = `
-        <div>
-            <div style="font-weight:600;">${r.entitat}</div>
-            <div style="font-size:0.75rem; color:var(--text-muted);">Reg: ${r.n_registre || '-'}</div>
-        </div>`;
-
-    const ogsHTML = `
-        <div style="font-size:0.85rem;">
-            <div style="font-weight:500;">${r.is_govern_superior || '-'}</div>
-            <div style="font-size:0.75rem; color:var(--text-muted);">
-                ${r.membre_tipus || '-'} <span style="font-size:0.7rem;">(${r.part_cip_o_organisme || '-'})</span>
-            </div>
-            ${r.rgan_que_designa ? `<div style="font-size:0.7rem; color:var(--primary); margin-top:4px;">Nomenat per: ${r.rgan_que_designa}</div>` : ''}
-            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.05);">
-                ${r.departament || '-'}
-            </div>
-        </div>`;
-
-    return `
-        <td><span class="sac-code">${r.codi_sac || '-'}</span></td>
-        <td>${carrecHTML}</td>
-        <td>${personaHTML}</td>
-        <td>${entitatHTML}</td>
-        <td>${ogsHTML}</td>
-        <td>${badgeHTML}</td>
-        <td style="text-align: center;">
-            <button class="btn-quick-edit" onclick="openQuickEdit('${r.id}')">
-                <i data-lucide="pencil" style="width: 14px;"></i>
-            </button>
-        </td>
-    `;
-}
-
-function populateDepartaments() {
-    if (!allRecords || allRecords.length === 0) return;
-    const deptsSet = new Set();
-    for (let i = 0; i < allRecords.length; i++) {
-        const r = allRecords[i];
-        deptsSet.add(r.sac_departament || r.departament || "Sense departament");
-    }
-    const depts = Array.from(deptsSet).sort();
-    const select = document.getElementById('filterDepartament');
-    if (!select) return;
-    const firstOption = select.options[0];
-    select.innerHTML = '';
-    select.appendChild(firstOption);
-    depts.forEach(d => {
-        const opt = document.createElement('option');
-        opt.value = d;
-        opt.textContent = d;
-        select.appendChild(opt);
+/** Funcions d'Exportació i UI */
+function exportToCSV() {
+    if (filteredRecords.length === 0) return;
+    const headers = ["Codi SAC", "Persona Nom", "Persona Cognoms", "Carrec", "Departament", "Entitat", "N. Registre", "Òrgan Govern Superior", "Tipus Membre", "Particip/Organisme", "Tipus Nomenament", "Estat", "Qualificador"];
+    let csvContent = "\ufeff" + headers.join(";") + "\n";
+    filteredRecords.forEach(r => {
+        const row = [r.codi_sac || "", r.persona_nom || "", r.persona_cognoms || "", r.carrec || "", r.sac_departament || r.departament || "", r.entitat || "", r.n_registre || "", r.is_govern_superior || "", r.membre_tipus || "", r.part_cip_o_organisme || "", r.tipus_nomenament || "", r.status || "", r.qualificador || ""];
+        csvContent += row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";") + "\n";
     });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.setAttribute("href", URL.createObjectURL(blob));
+    link.setAttribute("download", `export_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.click();
 }
 
-function populateNomenaments() {
-    const list = document.getElementById('listNomenaments');
-    if (!list) return;
-    const types = [...new Set(allRecords.map(r => r.tipus_nomenament))].filter(Boolean).sort();
-    list.innerHTML = '';
-    types.forEach(type => {
-        const item = document.createElement('label');
-        item.className = 'multiselect-item';
-        const checked = filters.nomenaments.includes(type);
-        item.innerHTML = `<input type="checkbox" value="${type}" ${checked ? 'checked' : ''}><span>${type}</span>`;
-        item.querySelector('input').addEventListener('change', (e) => {
-            if (e.target.checked) filters.nomenaments.push(type);
-            else filters.nomenaments = filters.nomenaments.filter(v => v !== type);
-            updateNomenamentsUI();
-            applyFilters();
-        });
-        list.appendChild(item);
-    });
-}
-
-function updateNomenamentsUI() {
-    const btn = document.getElementById('btnNomenaments');
-    if (!btn) return;
-    if (filters.nomenaments.length === 0) {
-        btn.innerHTML = `<i data-lucide="list-checks" style="width: 16px; vertical-align: middle; margin-right: 4px;"></i> Tipus Nomenament`;
-        btn.classList.remove('btn-primary');
-    } else {
-        btn.innerHTML = `<i data-lucide="list-checks" style="width: 16px; vertical-align: middle; margin-right: 4px;"></i> (${filters.nomenaments.length}) Nomenaments`;
-        btn.classList.add('btn-primary');
-    }
-    if (window.lucide) lucide.createIcons();
-}
-
-/**
- * Esdeveniments
- */
 function setupEventListeners() {
-    document.getElementById('globalSearch').addEventListener('input', applyFilters);
-    document.getElementById('filterDepartament').addEventListener('change', applyFilters);
-    document.getElementById('filterStatus').addEventListener('change', applyFilters);
+    console.log("Configurant esdeveniments...");
 
+    const safeAddListener = (id, event, fn) => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener(event, fn);
+        else console.warn(`Element no trobat: ${id}`);
+    };
+
+    safeAddListener('globalSearch', 'input', applyFilters);
+    safeAddListener('filterDepartament', 'change', applyFilters);
+    safeAddListener('filterStatus', 'change', applyFilters);
+
+    safeAddListener('btnResetFilters', 'click', () => {
+        document.getElementById('globalSearch').value = "";
+        document.getElementById('filterDepartament').value = "";
+        document.getElementById('filterStatus').value = "";
+        ['toggleSac', 'toggleGovern', 'toggleVacant'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.remove('btn-primary');
+        });
+        filters = { search: "", dept: "", status: "", nomenaments: [], onlySac: false, onlyGovern: false, onlyVacant: false };
+        populateNomenaments(); applyFilters();
+    });
+
+    safeAddListener('btnExportCSV', 'click', exportToCSV);
+
+    const btnSync = document.getElementById('btnSync');
+    if (btnSync) {
+        console.log("Botó Actualitzar trobat i vinculat.");
+        btnSync.addEventListener('click', () => {
+            console.log("Clic detectat a Actualitzar Dades");
+            handleSync();
+        });
+    }
+    ['toggleSac', 'toggleGovern', 'toggleVacant'].forEach(id => {
+        document.getElementById(id).addEventListener('click', (e) => {
+            const key = id.replace('toggle', 'only');
+            filters[key.charAt(0).toLowerCase() + key.slice(1)] = !filters[key.charAt(0).toLowerCase() + key.slice(1)];
+            e.currentTarget.classList.toggle('btn-primary'); applyFilters();
+        });
+    });
     const btnNom = document.getElementById('btnNomenaments');
     const dropdownNom = document.getElementById('dropdownNomenaments');
     if (btnNom && dropdownNom) {
-        btnNom.addEventListener('click', (e) => {
-            e.stopPropagation();
-            dropdownNom.classList.toggle('active');
-        });
-        document.addEventListener('click', (e) => {
-            if (!dropdownNom.contains(e.target) && e.target !== btnNom) dropdownNom.classList.remove('active');
-        });
+        btnNom.addEventListener('click', (e) => { e.stopPropagation(); dropdownNom.classList.toggle('active'); });
+        document.addEventListener('click', (e) => { if (!dropdownNom.contains(e.target)) dropdownNom.classList.remove('active'); });
     }
-
-    document.getElementById('btnResetFilters').addEventListener('click', resetFilters);
-    document.getElementById('btnExportCSV').addEventListener('click', exportToCSV);
-
-    document.getElementById('toggleSac').addEventListener('click', (e) => {
-        filters.onlySac = !filters.onlySac;
-        e.currentTarget.classList.toggle('btn-primary', filters.onlySac);
-        applyFilters();
-    });
-
-    const btnGovern = document.getElementById('toggleGovern');
-    if (btnGovern) {
-        btnGovern.addEventListener('click', (e) => {
-            filters.onlyGovern = !filters.onlyGovern;
-            e.currentTarget.classList.toggle('btn-primary', filters.onlyGovern);
-            applyFilters();
-        });
-    }
-
-    const btnVacant = document.getElementById('toggleVacant');
-    if (btnVacant) {
-        btnVacant.addEventListener('click', (e) => {
-            filters.onlyVacant = !filters.onlyVacant;
-            e.currentTarget.classList.toggle('btn-primary', filters.onlyVacant);
-            applyFilters();
-        });
-    }
-
-    const syncBtn = document.getElementById('btnSync');
-    if (syncBtn) {
-        syncBtn.addEventListener('click', () => handleSync());
-    }
-
-    const btnCancelSync = document.getElementById('btnCancelSync');
-    if (btnCancelSync) {
-        btnCancelSync.addEventListener('click', () => {
-            document.getElementById('syncModal').style.display = 'none';
-            if (syncBtn) syncBtn.disabled = false;
-        });
-    }
-
-    const sacFileInput = document.getElementById('sacFileInput');
-    if (sacFileInput) {
-        sacFileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (event) => handleSync(event.target.result);
-            reader.readAsText(file);
-        });
-    }
-    
     window.addEventListener('scroll', () => {
-        const scrollPercent = (window.innerHeight + window.scrollY) / document.documentElement.scrollHeight;
-        if (scrollPercent > 0.85 && rowsShown < filteredRecords.length && !isRendering) {
-            rowsShown += CONFIG.SYNC.CHUNK_SIZE;
-            renderTable(true);
+        if ((window.innerHeight + window.scrollY) / document.documentElement.scrollHeight > 0.85 && rowsShown < filteredRecords.length) {
+            rowsShown += 10; renderTable(true);
         }
     });
-
     const editForm = document.getElementById('editMappingForm');
     if (editForm) {
         editForm.addEventListener('submit', async (e) => {
@@ -464,15 +316,45 @@ function setupEventListeners() {
             const idx = allRecords.findIndex(r => r.id == id);
             allRecords[idx] = updated;
             CloudService.savePartial({ d: record.entitat, m: record.membre_tipus, c: record.carrec, k: nouCodi });
-            window.closeQuickEdit();
-            applyFilters();
+            window.closeQuickEdit(); applyFilters();
         });
     }
 }
 
+function populateDepartaments() {
+    const deptsSet = new Set();
+    allRecords.forEach(r => deptsSet.add(r.sac_departament || r.departament || "Sense departament"));
+    const select = document.getElementById('filterDepartament');
+    if (!select) return;
+    select.innerHTML = '<option value="">Tots els departaments</option>';
+    Array.from(deptsSet).sort().forEach(d => { const opt = document.createElement('option'); opt.value = d; opt.textContent = d; select.appendChild(opt); });
+}
+
+function populateNomenaments() {
+    const list = document.getElementById('listNomenaments'); if (!list) return;
+    const types = [...new Set(allRecords.map(r => r.tipus_nomenament))].filter(Boolean).sort();
+    list.innerHTML = '';
+    types.forEach(type => {
+        const item = document.createElement('label');
+        item.className = 'multiselect-item';
+        item.innerHTML = `<input type="checkbox" value="${type}"><span>${type}</span>`;
+        item.querySelector('input').addEventListener('change', (e) => {
+            if (e.target.checked) filters.nomenaments.push(type);
+            else filters.nomenaments = filters.nomenaments.filter(v => v !== type);
+            updateNomenamentsUI(); applyFilters();
+        });
+        list.appendChild(item);
+    });
+}
+
+function updateNomenamentsUI() {
+    const btn = document.getElementById('btnNomenaments'); if (!btn) return;
+    btn.innerHTML = `<i data-lucide="list-checks" style="width: 16px; margin-right: 4px;"></i> ${filters.nomenaments.length ? `(${filters.nomenaments.length}) Nomenaments` : 'Tipus Nomenament'}`;
+    btn.classList.toggle('btn-primary', filters.nomenaments.length > 0);
+}
+
 window.openQuickEdit = (id) => {
-    const record = allRecords.find(r => r.id == id);
-    if (!record) return;
+    const record = allRecords.find(r => r.id == id); if (!record) return;
     document.getElementById('editFieldEntitat').value = record.entitat;
     document.getElementById('editFieldMembre').value = record.membre_tipus;
     document.getElementById('editFieldCarrec').value = record.carrec;
@@ -481,6 +363,4 @@ window.openQuickEdit = (id) => {
     document.getElementById('editMappingModal').style.display = 'flex';
 };
 
-window.closeQuickEdit = () => {
-    document.getElementById('editMappingModal').style.display = 'none';
-};
+window.closeQuickEdit = () => document.getElementById('editMappingModal').style.display = 'none';
