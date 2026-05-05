@@ -5,13 +5,16 @@ import { CONFIG } from './modules/config.js';
 import { db } from './modules/db.js';
 import { syncEngine } from './modules/sync-engine.js';
 import { CloudService } from './modules/cloud.js';
+import { initTheme, toggleTheme } from './modules/utils.js';
 
 let allRecords = [];
 let filteredRecords = [];
 let rowsShown = 15;
 let filters = { search: "", dept: "", status: "", nomenaments: [], onlySac: false, onlyGovern: false, onlyVacant: false };
+let sortConfig = { key: 'codi_sac', direction: 'asc' };
 
 document.addEventListener('DOMContentLoaded', async () => {
+    initTheme();
     setupEventListeners();
     await loadInitialData();
 });
@@ -82,21 +85,33 @@ function applyFilters() {
         return matchesSearch && matchesDept && matchesStatus && matchesNomenament && matchesSac && matchesGovern && matchesVacant;
     });
 
-    // Ordenar per SAC -> Càrrec -> Entitat -> OGS
+    // Lògica d'ordenació dinàmica
     filteredRecords.sort((a, b) => {
-        const sA = String(a.codi_sac || "ZZZZ");
-        const sB = String(b.codi_sac || "ZZZZ");
-        if (sA !== sB) return sA.localeCompare(sB);
-        const cA = String(a.carrec || "");
-        const cB = String(b.carrec || "");
-        if (cA !== cB) return cA.localeCompare(cB);
-        const eA = String(a.entitat || "");
-        const eB = String(b.entitat || "");
-        if (eA !== eB) return eA.localeCompare(eB);
-        return String(a.is_govern_superior || "").localeCompare(String(b.is_govern_superior || ""));
+        let valA = a[sortConfig.key] || "";
+        let valB = b[sortConfig.key] || "";
+        
+        // Tractament especial per a noms (combinar nom + cognom si cal)
+        if (sortConfig.key === 'persona_nom') {
+            valA = `${a.persona_nom || ''} ${a.persona_cognoms || ''}`.trim();
+            valB = `${b.persona_nom || ''} ${b.persona_cognoms || ''}`.trim();
+        }
+
+        const sA = String(valA).toLowerCase();
+        const sB = String(valB).toLowerCase();
+        
+        if (sA === sB) {
+            // Sort secundari per SAC si el principal és igual
+            return String(a.codi_sac || "").localeCompare(String(b.codi_sac || ""));
+        }
+        
+        return sortConfig.direction === 'asc' 
+            ? sA.localeCompare(sB) 
+            : sB.localeCompare(sA);
     });
 
     rowsShown = 15;
+    const countEl = document.getElementById('recordCount');
+    if (countEl) countEl.textContent = `${filteredRecords.length} registres trobats`;
     window.scrollTo(0, 0);
     renderTable();
 }
@@ -175,14 +190,14 @@ function renderTable(append = false) {
             const first = cg.entities[0].ogs[0].persons[0];
             let sacHTML = '';
             if (first.sac_carrec) {
-                sacHTML = `<div style="margin-top:8px;"><div style="font-size:0.6rem; color:var(--primary); font-weight:700;">(SAC:)</div><div style="font-size:0.75rem; color:#fff; opacity:0.9; line-height:1.2;">${first.sac_carrec.toLowerCase()}</div><div style="font-size:0.65rem; color:var(--text-muted); opacity:0.7; margin-top:2px;">${first.sac_unitat || ''} | ${first.sac_departament || ''}</div></div>`;
+                sacHTML = `<div style="margin-top:8px;"><div style="font-size:0.6rem; color:var(--primary); font-weight:700;">(SAC:)</div><div style="font-size:0.75rem; color:var(--text-main); line-height:1.2;">${first.sac_carrec.toLowerCase()}</div><div style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">${first.sac_unitat || ''} | ${first.sac_departament || ''}</div></div>`;
             }
 
             html += `<div class="level-2-row" style="flex:1; display:flex;"><div class="level-2-cell"><div class="carrec-text" style="font-weight:700;">${cg.name}</div>${sacHTML}</div>`;
             html += `<div class="level-3-container" style="flex:1; display:flex; flex-direction:column;">`;
 
             cg.entities.forEach(ent => {
-                html += `<div class="level-3-row" style="flex:1; display:flex;"><div class="level-3-cell"><div style="font-weight:700; font-size:0.85rem; color:#fff;">${ent.name}</div><div style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">Reg: ${ent.reg || '-'}</div></div>`;
+                html += `<div class="level-3-row" style="flex:1; display:flex;"><div class="level-3-cell"><div style="font-weight:700; font-size:0.85rem; color:var(--text-main);">${ent.name}</div><div style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">Reg: ${ent.reg || '-'}</div></div>`;
                 html += `<div class="level-4-container" style="flex:1; display:flex; flex-direction:column;">`;
 
                 ent.ogs.forEach(og => {
@@ -206,21 +221,20 @@ function renderTable(append = false) {
                         
                         let nomHTML = "";
                         if (isJuridica) {
-                            // Si és jurídica, el representant és el principal i l'entitat va a sota
                             const nomPrincipal = repNom || personaFisica || "Representant pendent";
                             const nomEntitat = entitatJuridica || "Entitat Jurídica";
                             
-                            nomHTML = `<div style="font-size:0.95rem; font-weight:700; color:#fff;">${nomPrincipal}</div>
-                                       <div style="font-size:0.75rem; color:#5c7cfa; font-weight:500; margin-top:3px;">Representant de ${nomEntitat}</div>`;
+                            nomHTML = `<div style="font-size:0.95rem; font-weight:700; color:var(--text-main);">${nomPrincipal}</div>
+                                       <div style="font-size:0.75rem; color:var(--secondary); font-weight:500; margin-top:3px;">Representant de ${nomEntitat}</div>`;
                         } else if ((p.qualificador || "").toLowerCase().includes("vacant")) {
                             nomHTML = `<div style="color:var(--text-muted); font-style:italic; opacity:0.7;">(Vacant)</div>`;
                         } else {
-                            nomHTML = `<div style="font-size:0.95rem; font-weight:700; color:#fff;">${personaFisica || 'Sense nom'}</div>`;
+                            nomHTML = `<div style="font-size:0.95rem; font-weight:700; color:var(--text-main);">${personaFisica || 'Sense nom'}</div>`;
                         }
                         
                         let sacInfoHTML = '';
                         if (p.codi_sac && p.sac_nom_responsable && p.status !== 'Validat') {
-                            sacInfoHTML = `<div style="margin-top: 8px; padding: 6px 10px; background: rgba(255, 107, 107, 0.05); border-radius: 6px; border-left: 2px solid #ff6b6b;"><div style="font-size: 0.55rem; text-transform: uppercase; color: #ff6b6b; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 2px;">Ref. SAC:</div><div style="font-size: 0.85rem; color: #ff9e9e; font-weight: 600;">${p.sac_nom_responsable}</div></div>`;
+                            sacInfoHTML = `<div style="margin-top: 8px; padding: 6px 10px; background: rgba(255, 107, 107, 0.05); border-radius: 6px; border-left: 2px solid #ff6b6b;"><div style="font-size: 0.55rem; text-transform: uppercase; color: #ff6b6b; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 2px;">Ref. SAC:</div><div style="font-size: 0.85rem; color: #e03131; font-weight: 600;">${p.sac_nom_responsable}</div></div>`;
                         }
                         html += `<div class="level-5-row" style="flex:1; display:flex;"><div class="level-5-cell"><div style="font-size:0.9rem; font-weight:600;">${nomHTML}</div><div style="font-size:0.7rem; color:var(--text-muted); font-style:italic; margin-top:2px;">${p.tipus_nomenament || ''}</div>${sacInfoHTML}</div><div class="level-5-cell" style="width:100px; text-align:center; flex:none;">${statusBadge}</div><div class="level-5-cell" style="width:45px; text-align:center; flex:none;"><button class="btn-quick-edit" onclick="openQuickEdit('${p.id}')"><i data-lucide="pencil" style="width:14px;"></i></button></div></div>`;
                     });
@@ -264,6 +278,7 @@ function setupEventListeners() {
     };
 
     safeAddListener('globalSearch', 'input', applyFilters);
+    safeAddListener('themeToggle', 'click', toggleTheme);
     safeAddListener('filterDepartament', 'change', applyFilters);
     safeAddListener('filterStatus', 'change', applyFilters);
 
@@ -289,6 +304,31 @@ function setupEventListeners() {
             handleSync();
         });
     }
+
+    // Gestió d'ordenació per capçaleres
+    document.querySelectorAll('.sortable-header').forEach(th => {
+        th.addEventListener('click', () => {
+            const key = th.getAttribute('data-sort');
+            if (sortConfig.key === key) {
+                sortConfig.direction = sortConfig.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortConfig.key = key;
+                sortConfig.direction = 'asc';
+            }
+            
+            // Actualitzar estats visuals
+            document.querySelectorAll('.sortable-header').forEach(h => {
+                h.classList.remove('active');
+                const icon = h.querySelector('.sort-icon');
+                if (icon) icon.style.transform = 'rotate(0deg)';
+            });
+            th.classList.add('active');
+            const icon = th.querySelector('.sort-icon');
+            if (icon) icon.style.transform = sortConfig.direction === 'desc' ? 'rotate(180deg)' : 'rotate(0deg)';
+            
+            applyFilters();
+        });
+    });
     ['toggleSac', 'toggleGovern', 'toggleVacant'].forEach(id => {
         document.getElementById(id).addEventListener('click', (e) => {
             const key = id.replace('toggle', 'only');
