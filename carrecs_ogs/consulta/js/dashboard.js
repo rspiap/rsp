@@ -63,7 +63,7 @@ function applyFilters() {
     filters.status = document.getElementById('filterStatus').value;
 
     filteredRecords = allRecords.filter(r => {
-        const searchableText = `${r.persona_nom || ''} ${r.persona_cognoms || ''} ${r.entitat || ''} ${r.carrec || ''} ${r.codi_sac || ''}`.toLowerCase();
+        const searchableText = `${r.persona_nom || ''} ${r.persona_cognoms || ''} ${r.nom_rep || ''} ${r.cognoms_rep || ''} ${r.denom_social || ''} ${r.entitat || ''} ${r.carrec || ''} ${r.codi_sac || ''}`.toLowerCase();
         const matchesSearch = !filters.search || searchableText.includes(filters.search);
         const valDept = r.sac_departament || r.departament || "Sense departament";
         const matchesDept = !filters.dept || valDept === filters.dept;
