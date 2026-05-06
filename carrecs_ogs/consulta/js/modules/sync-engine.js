@@ -58,7 +58,11 @@ export class SyncEngine {
             sexeRaw.forEach(d => {
                 const ensNorm = baseNorm(d.denominaci);
                 const membreNorm = baseNorm(d.denominaci_membre);
-                const extra = { dept: d.departament || null, partici: d.part_cip_o_organisme || null };
+                const extra = { 
+                    dept: d.departament || null, 
+                    partici: d.part_cip_o_organisme || null,
+                    categoritzacio: d.categoritzaci_part_cip || null
+                };
                 
                 if (ensNorm && membreNorm) sexeLookup.set(`${ensNorm}|${membreNorm}`, extra);
                 
@@ -156,7 +160,8 @@ export class SyncEngine {
             qualificador: findK(['qualificador_de_persona_f_sica_jur_dica_o_vacant', 'qualificador']),
             nomRep: findK(['nom_representant_p_jur_dica', 'nom_representant']),
             cognomRep: findK(['cognoms_representant_p_jur_dica', 'cognoms_representant']),
-            social: findK(['denominaci_social'])
+            social: findK(['denominaci_social']),
+            categoritzacio: findK(['categoritzaci_part_cip', 'categoritzacio'])
         };
 
         for (let i = 0; i < total; i++) {
@@ -190,6 +195,7 @@ export class SyncEngine {
                 nom_rep: p[k.nomRep] || "",
                 cognoms_rep: p[k.cognomRep] || "",
                 denom_social: p[k.social] || "",
+                categoritzacio: extra ? (extra.categoritzacio || p[k.categoritzacio] || "") : (p[k.categoritzacio] || ""),
                 codi_sac: "",
                 sac_nom_responsable: "",
                 sac_unitat: "",

@@ -10,7 +10,7 @@ import { initTheme, toggleTheme } from './modules/utils.js';
 let allRecords = [];
 let filteredRecords = [];
 let rowsShown = 15;
-let filters = { search: "", dept: "", status: "", nomenaments: [], onlySac: false, onlyGovern: false, onlyVacant: false };
+let filters = { search: "", dept: "", status: "", nomenaments: [], categoritzacions: [], onlySac: false, onlyGovern: false, onlyVacant: false };
 let sortConfig = { key: 'codi_sac', direction: 'asc' };
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -24,7 +24,7 @@ async function loadInitialData() {
         let data = await db.getAll(CONFIG.DB.STORES.RECORDS);
         if (data && data.length > 0) {
             allRecords = data;
-            populateDepartaments(); populateNomenaments(); applyFilters(); checkCloudUpdates();
+            populateDepartaments(); populateNomenaments(); populateCategoritzacions(); applyFilters(); checkCloudUpdates();
         } else { handleSync(); }
     } catch (e) { console.error(e); }
 }
@@ -42,7 +42,7 @@ async function handleSync(manualCsvText = null) {
             if (info.progress) progressBar.style.width = `${info.progress}%`;
         });
         allRecords = data;
-        populateDepartaments(); populateNomenaments(); applyFilters();
+        populateDepartaments(); populateNomenaments(); populateCategoritzacions(); applyFilters();
         setTimeout(() => { modal.style.display = 'none'; if (btnSync) btnSync.disabled = false; }, 400);
     } catch (e) { if (btnSync) btnSync.disabled = false; }
 }
@@ -79,17 +79,18 @@ function applyFilters() {
             }
         }
         const matchesNomenament = filters.nomenaments.length === 0 || filters.nomenaments.includes(r.tipus_nomenament);
+        const matchesCategoritzacio = filters.categoritzacions.length === 0 || (r.categoritzacio && filters.categoritzacions.includes(r.categoritzacio));
         const matchesSac = !filters.onlySac || (r.codi_sac && r.codi_sac.trim() !== "");
         const matchesGovern = !filters.onlyGovern || (!r.is_govern_superior || r.is_govern_superior.trim() === "");
         const matchesVacant = !filters.onlyVacant || (r.qualificador || "").toLowerCase().includes("vacant");
-        return matchesSearch && matchesDept && matchesStatus && matchesNomenament && matchesSac && matchesGovern && matchesVacant;
+        return matchesSearch && matchesDept && matchesStatus && matchesNomenament && matchesCategoritzacio && matchesSac && matchesGovern && matchesVacant;
     });
 
     // Lògica d'ordenació dinàmica
     filteredRecords.sort((a, b) => {
         let valA = a[sortConfig.key] || "";
         let valB = b[sortConfig.key] || "";
-        
+
         // Tractament especial per a noms (combinar nom + cognom si cal)
         if (sortConfig.key === 'persona_nom') {
             valA = `${a.persona_nom || ''} ${a.persona_cognoms || ''}`.trim();
@@ -98,14 +99,14 @@ function applyFilters() {
 
         const sA = String(valA).toLowerCase();
         const sB = String(valB).toLowerCase();
-        
+
         if (sA === sB) {
             // Sort secundari per SAC si el principal és igual
             return String(a.codi_sac || "").localeCompare(String(b.codi_sac || ""));
         }
-        
-        return sortConfig.direction === 'asc' 
-            ? sA.localeCompare(sB) 
+
+        return sortConfig.direction === 'asc'
+            ? sA.localeCompare(sB)
             : sB.localeCompare(sA);
     });
 
@@ -204,7 +205,8 @@ function renderTable(append = false) {
                     const p = og.persons[0];
                     const deptText = p.departament ? `(${p.departament})` : '';
                     const displayOrg = p.sac_unitat ? `${p.sac_unitat} ${deptText}` : (p.departament || '');
-                    html += `<div class="level-4-row" style="flex:1; display:flex;"><div class="level-4-cell"><div style="font-weight:600; font-size:0.85rem; color:var(--text-main);">${og.name}</div><div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">${displayOrg}</div><div style="margin-top:8px; font-size:0.65rem; color:var(--text-muted); border-top:1px solid rgba(255,255,255,0.05); padding-top:4px;">${p.part_cip_o_organisme || ''}</div></div>`;
+                    const catHTML = p.categoritzacio ? `<div style="margin-top:2px; font-weight:700; color:var(--primary); font-size:0.6rem; text-transform:uppercase; letter-spacing:0.3px;">${p.categoritzacio}</div>` : '';
+                    html += `<div class="level-4-row" style="flex:1; display:flex;"><div class="level-4-cell"><div style="font-weight:600; font-size:0.85rem; color:var(--text-main);">${og.name}</div><div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">${displayOrg}</div><div style="margin-top:8px; font-size:0.65rem; color:var(--text-muted); border-top:1px solid rgba(255,255,255,0.05); padding-top:4px;">${p.part_cip_o_organisme || ''}${catHTML}</div></div>`;
                     html += `<div class="level-5-container" style="flex:1; display:flex; flex-direction:column;">`;
 
                     og.persons.forEach(p => {
@@ -215,15 +217,15 @@ function renderTable(append = false) {
                         let personaFisica = `${p.persona_nom || ''} ${p.persona_cognoms || ''}`.trim();
                         let repNom = `${p.nom_rep || ''} ${p.cognoms_rep || ''}`.trim();
                         let entitatJuridica = p.denom_social || "";
-                        
+
                         // Lògica Persona Jurídica (Amb els camps confirmats)
                         const isJuridica = (p.qualificador || "").toLowerCase().includes("jur") || (p.membre_tipus || "").toLowerCase().includes("jur");
-                        
+
                         let nomHTML = "";
                         if (isJuridica) {
                             const nomPrincipal = repNom || personaFisica || "Representant pendent";
                             const nomEntitat = entitatJuridica || "Entitat Jurídica";
-                            
+
                             nomHTML = `<div style="font-size:0.95rem; font-weight:700; color:var(--text-main);">${nomPrincipal}</div>
                                        <div style="font-size:0.75rem; color:var(--secondary); font-weight:500; margin-top:3px;">Representant de ${nomEntitat}</div>`;
                         } else if ((p.qualificador || "").toLowerCase().includes("vacant")) {
@@ -231,7 +233,7 @@ function renderTable(append = false) {
                         } else {
                             nomHTML = `<div style="font-size:0.95rem; font-weight:700; color:var(--text-main);">${personaFisica || 'Sense nom'}</div>`;
                         }
-                        
+
                         let sacInfoHTML = '';
                         if (p.codi_sac && p.sac_nom_responsable && p.status !== 'Validat') {
                             sacInfoHTML = `<div style="margin-top: 8px; padding: 6px 10px; background: rgba(255, 107, 107, 0.05); border-radius: 6px; border-left: 2px solid #ff6b6b;"><div style="font-size: 0.55rem; text-transform: uppercase; color: #ff6b6b; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 2px;">Ref. SAC:</div><div style="font-size: 0.85rem; color: #e03131; font-weight: 600;">${p.sac_nom_responsable}</div></div>`;
@@ -290,19 +292,39 @@ function setupEventListeners() {
             const el = document.getElementById(id);
             if (el) el.classList.remove('btn-primary');
         });
-        filters = { search: "", dept: "", status: "", nomenaments: [], onlySac: false, onlyGovern: false, onlyVacant: false };
-        populateNomenaments(); applyFilters();
+        filters = { search: "", dept: "", status: "", nomenaments: [], categoritzacions: [], onlySac: false, onlyGovern: false, onlyVacant: false };
+        populateNomenaments(); populateCategoritzacions(); updateNomenamentsUI(); updateCategoritzacionsUI(); applyFilters();
+    });
+
+    // Multiselect dropdowns setup
+    // Multiselect dropdowns setup (Unificat)
+    const setupMultiselect = (btnId, dropdownId) => {
+        const btn = document.getElementById(btnId);
+        const dropdown = document.getElementById(dropdownId);
+        if (btn && dropdown) {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const wasActive = dropdown.classList.contains('active');
+                document.querySelectorAll('.multiselect-dropdown').forEach(d => d.classList.remove('active'));
+                if (!wasActive) dropdown.classList.add('active');
+            });
+        }
+    };
+
+    setupMultiselect('btnNomenaments', 'dropdownNomenaments');
+    setupMultiselect('btnCategoritzacions', 'dropdownCategoritzacions');
+
+    document.addEventListener('click', (e) => {
+        document.querySelectorAll('.multiselect-dropdown').forEach(d => {
+            if (!d.contains(e.target)) d.classList.remove('active');
+        });
     });
 
     safeAddListener('btnExportCSV', 'click', exportToCSV);
 
     const btnSync = document.getElementById('btnSync');
     if (btnSync) {
-        console.log("Botó Actualitzar trobat i vinculat.");
-        btnSync.addEventListener('click', () => {
-            console.log("Clic detectat a Actualitzar Dades");
-            handleSync();
-        });
+        btnSync.addEventListener('click', () => handleSync());
     }
 
     // Gestió d'ordenació per capçaleres
@@ -315,7 +337,7 @@ function setupEventListeners() {
                 sortConfig.key = key;
                 sortConfig.direction = 'asc';
             }
-            
+
             // Actualitzar estats visuals
             document.querySelectorAll('.sortable-header').forEach(h => {
                 h.classList.remove('active');
@@ -325,23 +347,23 @@ function setupEventListeners() {
             th.classList.add('active');
             const icon = th.querySelector('.sort-icon');
             if (icon) icon.style.transform = sortConfig.direction === 'desc' ? 'rotate(180deg)' : 'rotate(0deg)';
-            
+
             applyFilters();
         });
     });
+
     ['toggleSac', 'toggleGovern', 'toggleVacant'].forEach(id => {
-        document.getElementById(id).addEventListener('click', (e) => {
-            const key = id.replace('toggle', 'only');
-            filters[key.charAt(0).toLowerCase() + key.slice(1)] = !filters[key.charAt(0).toLowerCase() + key.slice(1)];
-            e.currentTarget.classList.toggle('btn-primary'); applyFilters();
-        });
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('click', (e) => {
+                const key = id.replace('toggle', 'only');
+                const filterKey = key.charAt(0).toLowerCase() + key.slice(1);
+                filters[filterKey] = !filters[filterKey];
+                e.currentTarget.classList.toggle('btn-primary');
+                applyFilters();
+            });
+        }
     });
-    const btnNom = document.getElementById('btnNomenaments');
-    const dropdownNom = document.getElementById('dropdownNomenaments');
-    if (btnNom && dropdownNom) {
-        btnNom.addEventListener('click', (e) => { e.stopPropagation(); dropdownNom.classList.toggle('active'); });
-        document.addEventListener('click', (e) => { if (!dropdownNom.contains(e.target)) dropdownNom.classList.remove('active'); });
-    }
     window.addEventListener('scroll', () => {
         if ((window.innerHeight + window.scrollY) / document.documentElement.scrollHeight > 0.85 && rowsShown < filteredRecords.length) {
             rowsShown += 10; renderTable(true);
@@ -391,8 +413,33 @@ function populateNomenaments() {
 
 function updateNomenamentsUI() {
     const btn = document.getElementById('btnNomenaments'); if (!btn) return;
-    btn.innerHTML = `<i data-lucide="list-checks" style="width: 16px; margin-right: 4px;"></i> ${filters.nomenaments.length ? `(${filters.nomenaments.length}) Nomenaments` : 'Tipus Nomenament'}`;
+    btn.innerHTML = `<i data-lucide="list-checks" style="width: 16px; margin-right: 4px;"></i> ${filters.nomenaments.length ? `(${filters.nomenaments.length}) Tipus` : 'Tipus Nomenament'}`;
     btn.classList.toggle('btn-primary', filters.nomenaments.length > 0);
+    if (window.lucide) lucide.createIcons();
+}
+
+function populateCategoritzacions() {
+    const list = document.getElementById('listCategoritzacions'); if (!list) return;
+    const cats = [...new Set(allRecords.map(r => r.categoritzacio))].filter(Boolean).sort();
+    list.innerHTML = '';
+    cats.forEach(cat => {
+        const item = document.createElement('label');
+        item.className = 'multiselect-item';
+        item.innerHTML = `<input type="checkbox" value="${cat}"><span>${cat}</span>`;
+        item.querySelector('input').addEventListener('change', (e) => {
+            if (e.target.checked) filters.categoritzacions.push(cat);
+            else filters.categoritzacions = filters.categoritzacions.filter(v => v !== cat);
+            updateCategoritzacionsUI(); applyFilters();
+        });
+        list.appendChild(item);
+    });
+}
+
+function updateCategoritzacionsUI() {
+    const btn = document.getElementById('btnCategoritzacions'); if (!btn) return;
+    btn.innerHTML = `<i data-lucide="layers" style="width: 16px; margin-right: 4px;"></i> ${filters.categoritzacions.length ? `(${filters.categoritzacions.length})` : 'Categorització'}`;
+    btn.classList.toggle('btn-primary', filters.categoritzacions.length > 0);
+    if (window.lucide) lucide.createIcons();
 }
 
 window.openQuickEdit = (id) => {

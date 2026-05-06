@@ -33,6 +33,9 @@
 <body>
     <div class="container">
         <header>
+            <button id="themeToggle" class="theme-toggle" title="Canviar tema">
+                <i data-lucide="sun" style="width: 20px; height: 20px;"></i>
+            </button>
             <h1>Sector Públic - Generalitat de Catalunya</h1>
             <div style="display: flex; justify-content: space-between; align-items: flex-end; width: 100%;">
                 <p class="subtitle">
@@ -88,6 +91,18 @@
                 </button>
 
                 <div class="multiselect-container">
+                    <button id="btnCategoritzacions" class="btn">
+                        <i data-lucide="layers" style="width: 16px; margin-right: 4px;"></i>
+                        Categorització
+                    </button>
+                    <div id="dropdownCategoritzacions" class="multiselect-dropdown">
+                        <div class="multiselect-list" id="listCategoritzacions">
+                            <div style="padding: 1rem; text-align: center; color: var(--text-muted);">Carregant...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="multiselect-container">
                     <button id="btnNomenaments" class="btn">
                         <i data-lucide="list-checks" style="width: 16px; margin-right: 4px;"></i>
                         Tipus Nomenament
@@ -114,15 +129,24 @@
         </section>
 
         <main class="glass">
+            <div id="recordCount"
+                style="padding: 0.75rem 1rem; font-size: 0.8rem; color: var(--text-muted); border-bottom: 1px solid rgba(255,255,255,0.05); font-weight: 600;">
+                Carregant registres...
+            </div>
             <div class="data-table-wrapper">
                 <table>
                     <thead>
                         <tr>
-                            <th style="width: 100px; text-align: center;">SAC</th>
-                            <th style="width: 250px;">Càrrec</th>
-                            <th style="width: 280px;">Entitat</th>
-                            <th style="width: 250px;">Òrgan / Membre</th>
-                            <th>Persona / Estat</th>
+                            <th class="sortable-header" data-sort="codi_sac" style="width: 100px; text-align: center;">
+                                SAC <i data-lucide="chevron-down" class="sort-icon"></i></th>
+                            <th class="sortable-header" data-sort="carrec" style="width: 250px;">Càrrec <i
+                                    data-lucide="chevron-down" class="sort-icon"></i></th>
+                            <th class="sortable-header" data-sort="entitat" style="width: 280px;">Entitat <i
+                                    data-lucide="chevron-down" class="sort-icon"></i></th>
+                            <th class="sortable-header" data-sort="is_govern_superior" style="width: 250px;">Òrgan /
+                                Membre <i data-lucide="chevron-down" class="sort-icon"></i></th>
+                            <th class="sortable-header" data-sort="persona_nom">Persona / Estat <i
+                                    data-lucide="chevron-down" class="sort-icon"></i></th>
                         </tr>
                     </thead>
                     <tbody id="tableBody">

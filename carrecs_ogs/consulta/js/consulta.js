@@ -9,7 +9,7 @@ import { initTheme, toggleTheme } from './modules/utils.js';
 let allRecords = [];
 let filteredRecords = [];
 let rowsShown = 15;
-let filters = { search: "", dept: "", status: "", nomenaments: [], onlySac: false, onlyGovern: false, onlyVacant: false };
+let filters = { search: "", dept: "", status: "", nomenaments: [], categoritzacions: [], onlySac: false, onlyGovern: false, onlyVacant: false };
 let sortConfig = { key: 'codi_sac', direction: 'asc' };
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -24,7 +24,7 @@ async function loadData() {
         await db.init();
         allRecords = await db.getAll(CONFIG.DB.STORES.RECORDS);
         if (allRecords.length > 0) {
-            applyFilters(); populateDepartaments(); populateNomenaments();
+            applyFilters(); populateDepartaments(); populateNomenaments(); populateCategoritzacions();
         } else { handleSync(); }
     } catch (e) { console.error(e); }
 }
@@ -56,7 +56,7 @@ function applyFilters() {
         const matchesSearch = !filters.search || searchableText.includes(filters.search);
         const valDept = r.sac_departament || r.departament || "Sense departament";
         const matchesDept = !filters.dept || valDept === filters.dept;
-        
+
         let matchesStatus = true;
         if (filters.status) {
             if (filters.status === 'No aplica') {
@@ -66,17 +66,18 @@ function applyFilters() {
             }
         }
         const matchesNomenament = filters.nomenaments.length === 0 || filters.nomenaments.includes(r.tipus_nomenament);
+        const matchesCategoritzacio = filters.categoritzacions.length === 0 || (r.categoritzacio && filters.categoritzacions.includes(r.categoritzacio));
         const matchesSac = !filters.onlySac || (r.codi_sac && r.codi_sac.trim() !== "");
         const matchesGovern = !filters.onlyGovern || (!r.is_govern_superior || r.is_govern_superior.trim() === "");
         const matchesVacant = !filters.onlyVacant || (r.qualificador || "").toLowerCase().includes("vacant");
-        return matchesSearch && matchesDept && matchesStatus && matchesNomenament && matchesSac && matchesGovern && matchesVacant;
+        return matchesSearch && matchesDept && matchesStatus && matchesNomenament && matchesCategoritzacio && matchesSac && matchesGovern && matchesVacant;
     });
 
     // Lògica d'ordenació dinàmica
     filteredRecords.sort((a, b) => {
         let valA = a[sortConfig.key] || "";
         let valB = b[sortConfig.key] || "";
-        
+
         if (sortConfig.key === 'persona_nom') {
             valA = `${a.persona_nom || ''} ${a.persona_cognoms || ''}`.trim();
             valB = `${b.persona_nom || ''} ${b.persona_cognoms || ''}`.trim();
@@ -84,13 +85,13 @@ function applyFilters() {
 
         const sA = String(valA).toLowerCase();
         const sB = String(valB).toLowerCase();
-        
+
         if (sA === sB) {
             return String(a.codi_sac || "").localeCompare(String(b.codi_sac || ""));
         }
-        
-        return sortConfig.direction === 'asc' 
-            ? sA.localeCompare(sB) 
+
+        return sortConfig.direction === 'asc'
+            ? sA.localeCompare(sB)
             : sB.localeCompare(sA);
     });
 
@@ -164,7 +165,8 @@ function renderTable(append = false) {
                     const p = og.persons[0];
                     const deptText = p.departament ? `(${p.departament})` : '';
                     const displayOrg = p.sac_unitat ? `${p.sac_unitat} ${deptText}` : (p.departament || '');
-                    html += `<div class="level-4-row" style="flex:1; display:flex;"><div class="level-4-cell"><div style="font-weight:600; font-size:0.85rem; color:var(--text-main);">${og.name}</div><div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">${displayOrg}</div><div style="margin-top:8px; font-size:0.65rem; color:var(--text-muted); border-top:1px solid rgba(255,255,255,0.05); padding-top:4px;">${p.part_cip_o_organisme || ''}</div></div>`;
+                    const catHTML = p.categoritzacio ? `<div style="margin-top:2px; font-weight:700; color:var(--primary); font-size:0.6rem; text-transform:uppercase; letter-spacing:0.3px;">${p.categoritzacio}</div>` : '';
+                    html += `<div class="level-4-row" style="flex:1; display:flex;"><div class="level-4-cell"><div style="font-weight:600; font-size:0.85rem; color:var(--text-main);">${og.name}</div><div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">${displayOrg}</div><div style="margin-top:8px; font-size:0.65rem; color:var(--text-muted); border-top:1px solid rgba(255,255,255,0.05); padding-top:4px;">${p.part_cip_o_organisme || ''}${catHTML}</div></div>`;
                     html += `<div class="level-5-container" style="flex:1; display:flex; flex-direction:column;">`;
                     og.persons.forEach(p => {
                         let statusBadge = '';
@@ -174,15 +176,15 @@ function renderTable(append = false) {
                         let personaFisica = `${p.persona_nom || ''} ${p.persona_cognoms || ''}`.trim();
                         let repNom = `${p.nom_rep || ''} ${p.cognoms_rep || ''}`.trim();
                         let entitatJuridica = p.denom_social || "";
-                        
+
                         // Lògica Persona Jurídica (Amb els camps confirmats)
                         const isJuridica = (p.qualificador || "").toLowerCase().includes("jur") || (p.membre_tipus || "").toLowerCase().includes("jur");
-                        
+
                         let nomHTML = "";
                         if (isJuridica) {
                             const nomPrincipal = repNom || personaFisica || "Representant pendent";
                             const nomEntitat = entitatJuridica || "Entitat Jurídica";
-                            
+
                             nomHTML = `<div style="font-size:0.95rem; font-weight:700; color:var(--text-main);">${nomPrincipal}</div>
                                        <div style="font-size:0.75rem; color:var(--secondary); font-weight:500; margin-top:3px;">Representant de ${nomEntitat}</div>`;
                         } else if ((p.qualificador || "").toLowerCase().includes("vacant")) {
@@ -223,8 +225,31 @@ function setupEventListeners() {
             const el = document.getElementById(id);
             if (el) el.classList.remove('btn-primary');
         });
-        filters = { search: "", dept: "", status: "", nomenaments: [], onlySac: false, onlyGovern: false, onlyVacant: false };
-        populateNomenaments(); applyFilters();
+        filters = { search: "", dept: "", status: "", nomenaments: [], categoritzacions: [], onlySac: false, onlyGovern: false, onlyVacant: false };
+        populateNomenaments(); populateCategoritzacions(); updateNomenamentsUI(); updateCategoritzacionsUI(); applyFilters();
+    });
+
+    // Multiselect dropdowns setup (Unificat)
+    const setupMultiselect = (btnId, dropdownId) => {
+        const btn = document.getElementById(btnId);
+        const dropdown = document.getElementById(dropdownId);
+        if (btn && dropdown) {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const wasActive = dropdown.classList.contains('active');
+                document.querySelectorAll('.multiselect-dropdown').forEach(d => d.classList.remove('active'));
+                if (!wasActive) dropdown.classList.add('active');
+            });
+        }
+    };
+
+    setupMultiselect('btnNomenaments', 'dropdownNomenaments');
+    setupMultiselect('btnCategoritzacions', 'dropdownCategoritzacions');
+
+    document.addEventListener('click', (e) => {
+        document.querySelectorAll('.multiselect-dropdown').forEach(d => {
+            if (!d.contains(e.target)) d.classList.remove('active');
+        });
     });
     ['toggleSac', 'toggleGovern', 'toggleVacant'].forEach(id => {
         document.getElementById(id).addEventListener('click', (e) => {
@@ -239,14 +264,9 @@ function setupEventListeners() {
         }
     });
     document.getElementById('btnSync').addEventListener('click', () => handleSync());
+    document.getElementById('btnExportCSV').addEventListener('click', exportToCSV);
 
-    const btnNom = document.getElementById('btnNomenaments');
-    const dropdownNom = document.getElementById('dropdownNomenaments');
-    if (btnNom && dropdownNom) {
-        btnNom.addEventListener('click', (e) => { e.stopPropagation(); dropdownNom.classList.toggle('active'); });
-        document.addEventListener('click', (e) => { if (dropdownNom && !dropdownNom.contains(e.target)) dropdownNom.classList.remove('active'); });
-    }
-
+    // Gestió d'ordenació per capçaleres
     document.querySelectorAll('.sortable-header').forEach(th => {
         th.addEventListener('click', () => {
             const key = th.getAttribute('data-sort');
@@ -267,7 +287,6 @@ function setupEventListeners() {
             applyFilters();
         });
     });
-    document.getElementById('btnExportCSV').addEventListener('click', exportToCSV);
 }
 
 function populateDepartaments() {
@@ -299,17 +318,42 @@ function populateNomenaments() {
 
 function updateNomenamentsUI() {
     const btn = document.getElementById('btnNomenaments'); if (!btn) return;
-    btn.innerHTML = `<i data-lucide="list-checks" style="width: 16px; margin-right: 4px;"></i> ${filters.nomenaments.length ? `(${filters.nomenaments.length}) Nomenaments` : 'Tipus Nomenament'}`;
+    btn.innerHTML = `<i data-lucide="list-checks" style="width: 16px; margin-right: 4px;"></i> ${filters.nomenaments.length ? `(${filters.nomenaments.length}) Tipus` : 'Tipus Nomenament'}`;
     btn.classList.toggle('btn-primary', filters.nomenaments.length > 0);
+    if (window.lucide) lucide.createIcons();
+}
+
+function populateCategoritzacions() {
+    const list = document.getElementById('listCategoritzacions'); if (!list) return;
+    const cats = [...new Set(allRecords.map(r => r.categoritzacio))].filter(Boolean).sort();
+    list.innerHTML = '';
+    cats.forEach(cat => {
+        const item = document.createElement('label');
+        item.className = 'multiselect-item';
+        item.innerHTML = `<input type="checkbox" ${filters.categoritzacions.includes(cat) ? 'checked' : ''} value="${cat}"><span>${cat}</span>`;
+        item.querySelector('input').addEventListener('change', (e) => {
+            if (e.target.checked) filters.categoritzacions.push(cat);
+            else filters.categoritzacions = filters.categoritzacions.filter(v => v !== cat);
+            updateCategoritzacionsUI(); applyFilters();
+        });
+        list.appendChild(item);
+    });
+    updateCategoritzacionsUI();
+}
+
+function updateCategoritzacionsUI() {
+    const btn = document.getElementById('btnCategoritzacions'); if (!btn) return;
+    btn.innerHTML = `<i data-lucide="layers" style="width: 16px; margin-right: 4px;"></i> ${filters.categoritzacions.length ? `(${filters.categoritzacions.length})` : 'Categorització'}`;
+    btn.classList.toggle('btn-primary', filters.categoritzacions.length > 0);
     if (window.lucide) lucide.createIcons();
 }
 
 function exportToCSV() {
     if (filteredRecords.length === 0) return;
-    const headers = ["Codi SAC", "Persona Nom", "Persona Cognoms", "Carrec", "Departament", "Entitat", "N. Registre", "Òrgan Govern Superior", "Tipus Membre", "Particip/Organisme", "Tipus Nomenament", "Estat", "Qualificador"];
+    const headers = ["Codi SAC", "Persona Nom", "Persona Cognoms", "Carrec", "Departament", "Entitat", "N. Registre", "Òrgan Govern Superior", "Categorització", "Tipus Membre", "Particip/Organisme", "Tipus Nomenament", "Estat", "Qualificador"];
     let csvContent = "\ufeff" + headers.join(";") + "\n";
     filteredRecords.forEach(r => {
-        const row = [r.codi_sac || "", r.persona_nom || "", r.persona_cognoms || "", r.carrec || "", r.sac_departament || r.departament || "", r.entitat || "", r.n_registre || "", r.is_govern_superior || "", r.membre_tipus || "", r.part_cip_o_organisme || "", r.tipus_nomenament || "", r.status || "", r.qualificador || ""];
+        const row = [r.codi_sac || "", r.persona_nom || "", r.persona_cognoms || "", r.carrec || "", r.sac_departament || r.departament || "", r.entitat || "", r.n_registre || "", r.is_govern_superior || "", r.categoritzacio || "", r.membre_tipus || "", r.part_cip_o_organisme || "", r.tipus_nomenament || "", r.status || "", r.qualificador || ""];
         csvContent += row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";") + "\n";
     });
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
