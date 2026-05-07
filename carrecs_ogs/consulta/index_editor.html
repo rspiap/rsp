@@ -137,16 +137,66 @@
                 <table>
                     <thead>
                         <tr>
-                            <th class="sortable-header" data-sort="codi_sac" style="width: 100px; text-align: center;">
-                                SAC <i data-lucide="chevron-down" class="sort-icon"></i></th>
-                            <th class="sortable-header" data-sort="carrec" style="width: 250px;">Càrrec <i
-                                    data-lucide="chevron-down" class="sort-icon"></i></th>
-                            <th class="sortable-header" data-sort="entitat" style="width: 280px;">Entitat <i
-                                    data-lucide="chevron-down" class="sort-icon"></i></th>
-                            <th class="sortable-header" data-sort="is_govern_superior" style="width: 250px;">Òrgan /
-                                Membre <i data-lucide="chevron-down" class="sort-icon"></i></th>
-                            <th class="sortable-header" data-sort="persona_nom">Persona / Estat <i
-                                    data-lucide="chevron-down" class="sort-icon"></i></th>
+                            <th class="sortable-header" data-sort="codi_sac" style="width: 1%;">
+                                <div class="header-content">
+                                    <span>SAC</span>
+                                    <div class="header-actions">
+                                        <i data-lucide="chevron-down" class="sort-icon"></i>
+                                        <i data-lucide="search" class="filter-icon" id="iconFilterSAC" onclick="event.stopPropagation(); toggleFilterPopover('SAC')"></i>
+                                    </div>
+                                </div>
+                                <div class="filter-popover" id="popoverSAC" onclick="event.stopPropagation()">
+                                    <input type="text" id="colFilterSAC" class="column-filter" placeholder="Codi SAC...">
+                                </div>
+                            </th>
+                            <th class="sortable-header" data-sort="carrec" style="width: 24.75%;">
+                                <div class="header-content">
+                                    <span>Càrrec</span>
+                                    <div class="header-actions">
+                                        <i data-lucide="chevron-down" class="sort-icon"></i>
+                                        <i data-lucide="search" class="filter-icon" id="iconFilterCarrec" onclick="event.stopPropagation(); toggleFilterPopover('Carrec')"></i>
+                                    </div>
+                                </div>
+                                <div class="filter-popover" id="popoverCarrec" onclick="event.stopPropagation()">
+                                    <input type="text" id="colFilterCarrec" class="column-filter" placeholder="Càrrec...">
+                                </div>
+                            </th>
+                            <th class="sortable-header" data-sort="entitat" style="width: 24.75%;">
+                                <div class="header-content">
+                                    <span>Entitat</span>
+                                    <div class="header-actions">
+                                        <i data-lucide="chevron-down" class="sort-icon"></i>
+                                        <i data-lucide="search" class="filter-icon" id="iconFilterEntitat" onclick="event.stopPropagation(); toggleFilterPopover('Entitat')"></i>
+                                    </div>
+                                </div>
+                                <div class="filter-popover" id="popoverEntitat" onclick="event.stopPropagation()">
+                                    <input type="text" id="colFilterEntitat" class="column-filter" placeholder="Entitat...">
+                                </div>
+                            </th>
+                            <th class="sortable-header" data-sort="is_govern_superior" style="width: 24.75%;">
+                                <div class="header-content">
+                                    <span>Òrgan / Membre</span>
+                                    <div class="header-actions">
+                                        <i data-lucide="chevron-down" class="sort-icon"></i>
+                                        <i data-lucide="search" class="filter-icon" id="iconFilterOGS" onclick="event.stopPropagation(); toggleFilterPopover('OGS')"></i>
+                                    </div>
+                                </div>
+                                <div class="filter-popover" id="popoverOGS" onclick="event.stopPropagation()">
+                                    <input type="text" id="colFilterOGS" class="column-filter" placeholder="Òrgan...">
+                                </div>
+                            </th>
+                            <th class="sortable-header" data-sort="persona_nom" style="width: 24.75%;">
+                                <div class="header-content">
+                                    <span>Persona / Estat</span>
+                                    <div class="header-actions">
+                                        <i data-lucide="chevron-down" class="sort-icon"></i>
+                                        <i data-lucide="search" class="filter-icon" id="iconFilterPersona" onclick="event.stopPropagation(); toggleFilterPopover('Persona')"></i>
+                                    </div>
+                                </div>
+                                <div class="filter-popover" id="popoverPersona" onclick="event.stopPropagation()">
+                                    <input type="text" id="colFilterPersona" class="column-filter" placeholder="Persona...">
+                                </div>
+                            </th>
                         </tr>
                     </thead>
                     <tbody id="tableBody">
@@ -215,6 +265,43 @@
         </div>
     </div>
 
+    <!-- Modal de Consell d'Administració -->
+    <div id="consellModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass" style="max-width: 95%; width: 1200px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h2 id="consellModalTitle" style="margin: 0;">Consell d'Administració</h2>
+                <button onclick="closeConsellModal()" class="btn">Tancar</button>
+            </div>
+            <div id="consellLoading" style="text-align: center; padding: 2rem; display: none;">
+                <div class="spinner" style="margin: 0 auto 1rem;"></div>
+                <p>Carregant composició del consell...</p>
+            </div>
+            <div id="consellContent" class="data-table-wrapper" style="max-height: 60vh; overflow-y: auto;">
+                <style>
+                    #consellContent th, #consellContent td {
+                        text-align: left !important;
+                        padding: 12px 10px;
+                        border-bottom: 1px solid var(--border-color);
+                    }
+                </style>
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                    <thead style="position: sticky; top: 0; background: var(--bg-dark); z-index: 10; text-align: left;">
+                        <tr>
+                            <th>Càrrec (Consell)</th>
+                            <th>Membre / Representant</th>
+                            <th>Lloc Treball (Ext)</th>
+                            <th>Forma Org.</th>
+                            <th>Inici</th>
+                            <th>Final</th>
+                        </tr>
+                    </thead>
+                    <tbody id="consellTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="global-tooltip"></div>
     <script type="module" src="js/dashboard.js"></script>
 </body>
 
