@@ -78,3 +78,35 @@ function updateThemeIcons() {
     btn.innerHTML = `<i data-lucide="${isLight ? 'moon' : 'sun'}" style="width: 20px; height: 20px;"></i>`;
     if (window.lucide) lucide.createIcons();
 }
+
+/**
+ * Gestió de Popovers de Filtre
+ */
+window.toggleFilterPopover = function(id) {
+    const popover = document.getElementById('popover' + id);
+    if (!popover) return;
+    
+    const isShowing = popover.classList.contains('show');
+    
+    // Tanquem tots els altres popovers primer
+    document.querySelectorAll('.filter-popover').forEach(p => p.classList.remove('show'));
+    
+    if (!isShowing) {
+        popover.classList.add('show');
+        const input = popover.querySelector('input');
+        if (input) input.focus();
+    }
+};
+
+// Tancar popovers en clicar a fora o prémer Enter als inputs
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.sortable-header') && !e.target.closest('.filter-popover')) {
+        document.querySelectorAll('.filter-popover').forEach(p => p.classList.remove('show'));
+    }
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.classList.contains('column-filter')) {
+        document.querySelectorAll('.filter-popover').forEach(p => p.classList.remove('show'));
+    }
+});

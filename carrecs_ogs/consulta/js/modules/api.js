@@ -88,5 +88,16 @@ export const API = {
         } while (cursor);
 
         return lookup;
+    },
+    async fetchConsellAdmon(regNumber, name) {
+        let url = `${CONFIG.OPEN_DATA.BASE_URL}/resource/${CONFIG.OPEN_DATA.CONSELL_ADMON_RESOURCE_ID}.json?`;
+        if (regNumber && regNumber !== '-') {
+            url += `n_mero_de_registre=${regNumber}`;
+        } else {
+            url += `denominaci=${encodeURIComponent(name)}`;
+        }
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Error al carregar el consell');
+        return await response.json();
     }
 };

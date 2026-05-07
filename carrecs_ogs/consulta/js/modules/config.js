@@ -7,6 +7,8 @@ export const CONFIG = {
     OPEN_DATA: {
         RESOURCE_ID: 'auai-ppkn', // Persones i membres d'òrgans de govern
         EXTRA_RESOURCE_ID: 'sexe-cpsh', // Registre del sector públic (enriquiment)
+        PARTICIPACIO_RESOURCE_ID: 'gr39-ik6u', // Participació de la Generalitat (tooltips)
+        CONSELL_ADMON_RESOURCE_ID: 'nmgt-rq9t',
         BASE_URL: 'https://analisi.transparenciacatalunya.cat'
     },
 

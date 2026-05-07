@@ -72,8 +72,33 @@ export class SyncEngine {
                     if (!sexeLookup.has(normalizedReg)) sexeLookup.set(normalizedReg, extra);
                 }
             });
+            
+            // 4. Open Data (Participació dataset for tooltips)
+            if (onProgress) onProgress({ step: 'Obtenint dades de participació (Tooltips)...', progress: 55 });
+            await new Promise(r => setTimeout(r, 400));
+            
+            const participacioRaw = await API.fetchOpenData(CONFIG.OPEN_DATA.PARTICIPACIO_RESOURCE_ID);
+            const participacioLookup = new Map();
+            participacioRaw.forEach(d => {
+                if (d.denominaci) {
+                    const nEns = baseNorm(d.denominaci);
+                    const nReg = (d.n_mero_de_registre || "").toString().trim().replace(/^0+/, '');
+                    const payload = {
+                        grau: d.grau_de_participaci || "-",
+                        via: d.via_de_participaci || "-",
+                        total: d.total_participaci_generalitat || "-",
+                        mesura: d.mesura_de_la_participaci || "-",
+                        deptAdscripcio: d.departament_d_adscripci || "-",
+                        natureza: d.naturalesa_jur_dica || "-"
+                    };
+                    participacioLookup.set(nEns, payload);
+                    if (nReg && nReg !== "") {
+                        participacioLookup.set(nReg, payload);
+                    }
+                }
+            });
 
-            // 4. Mapatge SAC (Cloud o CSV)
+            // 5. Mapatge SAC (Cloud o CSV)
             if (onProgress) onProgress({ step: 'Llegint mapatge personalitzat (SAC Mapping)...', progress: 65 });
             await new Promise(r => setTimeout(r, 400));
             
@@ -98,11 +123,11 @@ export class SyncEngine {
                 });
             }
 
-            // 5. Processament i Creuament
+            // 6. Processament i Creuament
             if (onProgress) onProgress({ step: 'Comparant i validant dades...', progress: 75 });
             await new Promise(r => setTimeout(r, 400));
             
-            const finalRecords = this.processRecords(persones, sexeLookup, sacLookup, onProgress);
+            const finalRecords = this.processRecords(persones, sexeLookup, sacLookup, participacioLookup, onProgress);
 
             // 6. Persistència
             if (onProgress) onProgress({ step: 'Desant a la base de dades local...', progress: 95 });
@@ -136,7 +161,7 @@ export class SyncEngine {
         return data;
     }
 
-    processRecords(persones, sexeLookup, sacLookup, onProgress) {
+    processRecords(persones, sexeLookup, sacLookup, participacioLookup, onProgress) {
         const finalRecords = [];
         const total = persones.length;
 
@@ -201,8 +226,25 @@ export class SyncEngine {
                 sac_unitat: "",
                 sac_departament: "",
                 sac_carrec: "",
-                status: ""
+                status: "",
+                // Tooltip data
+                part_grau: "-",
+                part_via: "-",
+                part_total: "-",
+                part_mesura: "-",
+                part_dept_adscripcio: "-",
+                part_natureza: "-"
             };
+
+            const partExtra = participacioLookup.get(nReg) || participacioLookup.get(nEns);
+            if (partExtra) {
+                record.part_grau = partExtra.grau;
+                record.part_via = partExtra.via;
+                record.part_total = partExtra.total;
+                record.part_mesura = partExtra.mesura;
+                record.part_dept_adscripcio = partExtra.deptAdscripcio;
+                record.part_natureza = partExtra.natureza;
+            }
 
             const smartKey = getSmartKey(vEntitat, vMembre, vCarrec);
             if (sacLookup.has(smartKey)) {
