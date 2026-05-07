@@ -311,10 +311,29 @@ function renderTable(append = false) {
 
 function exportToCSV() {
     if (filteredRecords.length === 0) return;
-    const headers = ["Codi SAC", "Persona Nom", "Persona Cognoms", "Carrec", "Departament", "Entitat", "N. Registre", "Òrgan Govern Superior", "Tipus Membre", "Particip/Organisme", "Tipus Nomenament", "Estat", "Qualificador"];
+    const headers = ["Codi SAC", "Membre", "Representant", "Carrec", "Departament", "Entitat", "N. Registre", "Òrgan Govern Superior", "Tipus Membre", "Particip/Organisme", "Tipus Nomenament", "Estat", "Qualificador"];
     let csvContent = "\ufeff" + headers.join(";") + "\n";
     filteredRecords.forEach(r => {
-        const row = [r.codi_sac || "", r.persona_nom || "", r.persona_cognoms || "", r.carrec || "", r.sac_departament || r.departament || "", r.entitat || "", r.n_registre || "", r.is_govern_superior || "", r.membre_tipus || "", r.part_cip_o_organisme || "", r.tipus_nomenament || "", r.status || "", r.qualificador || ""];
+        const isJuridica = (r.qualificador || "").toLowerCase().includes("jur") || (r.membre_tipus || "").toLowerCase().includes("jur");
+        
+        const membre = isJuridica ? (r.denom_social || "") : `${r.persona_nom || ''} ${r.persona_cognoms || ''}`.trim();
+        const representant = isJuridica ? `${r.nom_rep || ''} ${r.cognoms_rep || ''}`.trim() : "";
+        
+        const row = [
+            r.codi_sac || "", 
+            membre, 
+            representant,
+            r.carrec || "", 
+            r.sac_departament || r.departament || "", 
+            r.entitat || "", 
+            r.n_registre || "", 
+            r.is_govern_superior || "", 
+            r.membre_tipus || "", 
+            r.part_cip_o_organisme || "", 
+            r.tipus_nomenament || "", 
+            r.status || "", 
+            r.qualificador || ""
+        ];
         csvContent += row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";") + "\n";
     });
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -450,8 +469,25 @@ function updateCategoritzacionsUI() {
     if (window.lucide) lucide.createIcons();
 }
 window.openQuickEdit = (id) => {
-    const record = allRecords.find(r => r.id == id); if (!record) return;
-    ['Entitat', 'Membre', 'Carrec', 'Codi'].forEach(f => document.getElementById('editField' + f).value = record[f === 'Codi' ? 'codi_sac' : f.toLowerCase()] || '');
+    const record = allRecords.find(r => r.id == id);
+    if (!record) return;
+    
+    // Construcció del nom del membre (física o jurídica)
+    const isJuridica = (record.qualificador || "").toLowerCase().includes("jur") || (record.membre_tipus || "").toLowerCase().includes("jur");
+    let membreNom = "";
+    if (isJuridica) {
+        membreNom = record.denom_social || "Entitat Jurídica";
+        if (record.nom_rep || record.cognoms_rep) {
+            membreNom += ` (Rep: ${record.nom_rep || ''} ${record.cognoms_rep || ''})`;
+        }
+    } else {
+        membreNom = `${record.persona_nom || ''} ${record.persona_cognoms || ''}`.trim() || "(Sense nom)";
+    }
+
+    document.getElementById('editFieldEntitat').value = record.entitat || '';
+    document.getElementById('editFieldMembre').value = membreNom;
+    document.getElementById('editFieldCarrec').value = record.carrec || '';
+    document.getElementById('editFieldCodi').value = record.codi_sac || '';
     document.getElementById('editMappingIndex').value = record.id;
     document.getElementById('editMappingModal').style.display = 'flex';
 };

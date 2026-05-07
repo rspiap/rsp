@@ -4,6 +4,9 @@
 import { API } from './api.js';
 
 export const BoardService = {
+    currentData: null,
+    currentEntityName: "",
+
     /**
      * Obre el modal i carrega les dades del consell d'administració
      * @param {string} reg Número de registre de l'entitat
@@ -15,8 +18,13 @@ export const BoardService = {
         const loading = document.getElementById('consellLoading');
         const content = document.getElementById('consellContent');
         const tbody = document.getElementById('consellTableBody');
+        const btnExport = document.getElementById('btnExportBoardCSV');
 
         if (!modal || !title || !loading || !content || !tbody) return;
+
+        this.currentEntityName = name;
+        this.currentData = null;
+        if (btnExport) btnExport.style.display = 'none';
 
         title.textContent = `Consell d'Administració: ${name}`;
         tbody.innerHTML = '';
@@ -39,6 +47,15 @@ export const BoardService = {
                 const getCode = (s) => parseInt((s || "").split("-")[0]) || 999;
                 return getCode(a.c_rrec_en_l_rgan_de_govern_superior) - getCode(b.c_rrec_en_l_rgan_de_govern_superior);
             });
+
+            this.currentData = data;
+            if (btnExport) {
+                btnExport.style.display = 'flex';
+                // Eliminar escoltadors previs si n'hi hagués
+                const newBtn = btnExport.cloneNode(true);
+                btnExport.parentNode.replaceChild(newBtn, btnExport);
+                newBtn.addEventListener('click', () => this.exportToCSV());
+            }
 
             // Mantenim el total de membres al títol si està disponible
             const totalMembres = data[0].nombre_total_de_persones_administradores;
@@ -127,7 +144,6 @@ export const BoardService = {
                     <td style="font-size:0.7rem; font-weight:600;">${carrecNet || ''}</td>
                     <td>${membreHTML}</td>
                     <td style="font-size:0.75rem;">${d.c_rrec_o_lloc_de_treball || ''}</td>
-                    <td style="font-size:0.7rem; color:var(--text-muted);">${d.forma_d_organitzaci || ''}</td>
                     <td style="white-space: nowrap; font-family: monospace; font-size:0.75rem;">${formatDate(dInici, d.data_inici_de_vig_ncia)}</td>
                     <td style="white-space: nowrap; font-family: monospace; font-size:0.75rem; ${finalStyle}">${formatDate(dFinal, d.data_final_de_vig_ncia)}</td>
                 `;
@@ -145,6 +161,42 @@ export const BoardService = {
     closeModal() {
         const modal = document.getElementById('consellModal');
         if (modal) modal.style.display = 'none';
+        this.currentData = null;
+    },
+
+    /**
+     * Exporta les dades actuals del consell a CSV
+     */
+    exportToCSV() {
+        if (!this.currentData || this.currentData.length === 0) return;
+
+        const headers = ["Càrrec", "Membre", "Representant", "Lloc Treball", "Data Inici", "Data Final"];
+        let csvContent = "\ufeff" + headers.join(";") + "\n";
+
+        this.currentData.forEach(d => {
+            const carrec = (d.c_rrec_en_l_rgan_de_govern_superior || "").replace(/^\d+-/, "");
+            const isJuridica = (d.qualificador || "").toLowerCase().includes("jur");
+            
+            const membre = isJuridica ? (d.denominaci_social || "") : `${d.nom_representant || ''} ${d.cognoms_representant || ''}`.trim();
+            const representant = isJuridica ? `${d.nom_representant_p_jur_dica || ''} ${d.cognoms_representant_p_jur_dica || ''}`.trim() : "";
+
+            const row = [
+                carrec,
+                membre,
+                representant,
+                d.c_rrec_o_lloc_de_treball || "",
+                d.data_inici_de_vig_ncia || "",
+                d.data_final_de_vig_ncia || ""
+            ];
+
+            csvContent += row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";") + "\n";
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.setAttribute("href", URL.createObjectURL(blob));
+        link.setAttribute("download", `consell_${this.currentEntityName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`);
+        link.click();
     }
 };
 

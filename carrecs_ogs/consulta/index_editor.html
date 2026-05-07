@@ -270,7 +270,12 @@
         <div class="modal-content glass" style="max-width: 95%; width: 1200px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
                 <h2 id="consellModalTitle" style="margin: 0;">Consell d'Administració</h2>
-                <button onclick="closeConsellModal()" class="btn">Tancar</button>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button id="btnExportBoardCSV" class="btn" style="display: none; align-items: center;">
+                        <i data-lucide="download" style="width: 16px; margin-right: 6px;"></i> Exportar CSV
+                    </button>
+                    <button onclick="closeConsellModal()" class="btn">Tancar</button>
+                </div>
             </div>
             <div id="consellLoading" style="text-align: center; padding: 2rem; display: none;">
                 <div class="spinner" style="margin: 0 auto 1rem;"></div>
@@ -290,7 +295,6 @@
                             <th>Càrrec (Consell)</th>
                             <th>Membre / Representant</th>
                             <th>Lloc Treball (Ext)</th>
-                            <th>Forma Org.</th>
                             <th>Inici</th>
                             <th>Final</th>
                         </tr>

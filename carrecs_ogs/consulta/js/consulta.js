@@ -403,10 +403,29 @@ function updateCategoritzacionsUI() {
 }
 function exportToCSV() {
     if (filteredRecords.length === 0) return;
-    const headers = ["Codi SAC", "Persona Nom", "Persona Cognoms", "Carrec", "Departament", "Entitat", "N. Registre", "Òrgan Govern Superior", "Categorització", "Tipus Membre", "Particip/Organisme", "Tipus Nomenament", "Estat", "Qualificador"];
+    const headers = ["Codi SAC", "Membre", "Representant", "Carrec", "Departament", "Entitat", "N. Registre", "Òrgan Govern Superior", "Tipus Membre", "Particip/Organisme", "Tipus Nomenament", "Estat", "Qualificador"];
     let csvContent = "\ufeff" + headers.join(";") + "\n";
     filteredRecords.forEach(r => {
-        const row = [r.codi_sac || "", r.persona_nom || "", r.persona_cognoms || "", r.carrec || "", r.sac_departament || r.departament || "", r.entitat || "", r.n_registre || "", r.is_govern_superior || "", r.categoritzacio || "", r.membre_tipus || "", r.part_cip_o_organisme || "", r.tipus_nomenament || "", r.status || "", r.qualificador || ""];
+        const isJuridica = (r.qualificador || "").toLowerCase().includes("jur") || (r.membre_tipus || "").toLowerCase().includes("jur");
+        
+        const membre = isJuridica ? (r.denom_social || "") : `${r.persona_nom || ''} ${r.persona_cognoms || ''}`.trim();
+        const representant = isJuridica ? `${r.nom_rep || ''} ${r.cognoms_rep || ''}`.trim() : "";
+        
+        const row = [
+            r.codi_sac || "", 
+            membre, 
+            representant,
+            r.carrec || "", 
+            r.sac_departament || r.departament || "", 
+            r.entitat || "", 
+            r.n_registre || "", 
+            r.is_govern_superior || "", 
+            r.membre_tipus || "", 
+            r.part_cip_o_organisme || "", 
+            r.tipus_nomenament || "", 
+            r.status || "", 
+            r.qualificador || ""
+        ];
         csvContent += row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";") + "\n";
     });
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
