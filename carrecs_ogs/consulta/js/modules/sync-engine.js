@@ -6,7 +6,7 @@ import { CONFIG } from './config.js';
 import { db } from './db.js';
 import { API } from './api.js';
 import { CloudService } from './cloud.js';
-import { baseNorm, baseNormPersona, getSmartKey } from './utils.js';
+import { baseNorm, baseNormPersona, getSmartKey, parseDate } from './utils.js';
 
 export class SyncEngine {
     constructor() {
@@ -98,8 +98,39 @@ export class SyncEngine {
                 }
             });
 
-            // 5. Mapatge SAC (Cloud o CSV)
-            if (onProgress) onProgress({ step: 'Llegint mapatge personalitzat (SAC Mapping)...', progress: 65 });
+            // 5. Open Data (Board of Directors dataset for expiration dates)
+            if (onProgress) onProgress({ step: 'Obtenint dates de vigència dels Consells...', progress: 60 });
+            await new Promise(r => setTimeout(r, 400));
+            
+            const consellRaw = await API.fetchOpenData(CONFIG.OPEN_DATA.CONSELL_ADMON_RESOURCE_ID);
+            const consellLookup = new Map();
+            const today = new Date();
+            today.setHours(0,0,0,0);
+
+            consellRaw.forEach(d => {
+                const reg = d.n_mero_de_registre;
+                const nom = d.denominaci;
+                const dFinalStr = d.data_final_de_vig_ncia;
+                
+                if (!dFinalStr) return;
+
+                const dFinal = parseDate(dFinalStr);
+                if (!dFinal) return;
+                const ts = dFinal.getTime();
+
+                const processEntry = (key) => {
+                    const existing = consellLookup.get(key); 
+                    if (!existing || ts < existing.ts) {
+                        consellLookup.set(key, { ts, str: dFinalStr });
+                    }
+                };
+
+                if (reg) processEntry(reg.toString().trim().replace(/^0+/, ''));
+                if (nom) processEntry(baseNorm(nom));
+            });
+
+            // 6. Mapatge SAC (Cloud o CSV)
+            if (onProgress) onProgress({ step: 'Llegint mapatge personalitzat (SAC Mapping)...', progress: 70 });
             await new Promise(r => setTimeout(r, 400));
             
             let sacLookup = new Map();
@@ -123,13 +154,13 @@ export class SyncEngine {
                 });
             }
 
-            // 6. Processament i Creuament
+            // 7. Processament i Creuament
             if (onProgress) onProgress({ step: 'Comparant i validant dades...', progress: 75 });
             await new Promise(r => setTimeout(r, 400));
             
-            const finalRecords = this.processRecords(persones, sexeLookup, sacLookup, participacioLookup, onProgress);
+            const finalRecords = this.processRecords(persones, sexeLookup, sacLookup, participacioLookup, consellLookup, onProgress);
 
-            // 6. Persistència
+            // 8. Persistència
             if (onProgress) onProgress({ step: 'Desant a la base de dades local...', progress: 95 });
             await db.save(CONFIG.DB.STORES.RECORDS, finalRecords, null, true);
             
@@ -139,7 +170,8 @@ export class SyncEngine {
             if (onProgress) onProgress({ step: 'Sincronització completada amb èxit!', progress: 100 });
             await new Promise(r => setTimeout(r, 1000));
             
-            return finalRecords;
+            // Retornem les dades directament de la DB per assegurar que tenen l'ID auto-incrementat
+            return await db.getAll(CONFIG.DB.STORES.RECORDS);
         } catch (error) {
             console.error("Full Sync Error:", error);
             throw error;
@@ -161,7 +193,7 @@ export class SyncEngine {
         return data;
     }
 
-    processRecords(persones, sexeLookup, sacLookup, participacioLookup, onProgress) {
+    processRecords(persones, sexeLookup, sacLookup, participacioLookup, consellLookup, onProgress) {
         const finalRecords = [];
         const total = persones.length;
 
@@ -186,7 +218,8 @@ export class SyncEngine {
             nomRep: findK(['nom_representant_p_jur_dica', 'nom_representant']),
             cognomRep: findK(['cognoms_representant_p_jur_dica', 'cognoms_representant']),
             social: findK(['denominaci_social']),
-            categoritzacio: findK(['categoritzaci_part_cip', 'categoritzacio'])
+            categoritzacio: findK(['categoritzaci_part_cip', 'categoritzacio']),
+            dataFinal: findK(['data_final_de_vig_ncia', 'data_fi_vigencia'])
         };
 
         for (let i = 0; i < total; i++) {
@@ -226,6 +259,7 @@ export class SyncEngine {
                 sac_unitat: "",
                 sac_departament: "",
                 sac_carrec: "",
+                sac_relacions: "",
                 status: "",
                 // Tooltip data
                 part_grau: "-",
@@ -233,7 +267,9 @@ export class SyncEngine {
                 part_total: "-",
                 part_mesura: "-",
                 part_dept_adscripcio: "-",
-                part_natureza: "-"
+                part_natureza: "-",
+                data_final_de_vig_ncia: "",
+                data_final_individual: p[k.dataFinal] || ""
             };
 
             const partExtra = participacioLookup.get(nReg) || participacioLookup.get(nEns);
@@ -244,6 +280,11 @@ export class SyncEngine {
                 record.part_mesura = partExtra.mesura;
                 record.part_dept_adscripcio = partExtra.deptAdscripcio;
                 record.part_natureza = partExtra.natureza;
+            }
+            
+            const vDataFinalObj = consellLookup.get(nReg) || consellLookup.get(nEns);
+            if (vDataFinalObj) {
+                record.data_final_de_vig_ncia = vDataFinalObj.str;
             }
 
             const smartKey = getSmartKey(vEntitat, vMembre, vCarrec);
@@ -262,6 +303,14 @@ export class SyncEngine {
                     const n1 = baseNormPersona(`${record.persona_nom} ${record.persona_cognoms}`);
                     const n2 = baseNormPersona(record.sac_nom_responsable);
                     
+                    // Extracció de relacions
+                    const rawRel = alg.relacions || (alg.dadesOrganigrama ? alg.dadesOrganigrama.relacions : null);
+                    if (rawRel) {
+                        record.sac_relacions = JSON.stringify(rawRel);
+                    } else {
+                        record.sac_relacions = "";
+                    }
+
                     // Validació robusta: si coincideix el nom, és Validat.
                     if (n1 === n2 && n1 !== "") {
                         record.status = "Validat";
@@ -295,6 +344,10 @@ export class SyncEngine {
             sacFields.sac_unitat = alg.unitatResp.unitat;
             sacFields.sac_departament = alg.unitatResp.departament;
             sacFields.sac_carrec = alg.dadesOrganigrama.carrec;
+            
+            // Relacions
+            const rawRel = alg.relacions || (alg.dadesOrganigrama ? alg.dadesOrganigrama.relacions : null);
+            sacFields.sac_relacions = rawRel ? JSON.stringify(rawRel) : "";
         }
 
         if (codi && nomSAC) {

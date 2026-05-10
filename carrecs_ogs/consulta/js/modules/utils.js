@@ -110,3 +110,29 @@ document.addEventListener('keydown', (e) => {
         document.querySelectorAll('.filter-popover').forEach(p => p.classList.remove('show'));
     }
 });
+
+/**
+ * Converteix una cadena de text en un objecte Date, suportant formats ISO i europeus.
+ */
+export function parseDate(dStr) {
+    if (!dStr) return null;
+    const cleanStr = dStr.trim();
+    
+    // Cas 1: ISO YYYY-MM-DD (molt comú en APIs)
+    const isoMatch = cleanStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+        return new Date(parseInt(isoMatch[1]), parseInt(isoMatch[2]) - 1, parseInt(isoMatch[3]));
+    }
+    
+    // Cas 2: Europeu DD/MM/YYYY
+    if (cleanStr.includes('/')) {
+        const p = cleanStr.split('/');
+        if (p.length === 3) {
+            return new Date(parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0]));
+        }
+    }
+    
+    // Cas 3: Altres formats reconeguts per JS
+    const d = new Date(cleanStr);
+    return isNaN(d.getTime()) ? null : d;
+}

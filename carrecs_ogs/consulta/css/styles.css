@@ -158,22 +158,37 @@ body.light-mode .theme-toggle:hover { background: rgba(0,0,0,0.05); }
     position: relative; 
     z-index: 100; 
 }
-.controls-row { display: flex; gap: 0.75rem; align-items: center; width: 100%; }
-.controls-row.wrap { flex-wrap: wrap; }
+.controls-row { 
+    display: flex; 
+    gap: 0.75rem; 
+    align-items: center; 
+    width: 100%; 
+    flex-wrap: wrap; 
+}
 
-.search-box { flex: 1; min-width: 300px; position: relative; }
+.search-box { 
+    flex: 2; 
+    min-width: 300px; 
+    position: relative; 
+}
 .search-icon { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); width: 18px; pointer-events: none; }
-.search-box input { width: 100%; padding: 0.75rem 1rem 0.75rem 3rem; background: var(--input-bg); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-main); outline: none; transition: border-color 0.2s; }
+.search-box input { width: 100%; padding: 0.75rem 1rem 0.75rem 3rem; background: var(--input-bg); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-main); outline: none; transition: border-color 0.2s; font-size: 0.9rem; }
 .search-box input:focus { border-color: var(--primary); }
 
-.filter-group { display: flex; gap: 0.75rem; }
+.filter-group { 
+    display: flex; 
+    gap: 0.75rem; 
+    flex: 3;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
 
 select {
     appearance: none;
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: 0.5rem;
-    padding: 0.5rem 2rem 0.5rem 1rem;
+    padding: 0.75rem 2.25rem 0.75rem 1rem;
     color: var(--text-main);
     font-size: 0.85rem;
     cursor: pointer;
@@ -214,9 +229,31 @@ option {
 }
 
 .btn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); }
-.btn-primary { background: var(--secondary); border-color: var(--secondary); }
-.btn-primary:hover { background: #0084ff; }
-.btn-secondary { background: rgba(255,255,255,0.02); color: var(--text-muted); }
+
+/* Estils per als botons de Consell d'Administració (CA) */
+.btn-ca-blue {
+    background: rgba(0, 114, 255, 0.15) !important;
+    color: #00c6ff !important;
+    border: 1px solid rgba(0, 198, 255, 0.3) !important;
+}
+.btn-ca-red {
+    background: rgba(255, 107, 107, 0.2) !important;
+    color: #ff6b6b !important;
+    border: 1px solid rgba(255, 107, 107, 0.4) !important;
+}
+.btn-ca-orange {
+    background: rgba(245, 158, 11, 0.2) !important;
+    color: #f59e0b !important;
+    border: 1px solid rgba(245, 158, 11, 0.4) !important;
+}
+
+.btn-ca-blue:hover { background: rgba(0, 114, 255, 0.3) !important; box-shadow: 0 0 10px rgba(0, 198, 255, 0.2); }
+.btn-ca-red:hover { background: rgba(255, 107, 107, 0.4) !important; box-shadow: 0 0 10px rgba(255, 107, 107, 0.2); }
+.btn-ca-orange:hover { background: rgba(245, 158, 11, 0.4) !important; box-shadow: 0 0 10px rgba(245, 158, 11, 0.2); }
+
+body.light-mode .btn-ca-blue { background: rgba(37, 99, 235, 0.1) !important; color: #2563eb !important; border-color: rgba(37, 99, 235, 0.2) !important; }
+body.light-mode .btn-ca-red { background: rgba(220, 38, 38, 0.1) !important; color: #dc2626 !important; border-color: rgba(220, 38, 38, 0.2) !important; }
+body.light-mode .btn-ca-orange { background: rgba(217, 119, 6, 0.1) !important; color: #d97706 !important; border-color: rgba(217, 119, 6, 0.2) !important; }
 
 /* Multiselect Dropdown System */
 .multiselect-container { position: relative; }
@@ -530,8 +567,10 @@ body.light-mode .badge-no-aplica { background: rgba(0, 0, 0, 0.05); color: #4755
     .filter-group { flex-direction: column; width: 100%; }
     .filter-group select { width: 100%; }
     
-    .controls-row.wrap { flex-direction: row; justify-content: flex-start; }
-    .controls-row.wrap .btn { flex: 1; min-width: 140px; }
+    .controls-row.wrap { flex-direction: row; justify-content: flex-start; gap: 0.75rem; }
+    .controls-row.wrap .btn, 
+    .controls-row.wrap .multiselect-container { flex: none; width: auto; }
+    .controls-row.wrap .multiselect-container .btn { width: auto; }
 }
 
 /* Mòbils (Pantalla Petita) */

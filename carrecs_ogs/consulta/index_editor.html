@@ -103,6 +103,18 @@
                 </div>
 
                 <div class="multiselect-container">
+                    <button id="btnNaturezas" class="btn">
+                        <i data-lucide="building" style="width: 16px; margin-right: 4px;"></i>
+                        Naturalesa jurídica
+                    </button>
+                    <div id="dropdownNaturezas" class="multiselect-dropdown">
+                        <div class="multiselect-list" id="listNaturezas">
+                            <div style="padding: 1rem; text-align: center; color: var(--text-muted);">Carregant...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="multiselect-container">
                     <button id="btnNomenaments" class="btn">
                         <i data-lucide="list-checks" style="width: 16px; margin-right: 4px;"></i>
                         Tipus Nomenament
@@ -301,6 +313,19 @@
                     </thead>
                     <tbody id="consellTableBody"></tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Documents del SAC -->
+    <div id="sacDocsModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass" style="max-width: 900px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h2 style="margin: 0;">Documentació acreditativa</h2>
+                <button onclick="closeSacDocsModal()" class="btn">Tancar</button>
+            </div>
+            <div id="sacDocsContent" style="text-align: left; max-height: 60vh; overflow-y: auto;">
+                <!-- Contingut dinàmic -->
             </div>
         </div>
     </div>

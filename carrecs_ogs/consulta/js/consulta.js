@@ -6,13 +6,13 @@ import { CONFIG } from './modules/config.js';
 import { db } from './modules/db.js';
 import { syncEngine } from './modules/sync-engine.js';
 import { BoardService } from './modules/board-of-directors.js';
-import { initTheme, toggleTheme } from './modules/utils.js';
+import { initTheme, toggleTheme, parseDate } from './modules/utils.js';
 
 let allRecords = [];
 let filteredRecords = [];
 let rowsShown = 15;
 let filters = { 
-    search: "", dept: "", status: "", nomenaments: [], categoritzacions: [], 
+    search: "", dept: "", status: "", naturezas: [], nomenaments: [], categoritzacions: [], 
     onlySac: false, onlyGovern: false, onlyVacant: false,
     colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "" 
 };
@@ -29,7 +29,7 @@ async function loadData() {
         await db.init();
         allRecords = await db.getAll(CONFIG.DB.STORES.RECORDS);
         if (allRecords.length > 0) {
-            applyFilters(); populateDepartaments(); populateNomenaments(); populateCategoritzacions();
+            applyFilters(); populateDepartaments(); populateNaturezas(); populateNomenaments(); populateCategoritzacions();
         } else { handleSync(); }
     } catch (e) { console.error(e); }
 }
@@ -46,7 +46,7 @@ async function handleSync() {
             if (stepText) stepText.textContent = info.step;
             if (progressBar) progressBar.style.width = `${info.progress}%`;
         });
-        applyFilters(); populateDepartaments(); populateNomenaments();
+        applyFilters(); populateDepartaments(); populateNaturezas(); populateNomenaments();
         setTimeout(() => { if (modal) modal.style.display = 'none'; if (btn) btn.disabled = false; }, 400);
     } catch (e) { if (btn) btn.disabled = false; }
 }
@@ -82,6 +82,7 @@ function applyFilters() {
                 matchesStatus = (r.status === filters.status);
             }
         }
+        const matchesNatureza = filters.naturezas.length === 0 || filters.naturezas.includes(r.part_natureza);
         const nomVal = r.tipus_nomenament && r.tipus_nomenament.trim() !== "" ? r.tipus_nomenament : "No informat";
         const matchesNomenament = filters.nomenaments.length === 0 || filters.nomenaments.includes(nomVal);
         const matchesCategoritzacio = filters.categoritzacions.length === 0 || (r.categoritzacio && filters.categoritzacions.includes(r.categoritzacio));
@@ -90,7 +91,7 @@ function applyFilters() {
         const matchesVacant = !filters.onlyVacant || (r.qualificador || "").toLowerCase().includes("vacant");
 
         return matchesSearch && matchesColSac && matchesColCarrec && matchesColEntitat && matchesColOGS && matchesColPersona && 
-               matchesDept && matchesStatus && matchesNomenament && matchesCategoritzacio && matchesSac && matchesGovern && matchesVacant;
+               matchesDept && matchesStatus && matchesNatureza && matchesNomenament && matchesCategoritzacio && matchesSac && matchesGovern && matchesVacant;
     });
 
     const updateIcon = (id, val) => {
@@ -212,13 +213,27 @@ function renderTable(append = false) {
                         if (isFirstOfSAC) html += `<td rowspan="${sacRows}" class="td-sac"><span class="parent-sac-badge">${sg.sac || '---'}</span></td>`;
                         if (isFirstOfCarrec) {
                             const first = cg.entities[0].ogs[0].persons[0];
-                            let sacHTML = first.sac_carrec ? `<div style="margin-top:8px;"><div style="font-size:0.6rem; color:var(--primary); font-weight:700;">(SAC:)</div><div style="font-size:0.75rem; color:var(--text-main); line-height:1.2;">${first.sac_carrec.toLowerCase()}</div><div style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">${first.sac_unitat || ''}</div></div>` : '';
+                            let sacHTML = first.sac_carrec ? `<div class="clickable-sac" style="margin-top:8px; cursor:pointer;" data-record-id="${first.id}"><div style="font-size:0.6rem; color:var(--primary); font-weight:700; display:flex; align-items:center; gap:4px;">(SAC:) <i data-lucide="info" style="width:10px; height:10px;"></i></div><div style="font-size:0.75rem; color:var(--text-main); line-height:1.2;">${first.sac_carrec.toLowerCase()}</div><div style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">${first.sac_unitat || ''}</div></div>` : '';
                             html += `<td rowspan="${carrecRows}" class="td-carrec"><div class="cell-main-title">${cg.name}</div>${sacHTML}</td>`;
                         }
                         if (isFirstOfEntitat) {
                             const firstP = ent.ogs[0].persons[0];
                             const isMercantil = (ent.natureza || "").toLowerCase().includes("mercantil");
-                            const caBtn = (ent.reg && isMercantil) ? `<div style="margin-left:12px;"><button onclick="openConsellModal('${ent.reg || '-'}', '${ent.name.replace(/'/g, "\\'")}')" class="btn btn-primary" style="padding: 6px 12px; font-size: 0.7rem; font-weight: 800; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); white-space: nowrap;">CA</button></div>` : '';
+                            let caBtn = '';
+                            if (ent.reg && isMercantil) {
+                                let btnClass = "btn-ca-blue";
+                                if (firstP.data_final_de_vig_ncia) {
+                                    const dFinal = parseDate(firstP.data_final_de_vig_ncia);
+                                    if (dFinal) {
+                                        const today = new Date();
+                                        today.setHours(0,0,0,0);
+                                        const diffDays = (dFinal - today) / (1000 * 60 * 60 * 24);
+                                        if (diffDays < 0) btnClass = "btn-ca-red";
+                                        else if (diffDays < 30) btnClass = "btn-ca-orange";
+                                    }
+                                }
+                                caBtn = `<div style="margin-left:12px;"><button onclick="openConsellModal('${ent.reg || '-'}', '${ent.name.replace(/'/g, "\\'")}')" class="btn ${btnClass}" style="padding: 6px 12px; font-size: 0.7rem; font-weight: 800; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); white-space: nowrap;">CA</button></div>`;
+                            }
 
                             html += `<td rowspan="${entRows}" class="td-entitat has-tooltip" 
                                         data-grau="${firstP.part_grau || '-'}" 
@@ -252,21 +267,38 @@ function renderTable(append = false) {
                         else statusBadge = '<span class="badge badge-no-aplica">No aplica</span>';
 
                         const isJuridica = (p.qualificador || "").toLowerCase().includes("jur") || (p.membre_tipus || "").toLowerCase().includes("jur");
+                        
+                        // Lògica de caducitat individual
+                        const dFinalInd = parseDate(p.data_final_individual);
+                        let expStyle = "";
+                        let expText = "";
+                        if (dFinalInd) {
+                            const today = new Date(); today.setHours(0,0,0,0);
+                            const diffDays = (dFinalInd - today) / (1000 * 60 * 60 * 24);
+                            if (diffDays < 0) {
+                                expStyle = "color: #ff6b6b !important; font-weight: 700;";
+                                expText = `<div style="font-size:0.7rem; color:#ff6b6b; margin-top:4px; font-weight:600;">Càrrec expirat el ${p.data_final_individual}</div>`;
+                            } else if (diffDays < 30) {
+                                expStyle = "color: #f59e0b !important; font-weight: 700;";
+                                expText = `<div style="font-size:0.7rem; color:#f59e0b; margin-top:4px; font-weight:600;">El càrrec expira el ${p.data_final_individual}</div>`;
+                            }
+                        }
+
                         let nomHTML = "";
                         if (isJuridica) {
                             let repNomComplet = `${p.nom_rep || ''} ${p.cognoms_rep || ''}`.trim();
                             const nomPrincipal = repNomComplet || p.persona_nom || "Representant pendent";
-                            nomHTML = `<div class="persona-nom">${nomPrincipal}</div><div class="persona-rep-info">Representant de ${p.denom_social || "Entitat Jurídica"}</div>`;
+                            nomHTML = `<div class="persona-nom" style="${expStyle}">${nomPrincipal}</div><div class="persona-rep-info">Representant de ${p.denom_social || "Entitat Jurídica"}</div>`;
                         } else if ((p.qualificador || "").toLowerCase().includes("vacant")) {
                             nomHTML = `<div style="color:var(--text-muted); font-style:italic;">(Vacant)</div>`;
                         } else {
-                            nomHTML = `<div class="persona-nom">${p.persona_nom || ''} ${p.persona_cognoms || ''}</div>`;
+                            nomHTML = `<div class="persona-nom" style="${expStyle}">${p.persona_nom || ''} ${p.persona_cognoms || ''}</div>`;
                         }
                         let sacInfoHTML = (p.codi_sac && p.sac_nom_responsable && p.status !== 'Validat') ? `<div class="sac-ref-box"><div style="font-size: 0.55rem; text-transform: uppercase; color: #ff6b6b; font-weight: 700;">Ref. SAC:</div><div style="font-weight: 600; color: #ff6b6b;">${p.sac_nom_responsable}</div></div>` : '';
 
                         html += `<td class="td-persona">
                                     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                                        <div>${nomHTML}<div class="persona-sub">${p.tipus_nomenament || ''}</div>${sacInfoHTML}</div>
+                                        <div>${nomHTML}${expText}<div class="persona-sub">${p.tipus_nomenament || ''}</div>${sacInfoHTML}</div>
                                         <div style="text-align:right;">
                                             <div>${statusBadge}</div>
                                         </div>
@@ -308,16 +340,17 @@ function setupEventListeners() {
         ['toggleSac', 'toggleGovern', 'toggleVacant'].forEach(id => {
             const el = document.getElementById(id); if (el) el.classList.remove('btn-primary');
         });
-        filters = { search: "", dept: "", status: "", nomenaments: [], categoritzacions: [], onlySac: false, onlyGovern: false, onlyVacant: false, colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "" };
-        populateNomenaments(); populateCategoritzacions(); updateNomenamentsUI(); updateCategoritzacionsUI(); applyFilters();
+        filters = { search: "", dept: "", status: "", naturezas: [], nomenaments: [], categoritzacions: [], onlySac: false, onlyGovern: false, onlyVacant: false, colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "" };
+        populateNaturezas(); populateNomenaments(); populateCategoritzacions(); updateNaturezasUI(); updateNomenamentsUI(); updateCategoritzacionsUI(); applyFilters();
     });
 
     const setupMultiselect = (btnId, dropdownId) => {
         const btn = document.getElementById(btnId); const dropdown = document.getElementById(dropdownId);
         if (btn && dropdown) btn.addEventListener('click', (e) => { e.stopPropagation(); const wasActive = dropdown.classList.contains('active'); document.querySelectorAll('.multiselect-dropdown').forEach(d => d.classList.remove('active')); if (!wasActive) dropdown.classList.add('active'); });
     };
-    setupMultiselect('btnNomenaments', 'dropdownNomenaments');
     setupMultiselect('btnCategoritzacions', 'dropdownCategoritzacions');
+    setupMultiselect('btnNaturezas', 'dropdownNaturezas');
+    setupMultiselect('btnNomenaments', 'dropdownNomenaments');
     document.addEventListener('click', (e) => { document.querySelectorAll('.multiselect-dropdown').forEach(d => { if (!d.contains(e.target)) d.classList.remove('active'); }); });
     safeAddListener('btnExportCSV', 'click', exportToCSV);
     const btnSync = document.getElementById('btnSync'); if (btnSync) btnSync.addEventListener('click', () => handleSync());
@@ -352,6 +385,18 @@ function setupEventListeners() {
             rowsShown += 10; renderTable(true);
         }
     });
+
+    // Delegació d'esdeveniments per a la info del SAC
+    const tbody = document.getElementById('tableBody');
+    if (tbody) {
+        tbody.addEventListener('click', (e) => {
+            const sacDiv = e.target.closest('.clickable-sac');
+            if (sacDiv) {
+                const id = sacDiv.dataset.recordId;
+                if (id) window.openSacDocsModal(id);
+            }
+        });
+    }
 }
 
 function populateDepartaments() {
@@ -367,6 +412,32 @@ function populateDepartaments() {
     if (entSet.size > 0) { html += '<optgroup label="Entitats">'; Array.from(entSet).sort().forEach(d => html += `<option value="${d}">${d}</option>`); html += '</optgroup>'; }
     if (carSet.size > 0) { html += '<optgroup label="Càrrecs">'; Array.from(carSet).sort().forEach(d => html += `<option value="${d}">${d}</option>`); html += '</optgroup>'; }
     select.innerHTML = html;
+}
+
+function populateNaturezas() {
+    const list = document.getElementById('listNaturezas');
+    if (!list) return;
+    const nats = [...new Set(allRecords.map(r => r.part_natureza && r.part_natureza !== "-" ? r.part_natureza : null))].filter(Boolean).sort();
+    list.innerHTML = '';
+    nats.forEach(nat => {
+        const item = document.createElement('label');
+        item.className = 'multiselect-item';
+        item.innerHTML = `<input type="checkbox" value="${nat}"><span>${nat}</span>`;
+        item.querySelector('input').addEventListener('change', (e) => {
+            if (e.target.checked) filters.naturezas.push(nat);
+            else filters.naturezas = filters.naturezas.filter(v => v !== nat);
+            updateNaturezasUI();
+            applyFilters();
+        });
+        list.appendChild(item);
+    });
+}
+function updateNaturezasUI() {
+    const btn = document.getElementById('btnNaturezas');
+    if (!btn) return;
+    btn.innerHTML = `<i data-lucide="building" style="width: 16px; margin-right: 4px;"></i> ${filters.naturezas.length ? `(${filters.naturezas.length}) Naturalesa` : 'Naturalesa jurídica'}`;
+    btn.classList.toggle('btn-primary', filters.naturezas.length > 0);
+    if (window.lucide) lucide.createIcons();
 }
 
 function populateNomenaments() {
@@ -446,3 +517,74 @@ document.addEventListener('mouseover', (e) => {
 });
 document.addEventListener('mousemove', (e) => { if (tooltip && tooltip.style.visibility === 'visible') { const offset = 15; let x = e.clientX + offset; if (x + 340 > window.innerWidth) x = e.clientX - 340 - offset; tooltip.style.left = x + 'px'; tooltip.style.top = (e.clientY + offset) + 'px'; } });
 document.addEventListener('mouseout', (e) => { if (e.target.closest('.has-tooltip') && tooltip) { tooltip.style.visibility = 'hidden'; tooltip.style.opacity = '0'; } });
+
+window.openSacDocsModal = (id) => {
+    console.log("[SAC] Obrint info per ID:", id);
+    const record = allRecords.find(r => r.id == id);
+    
+    if (!record) {
+        console.error("[SAC] Record no trobat per ID:", id);
+        return;
+    }
+
+    if (!record.sac_relacions || record.sac_relacions === "[]" || record.sac_relacions === "") {
+        alert("Aquest càrrec no té informació de 'relacions' registrada al SAC.");
+        return;
+    }
+    
+    let rels = null;
+    try { rels = JSON.parse(record.sac_relacions); } catch (e) { console.error(e); }
+    
+    const container = document.getElementById('sacDocsContent');
+    const modalTitle = document.querySelector('#sacDocsModal h2');
+    if (modalTitle) modalTitle.textContent = "Documentació acreditativa";
+
+    if (!rels) {
+        container.innerHTML = '<div style="padding:2rem; text-align:center; color:var(--text-muted);">Error al processar les dades de relacions.</div>';
+    } else {
+        // Agrupació per tipusInf
+        const relsArray = Array.isArray(rels) ? rels : [rels];
+        const grouped = relsArray.reduce((acc, curr) => {
+            const type = curr.tipusInf || "Altres";
+            if (!acc[type]) acc[type] = [];
+            acc[type].push(curr);
+            return acc;
+        }, {});
+
+        let html = '<div style="display:flex; flex-direction:column; gap:1rem;">';
+        for (const [type, items] of Object.entries(grouped)) {
+            html += `<div class="sac-group">
+                <div style="font-size:0.7rem; font-weight:800; color:var(--primary); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.5rem; padding-bottom:2px; border-bottom:1px solid rgba(var(--primary-rgb), 0.3); display:inline-block;">${type}</div>
+                <div style="display:flex; flex-direction:column; gap:0.25rem;">
+                    ${items.map(item => {
+                        const titol = item.titol || item.descripcio || item.nom || "Document / Enllaç";
+                        const link = item.url || item.path || "";
+                        
+                        if (link) {
+                            return `
+                                <div style="padding:0.4rem 0.6rem; border-radius:4px; transition: background 0.2s; background:rgba(255,255,255,0.02);">
+                                    <a href="${link}" target="_blank" style="font-weight:600; color:var(--text-main); font-size:0.85rem; text-decoration:none; display:flex; align-items:center; gap:6px;">
+                                        <i data-lucide="external-link" style="width:12px; color:var(--primary); opacity:0.7;"></i>
+                                        ${titol}
+                                    </a>
+                                </div>
+                            `;
+                        } else {
+                            return `
+                                <div style="padding:0.4rem 0.6rem; border-radius:4px; background:rgba(255,255,255,0.01);">
+                                    <div style="font-weight:600; color:var(--text-muted); font-size:0.85rem;">${titol}</div>
+                                </div>
+                            `;
+                        }
+                    }).join('')}
+                </div>
+            </div>`;
+        }
+        html += '</div>';
+        container.innerHTML = `<div style="padding:0.5rem;">${html}</div>`;
+    }
+    
+    document.getElementById('sacDocsModal').style.display = 'flex';
+    if (window.lucide) lucide.createIcons();
+};
+window.closeSacDocsModal = () => document.getElementById('sacDocsModal').style.display = 'none';

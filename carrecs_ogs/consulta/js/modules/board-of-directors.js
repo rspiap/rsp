@@ -2,6 +2,7 @@
  * board-of-directors.js - Mòdul per gestionar la consulta dels Consells d'Administració
  */
 import { API } from './api.js';
+import { parseDate } from './utils.js';
 
 export const BoardService = {
     currentData: null,
@@ -66,28 +67,6 @@ export const BoardService = {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
-            const parseDate = (dStr) => {
-                if (!dStr) return null;
-                const cleanStr = dStr.trim();
-                
-                // Cas 1: ISO YYYY-MM-DD (molt comú en APIs)
-                const isoMatch = cleanStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
-                if (isoMatch) {
-                    return new Date(parseInt(isoMatch[1]), parseInt(isoMatch[2]) - 1, parseInt(isoMatch[3]));
-                }
-                
-                // Cas 2: Europeu DD/MM/YYYY
-                if (cleanStr.includes('/')) {
-                    const p = cleanStr.split('/');
-                    if (p.length === 3) {
-                        return new Date(parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0]));
-                    }
-                }
-                
-                // Cas 3: Altres formats reconeguts per JS
-                const d = new Date(cleanStr);
-                return isNaN(d.getTime()) ? null : d;
-            };
 
             const formatDate = (dateObj, originalStr) => {
                 if (!dateObj) return originalStr || '';
@@ -137,8 +116,16 @@ export const BoardService = {
                 // Processament de dates i caducitat
                 const dInici = parseDate(d.data_inici_de_vig_ncia);
                 const dFinal = parseDate(d.data_final_de_vig_ncia);
-                const isExpired = dFinal && dFinal < today;
-                const finalStyle = isExpired ? "color: #ff6b6b; font-weight: 700;" : "";
+                
+                let finalStyle = "";
+                if (dFinal) {
+                    const diffDays = (dFinal - today) / (1000 * 60 * 60 * 24);
+                    if (diffDays < 0) {
+                        finalStyle = "color: #ff6b6b; font-weight: 700;";
+                    } else if (diffDays < 30) {
+                        finalStyle = "color: #f59e0b; font-weight: 700;";
+                    }
+                }
 
                 tr.innerHTML = `
                     <td style="font-size:0.7rem; font-weight:600;">${carrecNet || ''}</td>

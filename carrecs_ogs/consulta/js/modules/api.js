@@ -96,6 +96,7 @@ export const API = {
         } else {
             url += `denominaci=${encodeURIComponent(name)}`;
         }
+        url += `&$limit=50000`;
         const response = await fetch(url);
         if (!response.ok) throw new Error('Error al carregar el consell');
         return await response.json();
