@@ -54,3 +54,85 @@ export function getFieldValue(obj, aliases) {
     }
     return "";
 }
+/**
+ * Gestió de Temes (Clar / Fosc)
+ */
+export function initTheme() {
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    if (savedTheme === 'light') {
+        document.body.classList.add('light-mode');
+    }
+    updateThemeIcons();
+}
+
+export function toggleTheme() {
+    const isLight = document.body.classList.toggle('light-mode');
+    localStorage.setItem('theme', isLight ? 'light' : 'dark');
+    updateThemeIcons();
+}
+
+function updateThemeIcons() {
+    const btn = document.getElementById('themeToggle');
+    if (!btn) return;
+    const isLight = document.body.classList.contains('light-mode');
+    btn.innerHTML = `<i data-lucide="${isLight ? 'moon' : 'sun'}" style="width: 20px; height: 20px;"></i>`;
+    if (window.lucide) lucide.createIcons();
+}
+
+/**
+ * Gestió de Popovers de Filtre
+ */
+window.toggleFilterPopover = function(id) {
+    const popover = document.getElementById('popover' + id);
+    if (!popover) return;
+    
+    const isShowing = popover.classList.contains('show');
+    
+    // Tanquem tots els altres popovers primer
+    document.querySelectorAll('.filter-popover').forEach(p => p.classList.remove('show'));
+    
+    if (!isShowing) {
+        popover.classList.add('show');
+        const input = popover.querySelector('input');
+        if (input) input.focus();
+    }
+};
+
+// Tancar popovers en clicar a fora o prémer Enter als inputs
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.sortable-header') && !e.target.closest('.filter-popover')) {
+        document.querySelectorAll('.filter-popover').forEach(p => p.classList.remove('show'));
+    }
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.classList.contains('column-filter')) {
+        document.querySelectorAll('.filter-popover').forEach(p => p.classList.remove('show'));
+    }
+});
+
+/**
+ * Converteix una cadena de text en un objecte Date, suportant formats ISO i europeus.
+ */
+export function parseDate(dStr) {
+    if (!dStr) return null;
+    const cleanStr = dStr.trim();
+    
+    // Cas 1: ISO YYYY-MM-DD (molt comú en APIs)
+    const isoMatch = cleanStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+        return new Date(parseInt(isoMatch[1]), parseInt(isoMatch[2]) - 1, parseInt(isoMatch[3]));
+    }
+    
+    // Cas 2: Europeu DD/MM/YYYY
+    if (cleanStr.includes('/')) {
+        const p = cleanStr.split('/');
+        if (p.length === 3) {
+            return new Date(parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0]));
+        }
+    }
+    
+    // Cas 3: Altres formats reconeguts per JS
+    const d = new Date(cleanStr);
+    return isNaN(d.getTime()) ? null : d;
+}

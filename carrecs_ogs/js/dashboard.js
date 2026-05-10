@@ -1,17 +1,26 @@
 /**
  * dashboard.js - Controlador 5 Nivells (SAC -> Càrrec -> Entitat -> OGS -> Persona)
+ * Versió: Taula Nativa amb rowspan per a alineació perfecta.
  */
 import { CONFIG } from './modules/config.js';
 import { db } from './modules/db.js';
 import { syncEngine } from './modules/sync-engine.js';
 import { CloudService } from './modules/cloud.js';
+import { BoardService } from './modules/board-of-directors.js';
+import { initTheme, toggleTheme, parseDate } from './modules/utils.js';
 
 let allRecords = [];
 let filteredRecords = [];
 let rowsShown = 15;
-let filters = { search: "", dept: "", status: "", nomenaments: [], onlySac: false, onlyGovern: false, onlyVacant: false };
+let filters = { 
+    search: "", dept: "", status: "", naturezas: [], nomenaments: [], categoritzacions: [], 
+    onlySac: false, onlyGovern: false, onlyVacant: false,
+    colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "" 
+};
+let sortConfig = { key: 'codi_sac', direction: 'asc' };
 
 document.addEventListener('DOMContentLoaded', async () => {
+    initTheme();
     setupEventListeners();
     await loadInitialData();
 });
@@ -21,7 +30,7 @@ async function loadInitialData() {
         let data = await db.getAll(CONFIG.DB.STORES.RECORDS);
         if (data && data.length > 0) {
             allRecords = data;
-            populateDepartaments(); populateNomenaments(); applyFilters(); checkCloudUpdates();
+            populateDepartaments(); populateNaturezas(); populateNomenaments(); populateCategoritzacions(); applyFilters(); checkCloudUpdates();
         } else { handleSync(); }
     } catch (e) { console.error(e); }
 }
@@ -39,7 +48,7 @@ async function handleSync(manualCsvText = null) {
             if (info.progress) progressBar.style.width = `${info.progress}%`;
         });
         allRecords = data;
-        populateDepartaments(); populateNomenaments(); applyFilters();
+        populateDepartaments(); populateNaturezas(); populateNomenaments(); populateCategoritzacions(); applyFilters();
         setTimeout(() => { modal.style.display = 'none'; if (btnSync) btnSync.disabled = false; }, 400);
     } catch (e) { if (btnSync) btnSync.disabled = false; }
 }
@@ -62,11 +71,24 @@ function applyFilters() {
     filters.dept = document.getElementById('filterDepartament').value;
     filters.status = document.getElementById('filterStatus').value;
 
+    filters.colSac = (document.getElementById('colFilterSAC').value || "").toLowerCase().trim();
+    filters.colCarrec = (document.getElementById('colFilterCarrec').value || "").toLowerCase().trim();
+    filters.colEntitat = (document.getElementById('colFilterEntitat').value || "").toLowerCase().trim();
+    filters.colOGS = (document.getElementById('colFilterOGS').value || "").toLowerCase().trim();
+    filters.colPersona = (document.getElementById('colFilterPersona').value || "").toLowerCase().trim();
+
     filteredRecords = allRecords.filter(r => {
-        const searchableText = `${r.persona_nom || ''} ${r.persona_cognoms || ''} ${r.entitat || ''} ${r.carrec || ''} ${r.codi_sac || ''}`.toLowerCase();
+        const searchableText = `${r.persona_nom || ''} ${r.persona_cognoms || ''} ${r.nom_rep || ''} ${r.cognoms_rep || ''} ${r.denom_social || ''} ${r.entitat || ''} ${r.carrec || ''} ${r.codi_sac || ''}`.toLowerCase();
         const matchesSearch = !filters.search || searchableText.includes(filters.search);
+        const matchesColSac = !filters.colSac || String(r.codi_sac || "").toLowerCase().includes(filters.colSac);
+        const matchesColCarrec = !filters.colCarrec || String(r.carrec || "").toLowerCase().includes(filters.colCarrec);
+        const matchesColEntitat = !filters.colEntitat || String(r.entitat || "").toLowerCase().includes(filters.colEntitat);
+        const matchesColOGS = !filters.colOGS || String(r.is_govern_superior || "").toLowerCase().includes(filters.colOGS);
+        const personaText = `${r.persona_nom || ''} ${r.persona_cognoms || ''} ${r.nom_rep || ''} ${r.cognoms_rep || ''} ${r.denom_social || ''}`.toLowerCase();
+        const matchesColPersona = !filters.colPersona || personaText.includes(filters.colPersona);
+
         const valDept = r.sac_departament || r.departament || "Sense departament";
-        const matchesDept = !filters.dept || valDept === filters.dept;
+        const matchesDept = !filters.dept || valDept === filters.dept || r.part_dept_adscripcio === filters.dept;
         let matchesStatus = true;
         if (filters.status) {
             if (filters.status === 'No aplica') {
@@ -75,292 +97,415 @@ function applyFilters() {
                 matchesStatus = (r.status === filters.status);
             }
         }
-        const matchesNomenament = filters.nomenaments.length === 0 || filters.nomenaments.includes(r.tipus_nomenament);
+        const matchesNatureza = filters.naturezas.length === 0 || filters.naturezas.includes(r.part_natureza);
+        const nomVal = r.tipus_nomenament && r.tipus_nomenament.trim() !== "" ? r.tipus_nomenament : "No informat";
+        const matchesNomenament = filters.nomenaments.length === 0 || filters.nomenaments.includes(nomVal);
+        const matchesCategoritzacio = filters.categoritzacions.length === 0 || (r.categoritzacio && filters.categoritzacions.includes(r.categoritzacio));
         const matchesSac = !filters.onlySac || (r.codi_sac && r.codi_sac.trim() !== "");
         const matchesGovern = !filters.onlyGovern || (!r.is_govern_superior || r.is_govern_superior.trim() === "");
         const matchesVacant = !filters.onlyVacant || (r.qualificador || "").toLowerCase().includes("vacant");
-        return matchesSearch && matchesDept && matchesStatus && matchesNomenament && matchesSac && matchesGovern && matchesVacant;
+
+        return matchesSearch && matchesColSac && matchesColCarrec && matchesColEntitat && matchesColOGS && matchesColPersona && 
+               matchesDept && matchesStatus && matchesNatureza && matchesNomenament && matchesCategoritzacio && matchesSac && matchesGovern && matchesVacant;
     });
 
-    // Ordenar per SAC -> Càrrec -> Entitat -> OGS
+    const sortKey = sortConfig.key;
+    const sortDir = sortConfig.direction === 'asc' ? 1 : -1;
     filteredRecords.sort((a, b) => {
-        const sA = String(a.codi_sac || "ZZZZ");
-        const sB = String(b.codi_sac || "ZZZZ");
-        if (sA !== sB) return sA.localeCompare(sB);
-        const cA = String(a.carrec || "");
-        const cB = String(b.carrec || "");
-        if (cA !== cB) return cA.localeCompare(cB);
-        const eA = String(a.entitat || "");
-        const eB = String(b.entitat || "");
-        if (eA !== eB) return eA.localeCompare(eB);
-        return String(a.is_govern_superior || "").localeCompare(String(b.is_govern_superior || ""));
+        let valA = a[sortKey] || "";
+        let valB = b[sortKey] || "";
+        if (typeof valA === 'string') valA = valA.toLowerCase();
+        if (typeof valB === 'string') valB = valB.toLowerCase();
+        if (valA < valB) return -1 * sortDir;
+        if (valA > valB) return 1 * sortDir;
+        return 0;
     });
 
-    rowsShown = 15;
-    window.scrollTo(0, 0);
     renderTable();
 }
 
-function groupRecords5Levels(records) {
-    const sacGroups = [];
-    const sacMap = new Map();
-
-    records.forEach((r, index) => {
-        // REGLA: "El buit no agrupa". Cada valor buit és únic per definició.
-
-        // 1. SAC Key
-        const sValue = r.codi_sac;
-        const sKey = sValue && sValue.trim() !== "" ? sValue : `EMPTY_SAC_${index}`;
-
-        if (!sacMap.has(sKey)) {
-            const sg = { sac: sValue || '', carrecGroups: [] };
-            sacGroups.push(sg); sacMap.set(sKey, sg);
-        }
-        const sacGroup = sacMap.get(sKey);
-
-        // 2. CÀRREC Key
-        const cValue = r.carrec;
-        const cKey = cValue && cValue.trim() !== "" ? `${cValue}|${r.sac_carrec || ''}|${r.sac_unitat || ''}` : `EMPTY_CARREC_${index}`;
-
-        let cg = sacGroup.carrecGroups.find(c => c.id === cKey);
-        if (!cg) {
-            cg = { id: cKey, name: cValue || '', entities: [] };
-            sacGroup.carrecGroups.push(cg);
-        }
-
-        // 3. ENTITAT Key
-        const eValue = r.entitat;
-        const eKey = eValue && eValue.trim() !== "" ? `${eValue}|${r.n_registre || ''}` : `EMPTY_ENT_${index}`;
-
-        let eg = cg.entities.find(e => e.id === eKey);
-        if (!eg) {
-            eg = { id: eKey, name: eValue || '', reg: r.n_registre, ogs: [] };
-            cg.entities.push(eg);
-        }
-
-        // 4. ÒRGAN Key
-        const oValue = r.is_govern_superior;
-        const oKey = oValue && oValue.trim() !== "" ? `${oValue}|${r.departament || ''}|${r.part_cip_o_organisme || ''}` : `EMPTY_OGS_${index}`;
-
-        let og = eg.ogs.find(o => o.id === oKey);
-        if (!og) {
-            og = { id: oKey, name: oValue || '', type: r.membre_tipus, persons: [] };
-            eg.ogs.push(og);
-        }
-        og.persons.push(r);
-    });
-    return sacGroups;
-}
-
-function renderTable(append = false) {
+function renderTable() {
     const tbody = document.getElementById('tableBody');
-    if (!append) tbody.innerHTML = '';
+    const countEl = document.getElementById('recordCount');
+    if (!tbody) return;
 
-    const tree = groupRecords5Levels(filteredRecords);
-    const slice = tree.slice(append ? tbody.children.length : 0, rowsShown);
+    const dataToShow = filteredRecords.slice(0, rowsShown);
+    countEl.textContent = `${filteredRecords.length} registres trobats (mostrant ${dataToShow.length})`;
 
-    if (slice.length === 0 && !append) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 3rem;">No s\'han trobat resultats</td></tr>';
-        return;
-    }
+    const grouped = groupData(dataToShow);
+    let html = '';
 
-    slice.forEach(sg => {
-        const tr = document.createElement('tr');
-        tr.className = 'modular-row';
+    grouped.forEach(sg => {
+        const sacRows = sg.rows;
+        sg.carrecs.forEach((cg, cIdx) => {
+            const carrecRows = cg.rows;
+            const isFirstOfSAC = cIdx === 0;
+            cg.entities.forEach((ent, eIdx) => {
+                const entRows = ent.rows;
+                const isFirstOfCarrec = eIdx === 0;
+                ent.ogs.forEach((og, oIdx) => {
+                    const ogRows = og.rows;
+                    const isFirstOfEntitat = oIdx === 0;
+                    og.persons.forEach((p, pIdx) => {
+                        const isFirstOfOGS = pIdx === 0;
 
-        let html = `<td class="level-1"><span class="parent-sac-badge">${sg.sac || '---'}</span></td>`;
-        html += `<td colspan="4" style="padding:0;"><div class="level-2-container" style="height:100%; display:flex; flex-direction:column;">`;
+                        html += `<tr class="modular-row">`;
+                        if (isFirstOfSAC) html += `<td rowspan="${sacRows}" class="td-sac"><span class="parent-sac-badge">${sg.sac || '---'}</span></td>`;
+                        if (isFirstOfCarrec) {
+                            const first = cg.entities[0].ogs[0].persons[0];
+                            let sacHTML = first.sac_carrec ? `<div class="clickable-sac" style="margin-top:8px; cursor:pointer;" data-record-id="${first.id}"><div style="font-size:0.6rem; color:var(--primary); font-weight:700; display:flex; align-items:center; gap:4px;">(SAC:) <i data-lucide="info" style="width:10px; height:10px;"></i></div><div style="font-size:0.75rem; color:var(--text-main); line-height:1.2;">${first.sac_carrec.toLowerCase()}</div><div style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">${first.sac_unitat || ''}</div></div>` : '';
+                            html += `<td rowspan="${carrecRows}" class="td-carrec"><div class="cell-main-title">${cg.name}</div>${sacHTML}</td>`;
+                        }
+                        if (isFirstOfEntitat) {
+                            const firstP = ent.ogs[0].persons[0];
+                            const isMercantil = (ent.natureza || "").toLowerCase().includes("mercantil");
+                            let caBtn = '';
+                            if (ent.reg && isMercantil) {
+                                let btnClass = "btn-ca-blue";
+                                if (firstP.data_final_de_vig_ncia) {
+                                    const dFinal = parseDate(firstP.data_final_de_vig_ncia);
+                                    if (dFinal) {
+                                        const today = new Date();
+                                        today.setHours(0,0,0,0);
+                                        const diffDays = (dFinal - today) / (1000 * 60 * 60 * 24);
+                                        if (diffDays < 0) btnClass = "btn-ca-red";
+                                        else if (diffDays < 30) btnClass = "btn-ca-orange";
+                                    }
+                                }
+                                caBtn = `<div style="margin-left:12px;"><button onclick="openConsellModal('${ent.reg || '-'}', '${ent.name.replace(/'/g, "\\'")}')" class="btn ${btnClass}" style="padding: 6px 12px; font-size: 0.7rem; font-weight: 800; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); white-space: nowrap;">CA</button></div>`;
+                            }
 
-        sg.carrecGroups.forEach(cg => {
-            const first = cg.entities[0].ogs[0].persons[0];
-            let sacHTML = '';
-            if (first.sac_carrec) {
-                sacHTML = `<div style="margin-top:8px;"><div style="font-size:0.6rem; color:var(--primary); font-weight:700;">(SAC:)</div><div style="font-size:0.75rem; color:#fff; opacity:0.9; line-height:1.2;">${first.sac_carrec.toLowerCase()}</div><div style="font-size:0.65rem; color:var(--text-muted); opacity:0.7; margin-top:2px;">${first.sac_unitat || ''} | ${first.sac_departament || ''}</div></div>`;
-            }
+                            html += `<td rowspan="${entRows}" class="td-entitat has-tooltip" 
+                                        data-grau="${firstP.part_grau || '-'}" 
+                                        data-via="${firstP.part_via || '-'}" 
+                                        data-total="${firstP.part_total || '-'}" 
+                                        data-mesura="${firstP.part_mesura || '-'}">
+                                        <div style="display:flex; align-items:center; justify-content:space-between; height:100%;">
+                                            <div style="flex:1;">
+                                                <div class="cell-main-title">${ent.name}</div>
+                                                <div style="font-size:0.65rem; color:var(--text-muted); margin-top:4px;">Reg: ${ent.reg || '-'}</div>
+                                                <div style="font-size:0.65rem; color:var(--text-muted); margin-top:2px; font-style:italic; line-height:1.1;">${firstP.part_dept_adscripcio || ''}</div>
+                                            </div>
+                                            ${caBtn}
+                                        </div>
+                                     </td>`;
+                        }
+                        if (isFirstOfOGS) {
+                            const deptText = p.departament ? `(${p.departament})` : '';
+                            const displayOrg = p.sac_unitat ? `${p.sac_unitat} ${deptText}` : (p.departament || '');
+                            const catHTML = p.categoritzacio ? `<div style="margin-top:2px; font-weight:700; color:var(--text-muted); font-size:0.6rem; text-transform:uppercase;">${p.categoritzacio}</div>` : '';
+                            html += `<td rowspan="${ogRows}" class="td-organ">
+                                        <div class="cell-main-title">${og.name}</div>
+                                        <div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">${displayOrg}</div>
+                                        <div style="margin-top:8px; font-size:0.65rem; color:var(--text-muted); border-top:1px solid rgba(255,255,255,0.05); padding-top:4px;">${p.part_cip_o_organisme || ''}${catHTML}</div>
+                                     </td>`;
+                        }
 
-            html += `<div class="level-2-row" style="flex:1; display:flex;"><div class="level-2-cell"><div class="carrec-text" style="font-weight:700;">${cg.name}</div>${sacHTML}</div>`;
-            html += `<div class="level-3-container" style="flex:1; display:flex; flex-direction:column;">`;
-
-            cg.entities.forEach(ent => {
-                html += `<div class="level-3-row" style="flex:1; display:flex;"><div class="level-3-cell"><div style="font-weight:700; font-size:0.85rem; color:#fff;">${ent.name}</div><div style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">Reg: ${ent.reg || '-'}</div></div>`;
-                html += `<div class="level-4-container" style="flex:1; display:flex; flex-direction:column;">`;
-
-                ent.ogs.forEach(og => {
-                    const p = og.persons[0];
-                    html += `<div class="level-4-row" style="flex:1; display:flex;"><div class="level-4-cell"><div style="font-weight:600; font-size:0.85rem; color:var(--text-main);">${og.name}</div><div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">${p.departament || ''} (-)</div><div style="margin-top:8px; font-size:0.65rem; color:var(--text-muted); border-top:1px solid rgba(255,255,255,0.05); padding-top:4px;">${p.part_cip_o_organisme || ''}</div></div>`;
-                    html += `<div class="level-5-container" style="flex:1; display:flex; flex-direction:column;">`;
-
-                    og.persons.forEach(p => {
                         let statusBadge = '';
                         if (p.status === 'Validat') statusBadge = '<span class="badge badge-validat">Validat</span>';
                         else if (p.status === 'Pendent') statusBadge = '<span class="badge badge-pendent">Pendent</span>';
                         else statusBadge = '<span class="badge badge-no-aplica">No aplica</span>';
-                        let personaFisica = `${p.persona_nom || ''} ${p.persona_cognoms || ''}`.trim();
-                        let repNom = `${p.nom_rep || ''} ${p.cognoms_rep || ''}`.trim();
-                        let entitatJuridica = p.denom_social || "";
+
+                        const personaName = `${p.persona_nom || ''} ${p.persona_cognoms || ''}`.trim();
+                        const repName = `${p.nom_rep || ''} ${p.cognoms_rep || ''}`.trim();
+                        const qualif = (p.qualificador || "").toLowerCase();
                         
-                        // Lògica Persona Jurídica (Amb els camps confirmats)
-                        const isJuridica = (p.qualificador || "").toLowerCase().includes("jur") || (p.membre_tipus || "").toLowerCase().includes("jur");
-                        
-                        let nomHTML = "";
-                        if (isJuridica) {
-                            // Si és jurídica, el representant és el principal i l'entitat va a sota
-                            const nomPrincipal = repNom || personaFisica || "Representant pendent";
-                            const nomEntitat = entitatJuridica || "Entitat Jurídica";
-                            
-                            nomHTML = `<div style="font-size:0.95rem; font-weight:700; color:#fff;">${nomPrincipal}</div>
-                                       <div style="font-size:0.75rem; color:#5c7cfa; font-weight:500; margin-top:3px;">Representant de ${nomEntitat}</div>`;
-                        } else if ((p.qualificador || "").toLowerCase().includes("vacant")) {
-                            nomHTML = `<div style="color:var(--text-muted); font-style:italic; opacity:0.7;">(Vacant)</div>`;
-                        } else {
-                            nomHTML = `<div style="font-size:0.95rem; font-weight:700; color:#fff;">${personaFisica || 'Sense nom'}</div>`;
+                        // Lògica de caducitat individual
+                        const dFinalInd = parseDate(p.data_final_individual);
+                        let expStyle = "";
+                        let expText = "";
+                        if (dFinalInd) {
+                            const today = new Date(); today.setHours(0,0,0,0);
+                            const diffDays = (dFinalInd - today) / (1000 * 60 * 60 * 24);
+                            if (diffDays < 0) {
+                                expStyle = "color: #ff6b6b; font-weight: 700;";
+                                expText = `<div style="font-size:0.7rem; color:#ff6b6b; margin-top:4px; font-weight:600;">Càrrec expirat el ${p.data_final_individual}</div>`;
+                            } else if (diffDays < 30) {
+                                expStyle = "color: #f59e0b; font-weight: 700;";
+                                expText = `<div style="font-size:0.7rem; color:#f59e0b; margin-top:4px; font-weight:600;">El càrrec expira el ${p.data_final_individual}</div>`;
+                            }
                         }
-                        
-                        let sacInfoHTML = '';
-                        if (p.codi_sac && p.sac_nom_responsable && p.status !== 'Validat') {
-                            sacInfoHTML = `<div style="margin-top: 8px; padding: 6px 10px; background: rgba(255, 107, 107, 0.05); border-radius: 6px; border-left: 2px solid #ff6b6b;"><div style="font-size: 0.55rem; text-transform: uppercase; color: #ff6b6b; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 2px;">Ref. SAC:</div><div style="font-size: 0.85rem; color: #ff9e9e; font-weight: 600;">${p.sac_nom_responsable}</div></div>`;
+
+                        let personaHTML = `<div class="cell-main-title" style="${expStyle}">${personaName || '---'}</div>`;
+                        if (qualif.includes("jur") && p.denom_social) {
+                            personaHTML = `<div class="cell-main-title" style="${expStyle}">${p.denom_social}</div><div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">Rep: ${repName || '---'}</div>`;
+                        } else if (qualif.includes("vacant")) {
+                            personaHTML = `<div class="cell-main-title" style="color:var(--text-muted); font-style:italic;">Vacant</div>`;
                         }
-                        html += `<div class="level-5-row" style="flex:1; display:flex;"><div class="level-5-cell"><div style="font-size:0.9rem; font-weight:600;">${nomHTML}</div><div style="font-size:0.7rem; color:var(--text-muted); font-style:italic; margin-top:2px;">${p.tipus_nomenament || ''}</div>${sacInfoHTML}</div><div class="level-5-cell" style="width:100px; text-align:center; flex:none;">${statusBadge}</div><div class="level-5-cell" style="width:45px; text-align:center; flex:none;"><button class="btn-quick-edit" onclick="openQuickEdit('${p.id}')"><i data-lucide="pencil" style="width:14px;"></i></button></div></div>`;
+
+                        html += `<td class="td-persona">
+                                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                                        <div>${personaHTML}${expText}</div>
+                                        <div style="display:flex; align-items:center; gap:8px;">
+                                            ${statusBadge}
+                                            <button class="btn-edit" data-id="${p.id}"><i data-lucide="pencil" style="width:14px; height:14px;"></i></button>
+                                        </div>
+                                    </div>
+                                 </td>`;
+                        html += `</tr>`;
                     });
-                    html += `</div></div>`;
                 });
-                html += `</div></div>`;
             });
-            html += `</div></div>`;
         });
-        html += `</div></td>`;
-        tr.innerHTML = html;
-        tbody.appendChild(tr);
     });
+
+    tbody.innerHTML = html;
     if (window.lucide) lucide.createIcons();
+    setupTableInteractions();
 }
 
-
-/** Funcions d'Exportació i UI */
-function exportToCSV() {
-    if (filteredRecords.length === 0) return;
-    const headers = ["Codi SAC", "Persona Nom", "Persona Cognoms", "Carrec", "Departament", "Entitat", "N. Registre", "Òrgan Govern Superior", "Tipus Membre", "Particip/Organisme", "Tipus Nomenament", "Estat", "Qualificador"];
-    let csvContent = "\ufeff" + headers.join(";") + "\n";
-    filteredRecords.forEach(r => {
-        const row = [r.codi_sac || "", r.persona_nom || "", r.persona_cognoms || "", r.carrec || "", r.sac_departament || r.departament || "", r.entitat || "", r.n_registre || "", r.is_govern_superior || "", r.membre_tipus || "", r.part_cip_o_organisme || "", r.tipus_nomenament || "", r.status || "", r.qualificador || ""];
-        csvContent += row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";") + "\n";
+function groupData(data) {
+    const sacMap = new Map();
+    data.forEach(r => {
+        const sKey = r.codi_sac || '---';
+        if (!sacMap.has(sKey)) sacMap.set(sKey, { sac: sKey, carrecs: new Map(), rows: 0 });
+        const sGroup = sacMap.get(sKey);
+        
+        const cKey = r.carrec || '---';
+        if (!sGroup.carrecs.has(cKey)) sGroup.carrecs.set(cKey, { name: cKey, entities: new Map(), rows: 0 });
+        const cGroup = sGroup.carrecs.get(cKey);
+        
+        const eKey = r.entitat || '---';
+        if (!cGroup.entities.has(eKey)) cGroup.entities.set(eKey, { name: eKey, reg: r.n_registre, natureza: r.part_natureza, ogs: new Map(), rows: 0 });
+        const eGroup = cGroup.entities.get(eKey);
+        
+        const oKey = r.is_govern_superior || '---';
+        if (!eGroup.ogs.has(oKey)) eGroup.ogs.set(oKey, { name: oKey, persons: [], rows: 0 });
+        const oGroup = eGroup.ogs.get(oKey);
+        
+        oGroup.persons.push(r);
+        oGroup.rows++;
+        eGroup.rows++;
+        cGroup.rows++;
+        sGroup.rows++;
     });
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.setAttribute("href", URL.createObjectURL(blob));
-    link.setAttribute("download", `export_${new Date().toISOString().slice(0, 10)}.csv`);
-    link.click();
+
+    return Array.from(sacMap.values()).map(sg => ({
+        ...sg,
+        carrecs: Array.from(sg.carrecs.values()).map(cg => ({
+            ...cg,
+            entities: Array.from(cg.entities.values()).map(eg => ({
+                ...eg,
+                ogs: Array.from(eg.ogs.values())
+            }))
+        }))
+    }));
 }
 
 function setupEventListeners() {
-    console.log("Configurant esdeveniments...");
-
-    const safeAddListener = (id, event, fn) => {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener(event, fn);
-        else console.warn(`Element no trobat: ${id}`);
-    };
-
-    safeAddListener('globalSearch', 'input', applyFilters);
-    safeAddListener('filterDepartament', 'change', applyFilters);
-    safeAddListener('filterStatus', 'change', applyFilters);
-
-    safeAddListener('btnResetFilters', 'click', () => {
-        document.getElementById('globalSearch').value = "";
-        document.getElementById('filterDepartament').value = "";
-        document.getElementById('filterStatus').value = "";
-        ['toggleSac', 'toggleGovern', 'toggleVacant'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.classList.remove('btn-primary');
-        });
-        filters = { search: "", dept: "", status: "", nomenaments: [], onlySac: false, onlyGovern: false, onlyVacant: false };
-        populateNomenaments(); applyFilters();
+    document.getElementById('globalSearch').addEventListener('input', applyFilters);
+    document.getElementById('filterDepartament').addEventListener('change', applyFilters);
+    document.getElementById('filterStatus').addEventListener('change', applyFilters);
+    document.getElementById('btnSync').addEventListener('click', () => handleSync());
+    document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+    document.getElementById('loadMore').addEventListener('click', () => { rowsShown += 20; renderTable(); });
+    
+    document.getElementById('btnExportCSV').addEventListener('click', exportToCSV);
+    document.getElementById('btnOpenSyncModal').addEventListener('click', () => { document.getElementById('syncModal').style.display = 'flex'; });
+    document.getElementById('btnCloseSyncModal').addEventListener('click', () => { document.getElementById('syncModal').style.display = 'none'; });
+    document.getElementById('btnStartSync').addEventListener('click', () => {
+        const csvText = document.getElementById('sacCsvInput').value;
+        handleSync(csvText || null);
     });
 
-    safeAddListener('btnExportCSV', 'click', exportToCSV);
+    document.querySelectorAll('.column-filter').forEach(input => {
+        input.addEventListener('input', applyFilters);
+        input.addEventListener('click', (e) => e.stopPropagation());
+    });
 
-    const btnSync = document.getElementById('btnSync');
-    if (btnSync) {
-        console.log("Botó Actualitzar trobat i vinculat.");
-        btnSync.addEventListener('click', () => {
-            console.log("Clic detectat a Actualitzar Dades");
-            handleSync();
-        });
-    }
-    ['toggleSac', 'toggleGovern', 'toggleVacant'].forEach(id => {
-        document.getElementById(id).addEventListener('click', (e) => {
-            const key = id.replace('toggle', 'only');
-            filters[key.charAt(0).toLowerCase() + key.slice(1)] = !filters[key.charAt(0).toLowerCase() + key.slice(1)];
-            e.currentTarget.classList.toggle('btn-primary'); applyFilters();
+    document.querySelectorAll('.sortable-header').forEach(header => {
+        header.addEventListener('click', () => {
+            const key = header.dataset.sort;
+            if (sortConfig.key === key) {
+                sortConfig.direction = sortConfig.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortConfig.key = key;
+                sortConfig.direction = 'asc';
+            }
+            document.querySelectorAll('.sortable-header').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+            header.classList.add(sortConfig.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+            applyFilters();
         });
     });
-    const btnNom = document.getElementById('btnNomenaments');
-    const dropdownNom = document.getElementById('dropdownNomenaments');
-    if (btnNom && dropdownNom) {
-        btnNom.addEventListener('click', (e) => { e.stopPropagation(); dropdownNom.classList.toggle('active'); });
-        document.addEventListener('click', (e) => { if (!dropdownNom.contains(e.target)) dropdownNom.classList.remove('active'); });
-    }
-    window.addEventListener('scroll', () => {
-        if ((window.innerHeight + window.scrollY) / document.documentElement.scrollHeight > 0.85 && rowsShown < filteredRecords.length) {
-            rowsShown += 10; renderTable(true);
-        }
-    });
-    const editForm = document.getElementById('editMappingForm');
-    if (editForm) {
-        editForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const id = document.getElementById('editMappingIndex').value;
-            const nouCodi = document.getElementById('editFieldCodi').value.trim();
-            const record = allRecords.find(r => r.id == id);
-            const updated = await syncEngine.updateSingleRecord(record, { codi_sac: nouCodi });
-            const idx = allRecords.findIndex(r => r.id == id);
-            allRecords[idx] = updated;
-            CloudService.savePartial({ d: record.entitat, m: record.membre_tipus, c: record.carrec, k: nouCodi });
-            window.closeQuickEdit(); applyFilters();
+
+    document.querySelectorAll('.filter-pill').forEach(pill => {
+        pill.addEventListener('click', () => {
+            const type = pill.dataset.type;
+            const val = pill.dataset.value;
+            pill.classList.toggle('active');
+            
+            let arr = [];
+            if (type === 'natureza') arr = filters.naturezas;
+            else if (type === 'nomenament') arr = filters.nomenaments;
+            else if (type === 'categoritzacio') arr = filters.categoritzacions;
+            
+            const idx = arr.indexOf(val);
+            if (idx > -1) arr.splice(idx, 1);
+            else arr.push(val);
+            
+            applyFilters();
         });
+    });
+
+    document.getElementById('btnFilterSac').addEventListener('click', (e) => {
+        filters.onlySac = !filters.onlySac;
+        e.target.classList.toggle('active');
+        applyFilters();
+    });
+    document.getElementById('btnFilterGovern').addEventListener('click', (e) => {
+        filters.onlyGovern = !filters.onlyGovern;
+        e.target.classList.toggle('active');
+        applyFilters();
+    });
+    document.getElementById('btnFilterVacant').addEventListener('click', (e) => {
+        filters.onlyVacant = !filters.onlyVacant;
+        e.target.classList.toggle('active');
+        applyFilters();
+    });
+}
+
+function setupTableInteractions() {
+    document.querySelectorAll('.btn-edit').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const id = parseInt(btn.dataset.id);
+            const record = allRecords.find(r => r.id === id);
+            if (record) openEditor(record);
+        });
+    });
+
+    document.querySelectorAll('.clickable-sac').forEach(el => {
+        el.addEventListener('click', () => {
+            const id = parseInt(el.dataset.id);
+            const record = allRecords.find(r => r.id === id);
+            if (record) openEditor(record);
+        });
+    });
+
+    const tooltip = document.getElementById('tooltip');
+    document.querySelectorAll('.has-tooltip').forEach(el => {
+        el.addEventListener('mouseenter', (e) => {
+            const rect = el.getBoundingClientRect();
+            tooltip.innerHTML = `
+                <div style="font-weight:700; margin-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:4px;">Detalls de Participació</div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; font-size:0.75rem;">
+                    <div style="color:var(--text-muted);">Grau:</div><div style="font-weight:600;">${el.dataset.grau}</div>
+                    <div style="color:var(--text-muted);">Via:</div><div style="font-weight:600;">${el.dataset.via}</div>
+                    <div style="color:var(--text-muted);">Total:</div><div style="font-weight:600;">${el.dataset.total}</div>
+                    <div style="color:var(--text-muted);">Mesura:</div><div style="font-weight:600;">${el.dataset.mesura}</div>
+                </div>
+            `;
+            tooltip.style.display = 'block';
+            tooltip.style.left = (rect.right + 10) + 'px';
+            tooltip.style.top = rect.top + 'px';
+        });
+        el.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+    });
+}
+
+function openEditor(record) {
+    const editor = document.getElementById('editorModal');
+    const iframe = document.getElementById('editorIframe');
+    if (editor && iframe) {
+        iframe.src = `editor.html?id=${record.id}`;
+        editor.style.display = 'flex';
     }
 }
 
+window.closeEditor = function() {
+    document.getElementById('editorModal').style.display = 'none';
+    document.getElementById('editorIframe').src = '';
+};
+
+window.onRecordUpdated = function(updatedRecord) {
+    const idx = allRecords.findIndex(r => r.id === updatedRecord.id);
+    if (idx > -1) {
+        allRecords[idx] = updatedRecord;
+        applyFilters();
+    }
+};
+
+window.openConsellModal = function(reg, name) {
+    BoardService.openModal(reg, name);
+};
+
 function populateDepartaments() {
-    const deptsSet = new Set();
-    allRecords.forEach(r => deptsSet.add(r.sac_departament || r.departament || "Sense departament"));
     const select = document.getElementById('filterDepartament');
-    if (!select) return;
-    select.innerHTML = '<option value="">Tots els departaments</option>';
-    Array.from(deptsSet).sort().forEach(d => { const opt = document.createElement('option'); opt.value = d; opt.textContent = d; select.appendChild(opt); });
+    const depts = new Set();
+    allRecords.forEach(r => {
+        const d = r.sac_departament || r.departament;
+        if (d) depts.add(d);
+        if (r.part_dept_adscripcio && r.part_dept_adscripcio !== "-") depts.add(r.part_dept_adscripcio);
+    });
+    const sorted = Array.from(depts).sort();
+    let html = '<option value="">Tots els Departaments</option>';
+    sorted.forEach(d => html += `<option value="${d}">${d}</option>`);
+    select.innerHTML = html;
+}
+
+function populateNaturezas() {
+    const container = document.getElementById('filterNatureza');
+    const values = new Set();
+    allRecords.forEach(r => { if (r.part_natureza && r.part_natureza !== "-") values.add(r.part_natureza); });
+    const sorted = Array.from(values).sort();
+    let html = '';
+    sorted.forEach(v => html += `<div class="filter-pill" data-type="natureza" data-value="${v}">${v}</div>`);
+    container.innerHTML = html;
 }
 
 function populateNomenaments() {
-    const list = document.getElementById('listNomenaments'); if (!list) return;
-    const types = [...new Set(allRecords.map(r => r.tipus_nomenament))].filter(Boolean).sort();
-    list.innerHTML = '';
-    types.forEach(type => {
-        const item = document.createElement('label');
-        item.className = 'multiselect-item';
-        item.innerHTML = `<input type="checkbox" value="${type}"><span>${type}</span>`;
-        item.querySelector('input').addEventListener('change', (e) => {
-            if (e.target.checked) filters.nomenaments.push(type);
-            else filters.nomenaments = filters.nomenaments.filter(v => v !== type);
-            updateNomenamentsUI(); applyFilters();
-        });
-        list.appendChild(item);
+    const container = document.getElementById('filterNomenament');
+    const values = new Set();
+    allRecords.forEach(r => {
+        const val = r.tipus_nomenament && r.tipus_nomenament.trim() !== "" ? r.tipus_nomenament : "No informat";
+        values.add(val);
     });
+    const sorted = Array.from(values).sort();
+    let html = '';
+    sorted.forEach(v => html += `<div class="filter-pill" data-type="nomenament" data-value="${v}">${v}</div>`);
+    container.innerHTML = html;
 }
 
-function updateNomenamentsUI() {
-    const btn = document.getElementById('btnNomenaments'); if (!btn) return;
-    btn.innerHTML = `<i data-lucide="list-checks" style="width: 16px; margin-right: 4px;"></i> ${filters.nomenaments.length ? `(${filters.nomenaments.length}) Nomenaments` : 'Tipus Nomenament'}`;
-    btn.classList.toggle('btn-primary', filters.nomenaments.length > 0);
+function populateCategoritzacions() {
+    const container = document.getElementById('filterCategoritzacio');
+    const values = new Set();
+    allRecords.forEach(r => { if (r.categoritzacio) values.add(r.categoritzacio); });
+    const sorted = Array.from(values).sort();
+    let html = '';
+    sorted.forEach(v => html += `<div class="filter-pill" data-type="categoritzacio" data-value="${v}">${v}</div>`);
+    container.innerHTML = html;
 }
 
-window.openQuickEdit = (id) => {
-    const record = allRecords.find(r => r.id == id); if (!record) return;
-    document.getElementById('editFieldEntitat').value = record.entitat;
-    document.getElementById('editFieldMembre').value = record.membre_tipus;
-    document.getElementById('editFieldCarrec').value = record.carrec;
-    document.getElementById('editFieldCodi').value = record.codi_sac;
-    document.getElementById('editMappingIndex').value = record.id;
-    document.getElementById('editMappingModal').style.display = 'flex';
-};
+function exportToCSV() {
+    if (filteredRecords.length === 0) return;
+    const headers = ["SAC", "Departament (SAC)", "Unitat (SAC)", "Càrrec (SAC)", "Responsable (SAC)", "Entitat", "Càrrec", "Departament", "Membre", "Representant", "Participació", "Tipus Nomenament", "Status"];
+    const rows = filteredRecords.map(r => {
+        const personaName = `${r.persona_nom || ''} ${r.persona_cognoms || ''}`.trim();
+        const repName = `${r.nom_rep || ''} ${r.cognoms_rep || ''}`.trim();
+        const qualif = (r.qualificador || "").toLowerCase();
+        
+        let membre = personaName;
+        let representant = "";
+        
+        if (qualif.includes("jur")) {
+            membre = r.denom_social || "Persona Jurídica";
+            representant = repName;
+        } else if (qualif.includes("vacant")) {
+            membre = "Vacant";
+        }
 
-window.closeQuickEdit = () => document.getElementById('editMappingModal').style.display = 'none';
+        return [
+            r.codi_sac, r.sac_departament, r.sac_unitat, r.sac_carrec, r.sac_nom_responsable,
+            r.entitat, r.carrec, r.departament, membre, representant, r.part_total, r.tipus_nomenament, r.status
+        ].map(v => `"${(v || "").toString().replace(/"/g, '""')}"`).join(";");
+    });
+
+    const csvContent = "\uFEFF" + headers.join(";") + "\n" + rows.join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `export_auditoria_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
