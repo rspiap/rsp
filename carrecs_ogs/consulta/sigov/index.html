@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sessions de Govern</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg: #fdfeff;
+            --card: #ffffff;
+            --text: #0f172a;
+            --accent: #f0f9ff;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: #f1f5f9;
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            width: 100%;
+            background: var(--card);
+            padding: 40px;
+            border-radius: 32px;
+            box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.05);
+        }
+
+        header { text-align: center; margin-bottom: 40px; }
+        h1 { font-size: 2.5rem; margin: 0; color: var(--primary); letter-spacing: -1px; }
+        p.desc { color: #64748b; font-size: 1.1rem; margin-top: 8px; }
+
+        .control-panel {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 20px;
+            background: var(--accent);
+            padding: 24px;
+            border-radius: 20px;
+            margin-bottom: 30px;
+        }
+
+        .input-box { display: flex; flex-direction: column; gap: 8px; }
+        label { font-size: 0.85rem; font-weight: 600; text-transform: uppercase; color: #64748b; }
+        input {
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+        input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1); }
+
+        .folder-status {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            margin-bottom: 30px;
+        }
+
+        .status-info { display: flex; align-items: center; gap: 12px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; background: #cbd5e1; }
+        .dot.active { background: #10b981; box-shadow: 0 0 10px #10b981; }
+
+        button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        button:hover { background: var(--primary-hover); transform: translateY(-1px); }
+        button.secondary { background: #64748b; }
+
+        #resultsTable { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { text-align: left; padding: 12px; color: #64748b; font-size: 0.85rem; border-bottom: 2px solid #f1f5f9; }
+        td { padding: 16px 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.95rem; }
+        .code-pill { background: #eef2ff; color: var(--primary); padding: 4px 10px; border-radius: 6px; font-family: monospace; font-weight: 700; }
+        .file-name { font-size: 0.8rem; color: #94a3b8; display: block; }
+        
+        .loading { display: none; text-align: center; padding: 20px; color: var(--primary); font-weight: 600; }
+        mark { background: #fbbf2466; padding: 0 2px; border-radius: 3px; }
+
+        .info-panel {
+            background: var(--accent);
+            padding: 20px;
+            border-radius: 16px;
+            margin-bottom: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            border-left: 5px solid var(--primary);
+        }
+        .filter-badge { font-size: 0.95rem; color: #475569; display: flex; align-items: center; gap: 8px; }
+        .filter-badge strong { color: var(--primary); }
+
+        select.filter-select {
+            padding: 4px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            color: #475569;
+            background: white;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.2s;
+            font-weight: 600;
+        }
+        select.filter-select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            padding: 32px;
+            border-radius: 24px;
+            max-width: 600px;
+            width: 90%;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; }
+        .modal-header h2 { margin: 0; font-size: 1.5rem; color: var(--primary); }
+        .modal-body textarea, .modal-body .rich-preview {
+            width: 100%;
+            height: 300px;
+            padding: 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            resize: none;
+            color: #334155;
+            background: #f8fafc;
+            overflow-y: auto;
+        }
+        .modal-body .rich-preview { background: white; white-space: normal; }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 12px; }
+        .modal-footer .btn-outlook { background: #0078d4; text-decoration: none; color: white; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; padding: 12px 24px; border-radius: 12px; font-size: 0.95rem; cursor: pointer; }
+        .modal-footer .btn-outlook:hover { background: #005a9e; }
+
+        .spinner {
+            width: 40px; height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Sessions de Govern</h1>
+        <p class="desc">Gestió i extracció de diligències per a les sessions del Govern.</p>
+    </header>
+
+    <div class="info-panel">
+        <div class="filter-badge">
+            <strong>Filtres actius:</strong>
+            <select id="filterSelector" class="filter-select">
+                <option value="all">Tots els filtres</option>
+                <option value="nomenaments">(nomenament OR cessament) I (Entitat Sector Públic)</option>
+                <option value="estatuts">(estatuts) I (Entitat Sector Públic)</option>
+                <option value="reestructuracio">(reestructuració AND departament)</option>
+            </select>
+        </div>
+        <div class="filter-badge">
+            <strong>Extracció:</strong> SIG [Codi] -
+        </div>
+    </div>
+
+    <div class="folder-status">
+        <div class="status-info">
+            <div id="statusDot" class="dot"></div>
+            <span id="statusText">Carpeta no connectada</span>
+            <span id="entityCount" style="font-size: 0.8rem; color: #64748b; margin-left: 10px;">Carregant entitats...</span>
+        </div>
+        <div style="display: flex; gap: 12px;">
+            <button id="btnEmail" class="secondary" style="display:none; background: #6366f1;">📧 Generar correu</button>
+            <button id="btnExport" class="secondary" style="display:none; background: #059669;">📥 Exportar CSV</button>
+            <button id="btnConnect" class="secondary">Canviar Carpeta</button>
+            <button id="btnScan">Cercar / Actualitzar</button>
+        </div>
+    </div>
+
+    <div id="loader" class="loading">Escanejant documents a la xarxa...</div>
+    <div id="resultsContainer"></div>
+</div>
+
+<div id="emailModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Correu per a l'Antoni</h2>
+            <button onclick="closeModal()" style="background:none; color:#64748b; padding:0; font-size:1.5rem;">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="emailPreview" class="rich-preview" contenteditable="true"></div>
+            <textarea id="emailText" style="display:none;" readonly></textarea>
+        </div>
+        <div class="modal-footer">
+            <a id="btnOutlook" class="btn-outlook">📧 Outlook</a>
+            <button onclick="closeModal()" class="secondary">Tancar</button>
+        </div>
+    </div>
+</div>
+
+<div id="loadingEntitiesModal" class="modal-overlay" style="display: flex;">
+    <div class="modal-content" style="text-align: center;">
+        <h2 id="loadingTitle">Carregant dades oficials</h2>
+        <p id="loadingDesc">S'estan descarregant les entitats del Sector Públic...</p>
+        <div id="loadingSpinner" class="spinner"></div>
+        <button id="btnRetryEntities" style="display:none; margin: 0 auto; background: var(--primary);" onclick="fetchEntities()">🔄 Reintentar</button>
+    </div>
+</div>
+
+<script>
+    let directoryHandle = null;
+    let entities = []; 
+    let allFoundResults = []; // Per a l'exportació CSV
+
+    const FILTERS = {
+        nomenaments: {
+            keywords: ["nomenament", "cessament"]
+        },
+        estatuts: {
+            keywords: ["estatut"]
+        },
+        reestructuracio: {
+            keywords: ["reestructuracio", "departament"],
+            requiresEntity: false,
+            matchAll: true
+        }
+    };
+    let currentFilterKey = 'all';
+    const DB_NAME = 'WordExtractorDB';
+    const STORE_NAME = 'handles';
+
+    // --- UTILITATS DE TEXT ---
+    function normalitzar(text) {
+        if (!text) return "";
+        return text.toLowerCase()
+                   .normalize("NFD")
+                   .replace(/[\u0300-\u036f]/g, "") 
+                   .replace(/[''‘’`´]/g, "'")       
+                   .replace(/\u00a0/g, " ")        
+                   .trim();
+    }
+
+    // --- CÀRREGA D'ENTITATS ---
+    async function fetchEntities() {
+        const modal = document.getElementById('loadingEntitiesModal');
+        const title = document.getElementById('loadingTitle');
+        const desc = document.getElementById('loadingDesc');
+        const spinner = document.getElementById('loadingSpinner');
+        const btnRetry = document.getElementById('btnRetryEntities');
+
+        modal.style.display = 'flex';
+        title.innerText = "Carregant dades oficials";
+        desc.innerText = "S'estan descarregant les entitats del Sector Públic...";
+        spinner.style.display = 'block';
+        btnRetry.style.display = 'none';
+
+        try {
+            const response = await fetch('https://analisi.transparenciacatalunya.cat/resource/gr39-ik6u.json?$select=denominaci,n_mero_de_registre');
+            if (!response.ok) throw new Error("Error en la descàrrega");
+            const data = await response.json();
+            entities = data.map(e => ({
+                original: e.denominaci,
+                norm: normalitzar(e.denominaci),
+                regCode: e.n_mero_de_registre || "N/A"
+            })).filter(e => e.norm.length > 3);
+            document.getElementById('entityCount').innerText = `✅ ${entities.length} entitats carregades`;
+            modal.style.display = 'none';
+        } catch (err) {
+            console.error("Error carregant entitats:", err);
+            document.getElementById('entityCount').innerText = "⚠️ Error carregant entitats";
+            title.innerText = "⚠️ Error de connexió";
+            desc.innerText = "No s'han pogut carregar les entitats del Sector Públic. Comprova la teva connexió a internet.";
+            spinner.style.display = 'none';
+            btnRetry.style.display = 'block';
+        }
+    }
+
+    // --- BASE DE DADES ---
+    async function getDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, 1);
+            request.onupgradeneeded = () => request.result.createObjectStore(STORE_NAME);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    async function saveHandle(handle, key = 'last_folder') {
+        const db = await getDB();
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).put(handle, key);
+        return new Promise(r => tx.oncomplete = r);
+    }
+
+    async function loadHandle(key = 'last_folder') {
+        const db = await getDB();
+        return new Promise((resolve) => {
+            const request = db.transaction(STORE_NAME).objectStore(STORE_NAME).get(key);
+            request.onsuccess = () => resolve(request.result);
+        });
+    }
+
+    // --- INICIALITZACIÓ ---
+    window.addEventListener('DOMContentLoaded', async () => {
+        fetchEntities(); 
+        try {
+            directoryHandle = await loadHandle('last_folder');
+            if (directoryHandle) {
+                document.getElementById('statusText').innerText = `Carpeta: ${directoryHandle.name}`;
+                document.getElementById('statusDot').classList.add('active');
+            }
+        } catch (e) { console.error("No s'ha pogut carregar la carpeta guardada"); }
+
+        document.getElementById('filterSelector').addEventListener('change', (e) => {
+            currentFilterKey = e.target.value;
+        });
+    });
+
+    document.getElementById('btnConnect').onclick = async (e) => {
+        const btn = e.currentTarget;
+        if (btn.disabled) return;
+        btn.disabled = true;
+        try {
+            directoryHandle = await window.showDirectoryPicker({
+                startIn: directoryHandle || 'documents'
+            });
+            await saveHandle(directoryHandle, 'last_folder');
+            updateUIConnected();
+        } catch (err) {
+            if (err.name !== 'AbortError') alert("Error: " + err.message);
+        } finally {
+            btn.disabled = false;
+        }
+    };
+
+    document.getElementById('btnScan').onclick = async (e) => {
+        if (!directoryHandle) {
+            alert("Primer has de connectar una carpeta!");
+            return;
+        }
+        const btn = e.currentTarget;
+        if (btn.disabled) return;
+        btn.disabled = true;
+        try {
+            const opt = { mode: 'read' };
+            if (await directoryHandle.queryPermission(opt) !== 'granted') {
+                if (await directoryHandle.requestPermission(opt) !== 'granted') {
+                    btn.disabled = false;
+                    return;
+                }
+            }
+            updateUIConnected();
+            await scanAndProcess();
+        } catch (err) {
+            alert("Error de permís: " + err.message);
+        } finally {
+            btn.disabled = false;
+        }
+    };
+
+    document.getElementById('btnExport').onclick = () => {
+        if (allFoundResults.length === 0) return;
+        
+        let csvRows = [];
+        csvRows.push("Carpeta;Fitxer;Entitat;Codi Entitat;Data Acte;Codi SIG;Context");
+
+        allFoundResults.forEach(r => {
+            const row = [
+                r.folder,
+                r.fileNames.join(", "),
+                r.entity,
+                r.entityCode,
+                r.dateFound,
+                r.code,
+                r.text.replace(/;/g, ",").replace(/\n/g, " ")
+            ].join(";");
+            csvRows.push(row);
+        });
+
+        const csvString = csvRows.join("\n");
+        const BOM = "\uFEFF"; // Byte Order Mark per a UTF-8 (necessari per a Excel)
+        const blob = new Blob([BOM + csvString], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `extracció_sigov_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
+    document.getElementById('btnEmail').onclick = () => {
+        // Agrupem els resultats per data
+        const groups = {};
+        allFoundResults.forEach(r => {
+            if (!groups[r.dateFound]) groups[r.dateFound] = [];
+            groups[r.dateFound].push(r.text);
+        });
+
+        const sortedDates = Object.keys(groups).sort();
+        
+        // --- GENERACIÓ TEXT PLA (per a mailto) ---
+        let plainText = "";
+        sortedDates.forEach(date => {
+            const dateLabel = date === "N/A" ? "Data no detectada" : `Sessió del Govern ${date}`;
+            plainText += `${dateLabel}:\n`;
+            groups[date].forEach(t => { plainText += `    - ${t}\n`; });
+            plainText += `\n`;
+        });
+        const emailBodyPlain = `Benvolgut Antoni,\n\nAgrairíem que ens féssiu arribar les diligències dels Acords de Govern següents:\n\n${plainText.trim()}\n\nMoltes gràcies,`;
+
+        // --- GENERACIÓ DE LA VISTA PRÈVIA (I CÒPIA) ---
+        let htmlList = "";
+        sortedDates.forEach(date => {
+            if (sortedDates.length > 1) {
+                htmlList += `<p style='margin:0;margin-top:12pt;margin-bottom:6pt;font-family:Calibri,sans-serif;color:#1F497D;'><b>Sessió del Govern ${date}:</b></p>`;
+            }
+            groups[date].forEach(t => {
+                htmlList += `
+                    <table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%;margin-bottom:4pt;">
+                        <tr>
+                            <td width="20" style="width:15pt;"></td>
+                            <td style="text-align:justify;line-height:1.25;padding-bottom:6pt;">
+                                <font face="Helvetica, Arial, sans-serif" size="2" color="black" style="font-size:10pt;">${t}</font>
+                            </td>
+                        </tr>
+                    </table>`;
+            });
+        });
+
+        const preview = document.getElementById('emailPreview');
+        preview.innerHTML = `
+            <div id="copy-root" style='font-family:Calibri,sans-serif;background:white;'>
+                <p style='margin:0;margin-bottom:12pt;'><font color="#1F497D" face="Calibri, sans-serif">Benvolgut Antoni,</font></p>
+                <p style='margin:0;margin-bottom:12pt;'><font color="#1F497D" face="Calibri, sans-serif">Agrairíem que ens féssiu arribar les diligències dels Acords de Govern següents:</font></p>
+                ${htmlList}
+                <p style='margin:0;margin-top:12pt;'><font color="#1F497D" face="Calibri, sans-serif">Moltes gràcies,</font></p>
+            </div>
+        `;
+
+        document.getElementById('emailText').value = emailBodyPlain;
+        
+        // --- GENERACIÓ DE FITXER .EML (PER A OUTLOOK AMB FORMAT RIC) ---
+        const outlookBtn = document.getElementById('btnOutlook');
+        outlookBtn.onclick = (e) => {
+            e.preventDefault();
+            
+            const from = "ECO Seguiment Entitats <ag.entitats.eco@gencat.cat>";
+            const to = "aquintanar@gencat.cat";
+            const uniqueDates = sortedDates.filter(d => d !== "N/A");
+            let subject = uniqueDates.length > 1 ? `Sessions del Govern ${uniqueDates.join(', ')}` : (uniqueDates.length === 1 ? `Sessió del Govern ${uniqueDates[0]}` : "Sessió del Govern");
+
+            // Construïm el contingut del fitxer EML (X-Unsent: 1 fa que s'obri en mode edició)
+            const emlContent = [
+                `From: ${from}`,
+                `To: ${to}`,
+                `Subject: ${subject}`,
+                'X-Unsent: 1',
+                'MIME-Version: 1.0',
+                'Content-Type: text/html; charset=utf-8',
+                '',
+                '<html>',
+                '<head><meta charset="utf-8"></head>',
+                '<body>',
+                document.getElementById('emailPreview').innerHTML,
+                '</body>',
+                '</html>'
+            ].join('\r\n');
+
+            const blob = new Blob([emlContent], { type: 'message/rfc822' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${subject}.eml`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        };
+        
+        document.getElementById('emailModal').style.display = 'flex';
+    };
+
+    function closeModal() {
+        document.getElementById('emailModal').style.display = 'none';
+    }
+
+    function updateUIConnected() {
+        document.getElementById('statusText').innerText = `Carpeta: ${directoryHandle.name}`;
+        document.getElementById('statusDot').classList.add('active');
+    }
+
+    async function scanAndProcess() {
+        const loader = document.getElementById('loader');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const btnExport = document.getElementById('btnExport');
+        
+        loader.style.display = "block";
+        loader.innerText = "Escanejant documents a la xarxa...";
+        btnExport.style.display = "none";
+        document.getElementById('btnEmail').style.display = "none";
+        document.getElementById('resultsContainer').innerHTML = "";
+        
+        const regexCodi = /SIG(.*?)-/i;
+        allFoundResults = [];
+        const resultsMap = {};
+        const seenResults = new Set();
+
+        try {
+            await scanDirectory(directoryHandle, "", regexCodi, resultsMap, seenResults);
+            loader.style.display = "none";
+            if (Object.keys(resultsMap).length > 0) {
+                btnExport.style.display = "block";
+                document.getElementById('btnEmail').style.display = "block";
+            }
+            renderAllResults(resultsMap);
+        } catch (err) {
+            alert("Error general: " + err.message);
+            loader.style.display = "none";
+        }
+    }
+
+    async function scanDirectory(handle, path, regexCodi, resultsMap, seenResults) {
+        for await (const entry of handle.values()) {
+            if (entry.kind === 'directory') {
+                await scanDirectory(entry, (path ? path + '/' : '') + entry.name, regexCodi, resultsMap, seenResults);
+            } else if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.docx')) {
+                try {
+                    const file = await entry.getFile();
+                    await processFile(file, entry.name, path, regexCodi, resultsMap, seenResults);
+                } catch (e) { console.warn("Error llegint: " + entry.name, e); }
+            }
+        }
+    }
+
+    async function processFile(file, fileName, path, regexCodi, resultsMap, seenResults) {
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        const paragraphs = result.value.split(/\n\n+/);
+
+        paragraphs.forEach(p => {
+            const pText = p.trim();
+            if (!pText) return;
+            const resultKey = `${path}|${pText}`;
+            const pNorm = normalitzar(pText);
+
+            // Determinar quins filtres aplicar
+            const keysToTry = currentFilterKey === 'all' ? Object.keys(FILTERS) : [currentFilterKey];
+            
+            let matchFound = false;
+            let matchedEntity = null;
+            let matchedFilterKey = null;
+
+            for (const fk of keysToTry) {
+                const kws = FILTERS[fk].keywords;
+                const matchAll = FILTERS[fk].matchAll === true;
+                const requiresEntity = FILTERS[fk].requiresEntity !== false;
+
+                const hasKeyword = matchAll
+                    ? kws.every(k => new RegExp(`\\b${k}s?\\b`, 'i').test(pNorm))
+                    : kws.some(k => new RegExp(`\\b${k}s?\\b`, 'i').test(pNorm));
+
+                const currentMatchedEntity = entities.find(e => pNorm.includes(e.norm));
+                
+                if (hasKeyword && (currentMatchedEntity || !requiresEntity)) {
+                    matchFound = true;
+                    matchedEntity = currentMatchedEntity;
+                    matchedFilterKey = fk;
+                    break; 
+                }
+            }
+
+            if (matchFound) {
+                const match = pText.match(regexCodi);
+                if (match) {
+                    const folderName = path || "Arrel";
+                    
+                    if (seenResults.has(resultKey)) {
+                        const existing = resultsMap[folderName].find(r => r.text === pText);
+                        if (existing && !existing.fileNames.includes(fileName)) {
+                            existing.fileNames.push(fileName);
+                        }
+                        return;
+                    }
+                    seenResults.add(resultKey);
+
+                    if (!resultsMap[folderName]) resultsMap[folderName] = [];
+                    
+                    const dateMatch = pText.match(/\(GV\s*(\d{2}\.\d{2}\.\d{4})/i);
+                    const dateFound = dateMatch ? dateMatch[1] : "N/A";
+
+                    const resObj = {
+                        folder: folderName,
+                        fileNames: [fileName],
+                        entity: matchedEntity ? matchedEntity.original : (matchedFilterKey === 'reestructuracio' ? "Departament" : "N/A"),
+                        entityCode: matchedEntity ? matchedEntity.regCode : "-",
+                        dateFound: dateFound,
+                        text: pText,
+                        code: "SIG" + match[1].trim(),
+                        fullMatch: match[0]
+                    };
+                    resultsMap[folderName].push(resObj);
+                    allFoundResults.push(resObj);
+                }
+            }
+        });
+    }
+
+    function renderAllResults(groupedResults, append = false) {
+        const container = document.getElementById('resultsContainer');
+        const folders = Object.keys(groupedResults).sort();
+
+        if (!append && folders.length === 0) {
+            container.innerHTML = "<p style='text-align:center; padding: 40px; color: #64748b;'>No s'ha trobat cap coincidència.</p>";
+            return;
+        }
+
+        folders.forEach(folderPath => {
+            const section = document.createElement('div');
+            section.className = 'folder-section';
+            section.style.cssText = "background: white; border-radius: 16px; border: 1px solid #e2e8f0; margin-bottom: 24px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);";
+            
+            let html = `
+                <div style="background: #f8fafc; padding: 12px 20px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: var(--primary);">
+                    📂 ${folderPath}
+                </div>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #fff; border-bottom: 2px solid #f1f5f9;">
+                            <th style="text-align: left; padding: 12px 20px; color: #64748b; font-size: 0.8rem;">Entitat Detectada / Fitxer</th>
+                            <th style="text-align: left; padding: 12px 20px; color: #64748b; font-size: 0.8rem;">Context del Paràgraf</th>
+                            <th style="text-align: left; padding: 12px 20px; color: #64748b; font-size: 0.8rem; width: 140px;">Codi SIG</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            groupedResults[folderPath].forEach(item => {
+                const contextHighlighted = item.text.replace(item.fullMatch, `<mark>${item.fullMatch}</mark>`);
+                html += `
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 16px 20px; vertical-align: top; width: 250px;">
+                            <strong style="color: #334155; font-size: 0.9rem;">${item.entity}</strong>
+                            <span style="font-size: 0.75rem; color: #64748b; font-weight: 600; display: block;">Cod: ${item.entityCode}</span>
+                            <span style="font-size: 0.75rem; color: #94a3b8; display: block; margin-top: 4px;">📄 ${item.fileNames.join(', ')}</span>
+                        </td>
+                        <td style="padding: 16px 20px; color: #475569; font-size: 0.9rem;">
+                            ${contextHighlighted}
+                        </td>
+                        <td style="padding: 16px 20px; vertical-align: top;">
+                            <span class="code-pill">${item.code}</span>
+                            <span style="display: block; font-size: 0.75rem; color: #64748b; font-weight: 600; margin-top: 5px;">📅 ${item.dateFound}</span>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += `</tbody></table>`;
+            section.innerHTML = html;
+            container.appendChild(section);
+        });
+    }
+</script>
+
+</body>
+</html>
