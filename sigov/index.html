@@ -372,10 +372,8 @@
                     <span id="entityCount" style="font-size: 0.7rem; color: #64748b; margin-right: 10px;">Carregant entitats...</span>
             </div>
             <div style="display: flex; gap: 12px;">
-                <button id="btnEmail" class="secondary" style="display:none; background: #6366f1;">📧 Generar
-                    correu</button>
-                <button id="btnExport" class="secondary" style="display:none; background: #059669;">📥 Exportar
-                    CSV</button>
+                <button id="btnEmail" class="secondary" disabled style="background: #6366f1; opacity: 0.5; cursor: not-allowed;">📧 Generar correu</button>
+                <button id="btnExport" class="secondary" disabled style="background: #059669; opacity: 0.5; cursor: not-allowed;">📥 Exportar CSV</button>
                 <button id="btnManteniment" class="secondary" style="background: #8b5cf6;">🛠️ Manteniment RSP</button>
                 <button id="btnConnect" class="secondary">Canviar Carpeta</button>
                 <button id="btnScan">Cercar / Actualitzar</button>
@@ -445,9 +443,12 @@
                     </div>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button id="btnSaveAndSync" style="background: #059669;">💾 Guardar i Sincronitzar</button>
-                <button onclick="document.getElementById('mantenimentModal').style.display = 'none'" class="secondary">Cancel·lar</button>
+            <div class="modal-footer" style="justify-content: space-between;">
+                <button id="btnExportEntities" class="secondary" style="background: #0284c7;">📥 Exportar CSV</button>
+                <div style="display: flex; gap: 12px;">
+                    <button id="btnSaveAndSync" style="background: #059669;">💾 Guardar i Sincronitzar</button>
+                    <button onclick="document.getElementById('mantenimentModal').style.display = 'none'" class="secondary">Cancel·lar</button>
+                </div>
             </div>
         </div>
     </div>
@@ -720,6 +721,23 @@
                     closeMantenimentModal();
                 }
             };
+            document.getElementById('btnExportEntities').onclick = () => {
+                if (manualEntities.length === 0) return;
+                let csvRows = ["Nom de l'Entitat"];
+                manualEntities.forEach(name => {
+                    if (name.trim()) csvRows.push(`"${name.replace(/"/g, '""')}"`);
+                });
+                const csvString = csvRows.join("\n");
+                const BOM = "\uFEFF";
+                const blob = new Blob([BOM + csvString], { type: "text/csv;charset=utf-8;" });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = `entitats_manuals_${new Date().toISOString().split('T')[0]}.csv`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
         });
 
         function renderSpreadsheet() {
@@ -815,7 +833,7 @@ function doGet(e) {
         async function syncResultsToGoogle(results) {
             const scriptUrl = "https://script.google.com/macros/s/AKfycbxRpZZLUcox3WTvV0LdrY9aSV8GuXkQj92_w2irFiAwjxhdHBgi6hrBrQQ0nlp09qLayA/exec";
             try {
-                await fetch(scriptUrl, {
+                const response = await fetch(scriptUrl, {
                     method: 'POST',
                     mode: 'no-cors',
                     body: JSON.stringify({ action: 'save_results', results: results })
@@ -1008,8 +1026,14 @@ function doGet(e) {
 
             loader.style.display = "block";
             loader.innerText = "Escanejant documents a la xarxa...";
-            btnExport.style.display = "none";
-            document.getElementById('btnEmail').style.display = "none";
+            btnExport.disabled = true;
+            btnExport.style.opacity = "0.5";
+            btnExport.style.cursor = "not-allowed";
+            
+            const btnEmail = document.getElementById('btnEmail');
+            btnEmail.disabled = true;
+            btnEmail.style.opacity = "0.5";
+            btnEmail.style.cursor = "not-allowed";
             document.getElementById('resultsContainer').innerHTML = "";
 
             const regexCodi = /SIG(.*?)-/i;
@@ -1021,8 +1045,14 @@ function doGet(e) {
                 await scanDirectory(directoryHandle, "", regexCodi, resultsMap, seenResults);
                 loader.style.display = "none";
                 if (Object.keys(resultsMap).length > 0) {
-                    btnExport.style.display = "block";
-                    document.getElementById('btnEmail').style.display = "block";
+                    btnExport.disabled = false;
+                    btnExport.style.opacity = "1";
+                    btnExport.style.cursor = "pointer";
+                    
+                    const btnEmail = document.getElementById('btnEmail');
+                    btnEmail.disabled = false;
+                    btnEmail.style.opacity = "1";
+                    btnEmail.style.cursor = "pointer";
                 }
                 renderAllResults(resultsMap);
                 // Enviem els resultats a Google Sheets automàticament
@@ -1035,22 +1065,7 @@ function doGet(e) {
             }
         }
 
-        async function syncResultsToGoogle(results) {
-            const scriptUrl = "https://script.google.com/macros/s/AKfycbxRpZZLUcox3WTvV0LdrY9aSV8GuXkQj92_w2irFiAwjxhdHBgi6hrBrQQ0nlp09qLayA/exec";
-            try {
-                await fetch(scriptUrl, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    body: JSON.stringify({
-                        action: 'save_results',
-                        results: results
-                    })
-                });
-                console.log("Resultats sincronitzats amb Google Sheets.");
-            } catch (e) {
-                console.error("Error sincronitzant resultats:", e);
-            }
-        }
+
 
         async function scanDirectory(handle, path, regexCodi, resultsMap, seenResults) {
             for await (const entry of handle.values()) {
