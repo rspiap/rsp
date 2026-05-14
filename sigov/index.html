@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sessions de Govern</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js"></script>
+    <link rel="icon" href="data:,">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -375,6 +376,7 @@
                     correu</button>
                 <button id="btnExport" class="secondary" style="display:none; background: #059669;">📥 Exportar
                     CSV</button>
+                <button id="btnManteniment" class="secondary" style="background: #8b5cf6;">🛠️ Manteniment RSP</button>
                 <button id="btnConnect" class="secondary">Canviar Carpeta</button>
                 <button id="btnScan">Cercar / Actualitzar</button>
             </div>
@@ -412,10 +414,50 @@
         </div>
     </div>
 
+    <!-- Modal Manteniment -->
+    <div id="mantenimentModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>Manteniment Entitats NO RSP</h2>
+                <button onclick="closeMantenimentModal()"
+                    style="background:none; color:#64748b; padding:0; font-size:1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 0;">
+                <p style="font-size: 0.85rem; color: #64748b; margin: 20px;">Afegeix o elimina entitats directament a la taula. Els canvis es sincronitzaran amb Google Sheets.</p>
+                
+                <div style="padding: 0 20px 20px 20px;">
+                    <div id="spreadsheetContainer" style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: white;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                            <thead>
+                                <tr style="background: #f1f5f9; border-bottom: 1px solid #e2e8f0;">
+                                    <th style="width: 40px; padding: 10px; border-right: 1px solid #e2e8f0;">#</th>
+                                    <th style="padding: 10px; text-align: left;">Nom de l'Entitat</th>
+                                    <th style="width: 40px; padding: 10px;">Acció</th>
+                                </tr>
+                            </thead>
+                            <tbody id="spreadsheetBody">
+                                <!-- Files de la taula -->
+                            </tbody>
+                        </table>
+                        <div style="background: #f8fafc; padding: 8px 12px; border-top: 1px solid #e2e8f0;">
+                            <button id="btnAddRow" style="background: none; color: var(--primary); padding: 0; font-size: 0.85rem; font-weight: 600; cursor: pointer;">+ Afegir fila nova</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btnSaveAndSync" style="background: #059669;">💾 Guardar i Sincronitzar</button>
+                <button onclick="document.getElementById('mantenimentModal').style.display = 'none'" class="secondary">Cancel·lar</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let directoryHandle = null;
         let entities = [];
+        let manualEntities = []; // Entitats afegides per l'usuari
         let allFoundResults = []; // Per a l'exportació CSV
+        let jsonpCallback = null; // Per a la gestió de JSONP
 
         const FILTERS = {
             nomenaments: {
@@ -437,8 +479,14 @@
             }
         };
         let currentFilterKey = 'all';
-        const DB_NAME = 'WordExtractorDB';
-        const STORE_NAME = 'handles';
+        const DB_NAME = "SIGOV_DB";
+        const STORE_NAME = "manual_entities";
+        
+        // Pegat per a la Google Visualization API
+        window.google = { visualization: { Query: { setResponse: function(x) { 
+            if (window.handleGvizResponse) window.handleGvizResponse(x);
+            if (window.handleVerify) window.handleVerify(x);
+        }}}};
 
         // --- UTILITATS DE TEXT ---
         function normalitzar(text) {
@@ -466,27 +514,99 @@
             btnRetry.style.display = 'none';
 
             try {
-                const response = await fetch('https://analisi.transparenciacatalunya.cat/resource/gr39-ik6u.json?$select=denominaci,n_mero_de_registre');
-                if (!response.ok) throw new Error("Error en la descàrrega");
-                const data = await response.json();
-                entities = data.map(e => ({
-                    original: e.denominaci,
-                    norm: normalitzar(e.denominaci),
-                    regCode: e.n_mero_de_registre || "N/A"
-                })).filter(e => e.norm.length > 3);
-                document.getElementById('entityCount').innerText = `✅ ${entities.length} entitats carregades`;
+                // 1. API Oficial de Dades Obertes (RSP)
+                let officialEntities = [];
+                try {
+                    const response = await fetch('https://analisi.transparenciacatalunya.cat/resource/gr39-ik6u.json?$select=denominaci,n_mero_de_registre');
+                    if (!response.ok) throw new Error("Error en la descàrrega RSP");
+                    const data = await response.json();
+                    officialEntities = data.map(e => ({
+                        original: e.denominaci,
+                        norm: normalitzar(e.denominaci),
+                        regCode: e.n_mero_de_registre || "N/A"
+                    })).filter(e => e.norm.length > 3);
+                } catch (e) {
+                    console.error("Error carregant dades RSP:", e);
+                }
+
+                // 2. Google Sheets / Local (Entitats no d'alta al RSP)
+                const extraStatus = document.getElementById('entityCount');
+                desc.innerText = "Sincronitzant entitats no d'alta al RSP...";
+                
+                // Carreguem primer les manuals de la DB local
+                try {
+                    manualEntities = await loadHandle('manual_entities');
+                    if (!Array.isArray(manualEntities)) manualEntities = [];
+                } catch(e) { manualEntities = []; }
+
+                // Intentem sincronitzar via Google Gviz JSONP (la millor opció per a file://)
+                let syncSuccess = false;
+                try {
+                    const sheetId = "1oolRJ8-3JIi8-DnCk9DVhfCGPeW81a1bZYBtLrMCd94";
+                    // Demanem les dades de la primera pestanya sense query complexa per evitar errors
+                    const gvizUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&responseHandler=handleGvizResponse&gid=0`;
+                    
+                    const data = await new Promise((resolve, reject) => {
+                        const script = document.createElement('script');
+                        window.handleGvizResponse = (res) => {
+                            document.body.removeChild(script);
+                            delete window.handleGvizResponse;
+                            resolve(res);
+                        };
+                        script.src = gvizUrl;
+                        script.onerror = reject;
+                        document.body.appendChild(script);
+                        setTimeout(() => reject(new Error("Timeout Gviz")), 10000);
+                    });
+
+                    if (data && data.status === 'ok' && data.table && data.table.rows) {
+                        const sheetEntitiesNames = data.table.rows
+                            .map(r => {
+                                if (!r || !r.c) return "";
+                                // Busquem la primera cel·la que tingui contingut
+                                const cell = r.c.find(c => c && c.v);
+                                return cell ? cell.v.toString().trim() : "";
+                            })
+                            .filter(n => {
+                                if (n.length < 2) return false;
+                                const low = n.toLowerCase();
+                                return !low.includes("nom de l'entitat") && 
+                                       !low.includes("marca_sync") &&
+                                       !low.includes("nom de l entitat");
+                            });
+                        
+                        console.log("Entitats recuperades de Google:", sheetEntitiesNames.length);
+                        // El Sheets ara és la font de veritat: sobreescrivim la llista local amb la de Google
+                        manualEntities = sheetEntitiesNames.filter(n => n && n.trim().length > 2);
+                        await saveHandle(manualEntities, 'manual_entities');
+                        syncSuccess = true;
+                    } else if (data && data.status === 'error') {
+                        console.error("Error detallat de Google Gviz:", data.errors);
+                    }
+                } catch (e) { 
+                    console.error("Error Gviz JSONP:", e);
+                }
+
+                const extraEntities = manualEntities.map(name => ({
+                    original: name,
+                    norm: normalitzar(name),
+                    regCode: "NO RSP"
+                }));
+
+                const syncIcon = syncSuccess ? "✅" : "⚠️ (local)";
+                extraStatus.innerText = `${syncIcon} ${officialEntities.length + extraEntities.length} entitats (${officialEntities.length} RSP + ${extraEntities.length} extres)`;
+                entities = [...officialEntities, ...extraEntities];
+                
                 modal.style.display = 'none';
             } catch (err) {
                 console.error("Error carregant entitats:", err);
                 document.getElementById('entityCount').innerText = "⚠️ Error carregant entitats";
                 title.innerText = "⚠️ Error de connexió";
-                desc.innerText = "No s'han pogut carregar les entitats del Sector Públic. Comprova la teva connexió a internet.";
+                desc.innerText = "No s'han pogut carregar les entitats. Comprova la teva connexió a internet.";
                 spinner.style.display = 'none';
                 btnRetry.style.display = 'block';
             }
         }
-
-        // --- BASE DE DADES ---
 
         // --- BASE DE DADES ---
         async function getDB() {
@@ -527,7 +647,184 @@
             document.getElementById('filterSelector').addEventListener('change', (e) => {
                 currentFilterKey = e.target.value;
             });
+
+            document.getElementById('btnManteniment').onclick = () => {
+                if (manualEntities.length === 0) {
+                    manualEntities.push(""); // Afegim una fila per defecte si està buit
+                }
+                renderSpreadsheet();
+                document.getElementById('mantenimentModal').style.display = 'flex';
+            };
+
+            document.getElementById('btnAddRow').onclick = () => {
+                manualEntities.push(""); // Afegim fila buida
+                renderSpreadsheet();
+                // Posem el focus a l'últim input
+                const inputs = document.querySelectorAll('.spreadsheet-input');
+                if (inputs.length > 0) inputs[inputs.length - 1].focus();
+            };
+
+            document.getElementById('btnSaveAndSync').onclick = async () => {
+                const btn = document.getElementById('btnSaveAndSync');
+                const originalText = btn.innerText;
+                btn.disabled = true;
+                btn.innerText = "⏳ Sincronitzant...";
+
+                const syncToken = Date.now().toString(); // Marca de temps única
+
+                try {
+                    const scriptUrl = "https://script.google.com/macros/s/AKfycbxRpZZLUcox3WTvV0LdrY9aSV8GuXkQj92_w2irFiAwjxhdHBgi6hrBrQQ0nlp09qLayA/exec";
+                    
+                    if (!scriptUrl.includes("EXAMPLE")) {
+                        // 1. Enviem les dades amb la marca de temps
+                        await fetch(scriptUrl, {
+                            method: 'POST',
+                            mode: 'no-cors',
+                            body: JSON.stringify({ 
+                                action: 'sync', 
+                                entities: manualEntities,
+                                timestamp: syncToken 
+                            })
+                        });
+
+                        // 2. Esperem i verifiquem que el Sheets s'ha actualitzat (polling via Gviz JSONP)
+                        btn.innerText = "⏳ Verificant...";
+                        let verified = false;
+                        let attempts = 0;
+                        while (!verified && attempts < 5) {
+                            attempts++;
+                            await new Promise(r => setTimeout(r, 2000)); 
+                            
+                            try {
+                                const checkUrl = `https://docs.google.com/spreadsheets/d/1oolRJ8-3JIi8-DnCk9DVhfCGPeW81a1bZYBtLrMCd94/gviz/tq?tqx=out:json&responseHandler=handleVerify&tq=SELECT B WHERE A = 'MARCA_SYNC'&cache_bypass=${Date.now()}`;
+                                const data = await new Promise((res, rej) => {
+                                    const s = document.createElement('script');
+                                    window.handleVerify = (r) => { document.body.removeChild(s); delete window.handleVerify; res(r); };
+                                    s.src = checkUrl;
+                                    s.onerror = rej;
+                                    document.body.appendChild(s);
+                                    setTimeout(() => rej(), 5000);
+                                });
+
+                                if (JSON.stringify(data).includes(syncToken)) {
+                                    verified = true;
+                                }
+                            } catch (e) { console.warn("Error verificant marca de temps..."); }
+                        }
+                    }
+                } catch (e) {
+                    console.error("Error en la sincronització:", e);
+                } finally {
+                    btn.innerText = originalText;
+                    btn.disabled = false;
+                    closeMantenimentModal();
+                }
+            };
         });
+
+        function renderSpreadsheet() {
+            const body = document.getElementById('spreadsheetBody');
+            body.innerHTML = "";
+            
+            manualEntities.forEach((name, index) => {
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = "1px solid #e2e8f0";
+                tr.innerHTML = `
+                    <td style="text-align: center; color: #94a3b8; background: #f8fafc; border-right: 1px solid #e2e8f0; font-size: 0.75rem;">${index + 1}</td>
+                    <td style="padding: 0;">
+                        <input type="text" class="spreadsheet-input" value="${name.replace(/"/g, '&quot;')}" 
+                               style="width: 100%; border: none; padding: 8px 10px; font-family: inherit; font-size: 0.9rem; outline: none;"
+                               onchange="updateManualEntity(${index}, this.value)">
+                    </td>
+                    <td style="text-align: center; padding: 0;">
+                        <button onclick="removeManualEntity(${index})" style="background: none; color: #ef4444; padding: 8px; font-size: 1.1rem; cursor: pointer;">&times;</button>
+                    </td>
+                `;
+                body.appendChild(tr);
+            });
+        }
+
+        function updateManualEntity(index, value) {
+            manualEntities[index] = value.trim();
+            saveHandle(manualEntities, 'manual_entities');
+        }
+
+        async function removeManualEntity(index) {
+            manualEntities.splice(index, 1);
+            await saveHandle(manualEntities, 'manual_entities');
+            renderSpreadsheet();
+        }
+
+        function closeMantenimentModal() {
+            // Netegem possibles files buides abans de tancar
+            manualEntities = manualEntities.filter(e => e && e.trim().length > 0);
+            saveHandle(manualEntities, 'manual_entities');
+            
+            document.getElementById('mantenimentModal').style.display = 'none';
+            fetchEntities();
+        }
+
+        function copyAppsScriptCode() {
+            const code = `function doPost(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var data = JSON.parse(e.postData.contents);
+  
+  if (data.action === 'sync') {
+    var sheet = ss.getSheets()[0];
+    sheet.clear();
+    sheet.appendRow(["MARCA_SYNC", data.timestamp]);
+    sheet.appendRow(["Nom de l'Entitat"]);
+    data.entities.forEach(function(name) {
+      if (name && name.trim() !== "") sheet.appendRow([name]);
+    });
+    return ContentService.createTextOutput("Success").setMimeType(ContentService.MimeType.TEXT);
+  }
+  
+  if (data.action === 'save_results') {
+    var sheet = ss.getSheetByName("Resultats") || ss.insertSheet("Resultats");
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(["Codi SIG", "Data", "Entitat Detectada", "Context", "Fitxer", "Carpeta"]);
+    }
+    var existingCodes = sheet.getLastRow() > 0 ? sheet.getRange(1, 1, sheet.getLastRow(), 1).getValues().flat() : [];
+    data.results.forEach(function(r) {
+      if (!existingCodes.includes(r.code)) {
+        sheet.appendRow([r.code, r.dateFound, r.entity, r.text, r.fileNames.join(", "), r.folder]);
+        existingCodes.push(r.code);
+      }
+    });
+    return ContentService.createTextOutput("Success").setMimeType(ContentService.MimeType.TEXT);
+  }
+}
+
+function doGet(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  var data = sheet.getDataRange().getValues();
+  var entities = [];
+  var timestamp = "";
+  for (var i = 0; i < data.length; i++) {
+    if (data[i][0] === "MARCA_SYNC") timestamp = data[i][1];
+    else if (data[i][0] !== "Nom de l'Entitat" && data[i][0] !== "" && data[i][0] !== "MARCA_SYNC") entities.push(data[i][0]);
+  }
+  var result = JSON.stringify({entities: entities, timestamp: timestamp});
+  var html = "<html><body><script>window.parent.postMessage(" + result + ", '*');<\/script></body></html>";
+  return HtmlService.createHtmlOutput(html);
+}`;
+            navigator.clipboard.writeText(code);
+        }
+
+        async function syncResultsToGoogle(results) {
+            const scriptUrl = "https://script.google.com/macros/s/AKfycbxRpZZLUcox3WTvV0LdrY9aSV8GuXkQj92_w2irFiAwjxhdHBgi6hrBrQQ0nlp09qLayA/exec";
+            try {
+                await fetch(scriptUrl, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify({ action: 'save_results', results: results })
+                });
+                console.log("Resultats sincronitzats a Google Sheets");
+            } catch (e) {
+                console.error("Error sincronitzant resultats:", e);
+            }
+        }
 
         document.getElementById('btnConnect').onclick = async (e) => {
             const btn = e.currentTarget;
@@ -728,9 +1025,30 @@
                     document.getElementById('btnEmail').style.display = "block";
                 }
                 renderAllResults(resultsMap);
+                // Enviem els resultats a Google Sheets automàticament
+                if (allFoundResults.length > 0) {
+                    syncResultsToGoogle(allFoundResults);
+                }
             } catch (err) {
                 alert("Error general: " + err.message);
                 loader.style.display = "none";
+            }
+        }
+
+        async function syncResultsToGoogle(results) {
+            const scriptUrl = "https://script.google.com/macros/s/AKfycbxRpZZLUcox3WTvV0LdrY9aSV8GuXkQj92_w2irFiAwjxhdHBgi6hrBrQQ0nlp09qLayA/exec";
+            try {
+                await fetch(scriptUrl, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify({
+                        action: 'save_results',
+                        results: results
+                    })
+                });
+                console.log("Resultats sincronitzats amb Google Sheets.");
+            } catch (e) {
+                console.error("Error sincronitzant resultats:", e);
             }
         }
 
