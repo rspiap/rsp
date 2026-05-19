@@ -146,6 +146,21 @@
             background: #64748b;
         }
 
+        .action-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .action-bar button {
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            border-radius: 8px;
+            white-space: nowrap;
+        }
+
         #resultsTable {
             width: 100%;
             border-collapse: collapse;
@@ -359,7 +374,7 @@
                     <option value="estatuts">(estatuts) I (Entitat Sector Públic)</option>
                     <option value="reestructuracio">(reestructuració AND departament)</option>
                     <option value="dissolucio">(dissolució OR creació OR liquidació) I (Entitat Sector Públic)</option>
-                    <option value="representant">(representant) I (Entitat Sector Públic) NOT (s'autoritza)</option>
+                    <option value="representant">(representant OR patró) I (Entitat Sector Públic) NOT (s'autoritza)</option>
                     <option value="membre_independent">(membre independent) I (Entitat Sector Públic)</option>
                     <option value="sac_carecs">(nomenament OR cessament) AND (departament) NOT (Entitat Sector Públic)</option>
                     <option value="marques_aprova">(marca OR marques) I (aprova)</option>
@@ -383,10 +398,11 @@
 
 
         <!-- Botons d'accions -->
-        <div style="display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap;align-items:center;">
+        <div class="action-bar">
             <button id="btnEmail" class="secondary" disabled style="background:#6366f1;opacity:0.5;cursor:not-allowed;">📧 Generar correu</button>
             <button id="btnExport" class="secondary" disabled style="background:#059669;opacity:0.5;cursor:not-allowed;">📥 Exportar CSV</button>
             <button id="btnManteniment" class="secondary" style="background:#8b5cf6;">🛠️ Manteniment RSP</button>
+            <button id="btnOpenExcel" class="secondary" style="background:#10b981;">📊 Obrir Excel Consulta</button>
             <button id="btnScan" style="margin-left:auto;">🔍 Cercar / Actualitzar</button>
         </div>
 
@@ -494,6 +510,33 @@
         </div>
     </div>
 
+    <!-- Modal Error app_dades no existeix -->
+    <div id="appDadesErrorModal" class="modal-overlay" style="display:none; z-index: 10000;">
+        <div class="modal-content" style="max-width:480px; text-align:center; gap:20px; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); border-radius: 16px; padding: 24px;">
+            <div style="font-size:3rem; margin-bottom: 5px;">⚠️</div>
+            <div>
+                <h2 style="margin:0 0 10px 0; color: #1e293b; font-size: 1.35rem; font-weight: 700;">La subcarpeta 'app_dades' no existeix</h2>
+                <p style="color:#64748b; margin:0; font-size:0.95rem; line-height:1.6; text-align: left;">
+                    No s'ha trobat la subcarpeta indispensable <strong>app_dades</strong> dins de la carpeta de treball seleccionada. Aquesta carpeta conté les dades històriques d'extraccions i l'Excel de consulta.
+                    <br><br>
+                    Tria una opció per continuar:
+                </p>
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 10px;">
+                <button id="btnCreateAppDades" style="background: #059669; color: white; padding: 12px; border-radius: 8px; border: none; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#047857'" onmouseout="this.style.background='#059669'">
+                    🌱 Crear subcarpeta de nou (buida)
+                </button>
+                <button id="btnChangeFolderAppDades" style="background: #0284c7; color: white; padding: 12px; border-radius: 8px; border: none; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#0369a1'" onmouseout="this.style.background='#0284c7'">
+                    📂 Carregar carpeta existent (Canviar)
+                </button>
+                <button id="btnCancelAppDades" class="secondary" style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; background: #f1f5f9; color: #475569; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">
+                    ❌ Cancel·lar
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let directoryHandle = null;
         let excelFileHandle = null;
@@ -506,7 +549,7 @@
             estatuts: { keywords: ["estatut"] },
             reestructuracio: { keywords: ["reestructuracio", "departament"], requiresEntity: false, matchAll: true },
             dissolucio: { keywords: ["dissolucio", "creacio", "liquidacio"] },
-            representant: { keywords: ["representant"] },
+            representant: { keywords: ["representant", "patró"] },
             membre_independent: { keywords: ["membre independent"] },
             'sac_carecs': { label: "(nomenament OR cessament) AND (departament) NOT (Entitat Sector Públic)", keywords: ["nomenament", "cessament"], requiresEntity: false, isSAC: true },
             'marques_aprova': { keywords: ["marca", "marques"], requiresAprova: true }
@@ -692,14 +735,13 @@
                 });
                 
                 try {
-                    // Intentem escriure de forma segura i directa sense esborrar el fitxer prèviament
                     const dataFolder = await getDataFolderHandle();
                     const fh = await dataFolder.getFileHandle(EXCEL_FILENAME, { create: true });
                     const writable = await fh.createWritable({ keepExistingData: false });
                     await writable.write(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }));
                     await writable.close();
                     
-                    console.log(`✅ S'han desat correctament ${added} resultats nous al CSV.`);
+                    console.log(`💾 S'han desat correctament els resultats al CSV. Nous afegits: ${added}.`);
                 } catch (writeErr) {
                     console.error("Error d'escriptura directe:", writeErr);
                     throw writeErr;
@@ -713,7 +755,7 @@
                                     e.message.toLowerCase().includes('permission');
                                     
                 if (isLockError) {
-                    alert(`⚠️ EL FITXER ESTÀ BLOCAT PER EXCEL!\n\nNo s'ha pogut desar al fitxer "Sessions Govern Dades.csv" perquè actualment està obert o bloquejat per Microsoft Excel.\n\n💡 Solució:\n1. Tanca el fitxer "Sessions Govern Dades.csv" si el tens obert directament a Microsoft Excel.\n2. Tanca el teu Excel de consulta si està actualitzant-se de fons.\n3. Un cop tancat, torna a prémer "Cercar / Actualitzar" per desar els resultats.`);
+                    alert(`⚠️ EL FITXER ESTÀ BLOCAT PER EXCEL!\n\nNo s'ha pogut desar al fitxer "Sessions Govern Dades.csv" perquè accidentment està obert o bloquejat per Microsoft Excel.\n\n💡 Solució:\n1. Tanca el fitxer "Sessions Govern Dades.csv" si el tens obert directament a Microsoft Excel.\n2. Tanca el teu Excel de consulta si està actualitzant-se de fons.\n3. Un cop tancat, torna a prémer "Cercar / Actualitzar" per desar els resultats.`);
                 } else {
                     alert(`⚠️ Error inesperat en desar a l'arxiu CSV: [${e.name}] ${e.message}`);
                 }
@@ -915,6 +957,32 @@
             }
         }
 
+        function promptAppDadesFolder() {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('appDadesErrorModal');
+                const btnCreate = document.getElementById('btnCreateAppDades');
+                const btnChange = document.getElementById('btnChangeFolderAppDades');
+                const btnCancel = document.getElementById('btnCancelAppDades');
+
+                modal.style.display = 'flex';
+
+                btnCreate.onclick = () => {
+                    modal.style.display = 'none';
+                    resolve('create');
+                };
+
+                btnChange.onclick = () => {
+                    modal.style.display = 'none';
+                    resolve('change');
+                };
+
+                btnCancel.onclick = () => {
+                    modal.style.display = 'none';
+                    resolve('cancel');
+                };
+            });
+        }
+
         // allowPermissionRequest: false durant l'inici automàtic (sense user gesture),
         //                         true quan ve d'una acció de l'usuari (clic de botó)
         async function getDataFolderHandle(allowPrompt = true, allowPermissionRequest = true) {
@@ -940,7 +1008,7 @@
                 }
                 try {
                     if (await directoryHandle.requestPermission(opts) !== 'granted') {
-                        alert("⚠️ Cal concedir permisos de lectura/escriptura a la carpeta per poder accedir a 'app_dades'.");
+                        console.warn("Cal concedir permisos de lectura/escriptura a la carpeta per poder accedir a 'app_dades'.");
                         return null;
                     }
                     updateUIConnected();
@@ -956,21 +1024,15 @@
                 return dataFolderHandle;
             } catch (e) {
                 if (e.name === 'NotAllowedError' || e.name === 'SecurityError') {
-                    if (allowPermissionRequest) {
-                        alert("⚠️ Permisos insuficients per accedir a 'app_dades'. Torna a prémer 'Canviar Carpeta' per reconnectar-la.");
-                    }
+                    console.warn("Permisos insuficients per accedir a 'app_dades'.", e);
                     return null;
                 }
 
                 if (!allowPrompt) return null;
 
-                const voluntatCrear = confirm(
-                    "⚠️ LA SUBCARPETA 'app_dades' NO EXISTEIX!\n\n" +
-                    "Aquesta carpeta de dades s'ha d'ubicar obligatòriament a la mateixa carpeta on tens l'Excel de consulta.\n\n" +
-                    "Vols crear de nou la subcarpeta 'app_dades' amb els fitxers de base de dades CSV buits en aquest directori?"
-                );
+                const choice = await promptAppDadesFolder();
 
-                if (voluntatCrear) {
+                if (choice === 'create') {
                     try {
                         dataFolderHandle = await directoryHandle.getDirectoryHandle('app_dades', { create: true });
                         await initializeEmptyFiles(dataFolderHandle);
@@ -979,6 +1041,12 @@
                         alert("⚠️ Error en crear la subcarpeta 'app_dades': " + errCreacio.message);
                         return null;
                     }
+                } else if (choice === 'change') {
+                    // Cridem a la connexió de carpeta directament amb un breu delay perquè es tanqui el modal primer
+                    setTimeout(() => {
+                        connectFolder(null);
+                    }, 100);
+                    return null;
                 } else {
                     alert("⚠️ Operació cancel·lada. El cercador no podrà desar cap resultat sense tenir accés a la subcarpeta 'app_dades'.");
                     return null;
@@ -1027,6 +1095,44 @@
             // 5. Ara sí: carreguem entitats (RSP + locals). El directoryHandle ja és disponible.
             //    Passem 'false' per evitar demanar permisos durant l'inici automàtic sense user gesture.
             fetchEntities(false);
+
+            document.getElementById('btnOpenExcel').onclick = () => {
+                if (!directoryHandle) {
+                    alert("⚠️ Primer has de connectar una carpeta de treball!");
+                    return;
+                }
+                
+                let excelPath = "";
+                
+                // Si la carpeta connectada és la de xarxa "Sessions_Govern", o no estem en file:// protocol,
+                // utilitzem la ruta de xarxa directa de la carpeta de treball
+                if (directoryHandle.name === "Sessions_Govern" || window.location.protocol !== "file:") {
+                    excelPath = "U:/F0815_ SG_SEPG/F1051 Seguiment Entitats/Quadres de control d'informes i expedients/RSP/Sessions_Govern/Sessions Govern Sincronitzat - v2.xlsx";
+                } else {
+                    // Estem executant localment (file:///) i hem seleccionat una altra carpeta local (o per proves)
+                    let currentPath = decodeURIComponent(window.location.pathname);
+                    if (currentPath.startsWith('/') && currentPath.charAt(2) === ':') {
+                        currentPath = currentPath.substring(1);
+                    }
+                    const parts = currentPath.split('/');
+                    parts.pop(); // index.html
+                    parts.pop(); // v2
+                    const parentFolder = parts.join('/');
+                    excelPath = parentFolder + "/Sessions Govern Sincronitzat - v2.xlsx";
+                }
+                
+                // Utilitzem el protocol natiu d'Office de Windows per obrir directament en mode edició (ofe)
+                const formattedPath = excelPath.replace(/\\/g, '/');
+                const officeUrl = `ms-excel:ofe|u|file:///${encodeURI(formattedPath)}`;
+                
+                console.log("Obrint l'arxiu original a Microsoft Excel:", officeUrl);
+                
+                const a = document.createElement('a');
+                a.href = officeUrl;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            };
 
             document.getElementById('filterSelector').addEventListener('change', (e) => {
                 currentFilterKey = e.target.value;
@@ -1448,7 +1554,7 @@
                 const hasEstatut = /\bestatuts?\b/i.test(pNorm);
                 const hasReestr = /\breestructuracios?\b/i.test(pNorm) && /\bdepartaments?\b/i.test(pNorm);
                 const hasDissol = /\b(dissolucio|creacio|liquidacio)\b/i.test(pNorm);
-                const hasRepres = /\brepresents?\b|\brepresentants?\b/i.test(pNorm);
+                const hasRepres = /\brepresents?\b|\brepresentants?\b|\bpatro(ns?)?\b/i.test(pNorm);
                 const hasMembreIndep = /membre independent/i.test(pNorm);
                 const hasAutoritza = /autoritza/i.test(pNorm);
                 const hasMarques = /\b(marca|marques)\b/i.test(pNorm);
@@ -1505,15 +1611,9 @@
 
                 // Lògica per a Dissolució
                 if (hasDissol && matchedEntity && (isAll || currentFilterKey === 'dissolucio')) {
-                    const keywordMatch = pNorm.match(/\b(dissolucio|creacio|liquidacio)\b/i);
-                    const keywordPos = keywordMatch ? keywordMatch.index : -1;
-                    const entityPos = pNorm.indexOf(matchedEntity.norm);
-
-                    if (keywordPos !== -1 && entityPos !== -1 && keywordPos < entityPos) {
-                        matchFound = true;
-                        collectedEntities.push(matchedEntity.original);
-                        collectedCodes.push(matchedEntity.regCode);
-                    }
+                    matchFound = true;
+                    collectedEntities.push(matchedEntity.original);
+                    collectedCodes.push(matchedEntity.regCode);
                 }
 
                 // Lògica per a Representants
