@@ -445,23 +445,14 @@
             <div>
                 <h2 style="margin:0 0 10px 0;">Benvingut al Cercador SIGOV</h2>
                 <p style="color:#64748b; margin:0; font-size:0.95rem; line-height:1.6;">
-                    Per continuar, selecciona la carpeta on es troben els documents <strong>.docx</strong> de les sessions de Govern.
+                    Per continuar, selecciona la carpeta del projecte. Aquesta carpeta ha de contenir l'Excel de consulta i totes les subcarpetes necessàries (la subcarpeta <strong>app_dades</strong>, les carpetes amb els documents Word a analitzar, etc.).
                     <br><br>
-                    Aquesta carpeta s'enrecordarà per a properes sessions.
+                    Aquesta carpeta serà memoritzada per a properes sessions.
                 </p>
-            </div>
-            
-            <!-- Ruta de xarxa ràpida copy-paste -->
-            <div style="background: #f1f5f9; padding: 14px; border-radius: 8px; border: 1px solid #cbd5e1; text-align: left; font-size: 0.85rem;">
-                <span style="font-weight: 600; color: #475569; display: block; margin-bottom: 6px;">Ruta recomanada de xarxa:</span>
-                <code id="networkPathText" style="display: block; word-break: break-all; color: #0f172a; background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e2e8f0; font-family: monospace; font-size: 0.8rem; margin-bottom: 10px; user-select: all;">U:\F0815_ SG_SEPG\F1051 Seguiment Entitats\Quadres de control d'informes i expedients\RSP\Sessions_Govern</code>
-                <button id="btnCopyPath" type="button" style="padding: 6px 12px; font-size: 0.78rem; background: #e2e8f0; color: #475569; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 4px; margin: 0 auto 0 0;" onclick="copyNetworkPath()">
-                    📋 Copiar ruta per enganxar
-                </button>
             </div>
 
             <button id="btnWelcomeConnect" style="margin:0 auto; padding:16px 32px; font-size:1.05rem;">
-                📂 Seleccionar carpeta de treball
+                📂 Selecciona carpeta del projecte
             </button>
             <p style="font-size:0.78rem; color:#94a3b8; margin:0;">
                 Necessari per accedir als documents i guardar els resultats.
@@ -1105,9 +1096,9 @@
                 let excelPath = "";
                 
                 // Si la carpeta connectada és la de xarxa "Sessions_Govern", o no estem en file:// protocol,
-                // utilitzem la ruta de xarxa directa de la carpeta de treball
+                // utilitzem la ruta de xarxa directa de la carpeta de treball (usant el camí UNC per independència de lletra d'unitat)
                 if (directoryHandle.name === "Sessions_Govern" || window.location.protocol !== "file:") {
-                    excelPath = "U:/F0815_ SG_SEPG/F1051 Seguiment Entitats/Quadres de control d'informes i expedients/RSP/Sessions_Govern/Sessions Govern Sincronitzat - v2.xlsx";
+                    excelPath = "//03.FITXERS.CTTI.INTRANET.GENCAT.CAT/0301_EIFBCN001W_f20in$/F0815_ SG_SEPG/F1051 Seguiment Entitats/Quadres de control d'informes i expedients/RSP/Sessions_Govern/Sessions Govern Sincronitzat - v2.xlsx";
                 } else {
                     // Estem executant localment (file:///) i hem seleccionat una altra carpeta local (o per proves)
                     let currentPath = decodeURIComponent(window.location.pathname);
@@ -1123,7 +1114,15 @@
                 
                 // Utilitzem el protocol natiu d'Office de Windows per obrir directament en mode edició (ofe)
                 const formattedPath = excelPath.replace(/\\/g, '/');
-                const officeUrl = `ms-excel:ofe|u|file:///${encodeURI(formattedPath)}`;
+                let officeUrl;
+                if (formattedPath.startsWith('//')) {
+                    // Camí UNC de xarxa: file://server/share/... (eliminem els primers slashes per no duplicar-los a file://)
+                    const cleanUnc = formattedPath.substring(2);
+                    officeUrl = `ms-excel:ofe|u|file://${encodeURI(cleanUnc)}`;
+                } else {
+                    // Camí local estàndard: file:///C:/...
+                    officeUrl = `ms-excel:ofe|u|file:///${encodeURI(formattedPath)}`;
+                }
                 
                 console.log("Obrint l'arxiu original a Microsoft Excel:", officeUrl);
                 
@@ -1269,26 +1268,6 @@
             manualEntities = manualEntities.filter(e => e && e.trim().length > 0);
             document.getElementById('mantenimentModal').style.display = 'none';
             fetchEntities();
-        }
-
-        function copyNetworkPath() {
-            const path = "U:\\F0815_ SG_SEPG\\F1051 Seguiment Entitats\\Quadres de control d'informes i expedients\\RSP\\Sessions_Govern";
-            navigator.clipboard.writeText(path).then(() => {
-                const btn = document.getElementById('btnCopyPath');
-                const oldHTML = btn.innerHTML;
-                btn.innerHTML = "✅ Copiada!";
-                btn.style.background = "#dcfce7";
-                btn.style.color = "#15803d";
-                btn.style.borderColor = "#bbf7d0";
-                setTimeout(() => {
-                    btn.innerHTML = oldHTML;
-                    btn.style.background = "#e2e8f0";
-                    btn.style.color = "#475569";
-                    btn.style.borderColor = "#cbd5e1";
-                }, 2000);
-            }).catch(err => {
-                alert("No s'ha pogut copiar automàticament. Copia-la manualment d'aquí: " + path);
-            });
         }
 
 
