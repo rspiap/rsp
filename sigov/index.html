@@ -232,6 +232,19 @@
             font-size: 1.1rem;
         }
 
+        .inline-spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(99, 102, 241, 0.15);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 12px;
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
+        }
+
         mark {
             background: rgba(245, 158, 11, 0.22);
             color: #fbbf24;
@@ -573,7 +586,7 @@
             <button id="btnScan" style="margin-left:auto;">🔍 Cercar / Actualitzar</button>
         </div>
 
-        <div id="loader" class="loading">Escanejant documents a la xarxa...</div>
+        <div id="loader" class="loading"><div class="inline-spinner"></div><span>Escanejant documents a la xarxa...</span></div>
         <div id="resultsContainer"></div>
     </div>
 
@@ -1930,7 +1943,7 @@
             const btnExport = document.getElementById('btnExport');
 
             loader.style.display = "block";
-            loader.innerText = "Escanejant documents a la xarxa...";
+            loader.innerHTML = '<div class="inline-spinner"></div><span>Escanejant documents a la xarxa...</span>';
             btnExport.disabled = true;
             btnExport.style.opacity = "0.5";
             btnExport.style.cursor = "not-allowed";
@@ -2254,12 +2267,21 @@
             const folderRows = allFoundResults.filter(r => r.folder === folderPath);
             if (folderRows.length === 0) return;
 
-            // 1. Mostrar confirmació per a tutta la carpeta
+            // 1. Mostrar confirmació per a tota la carpeta (singular/plural correcte)
             let confirmMsg = "";
+            const count = folderRows.length;
             if (isChecked) {
-                confirmMsg = `Vols desar tots els ${folderRows.length} acords de la carpeta "${folderPath}" a l'històric del CSV?`;
+                if (count === 1) {
+                    confirmMsg = `Vols desar l'acord de la carpeta "${folderPath}" a l'històric del CSV?`;
+                } else {
+                    confirmMsg = `Vols desar els ${count} acords de la carpeta "${folderPath}" a l'històric del CSV?`;
+                }
             } else {
-                confirmMsg = `Vols eliminar tots els ${folderRows.length} acords de la carpeta "${folderPath}" de l'històric del CSV?`;
+                if (count === 1) {
+                    confirmMsg = `Vols eliminar l'acord de la carpeta "${folderPath}" de l'històric del CSV?`;
+                } else {
+                    confirmMsg = `Vols eliminar els ${count} acords de la carpeta "${folderPath}" de l'històric del CSV?`;
+                }
             }
 
             if (!confirm(confirmMsg)) {
