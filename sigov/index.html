@@ -11,31 +11,36 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #4f46e5;
-            --primary-hover: #4338ca;
-            --bg: #fdfeff;
-            --card: #ffffff;
-            --text: #0f172a;
-            --accent: #f0f9ff;
+            --primary: #6366f1; /* Indigo 500 */
+            --primary-hover: #4f46e5; /* Indigo 600 */
+            --bg: #0f172a; /* Slate 900 */
+            --card: #1e293b; /* Slate 800 */
+            --text: #f8fafc; /* Slate 50 */
+            --text-muted: #94a3b8; /* Slate 400 */
+            --accent: #0f172a; /* Slate 900 */
+            --border: #334155; /* Slate 700 */
         }
 
         body {
             font-family: 'Outfit', sans-serif;
-            background-color: #f1f5f9;
+            background-color: var(--bg);
             color: var(--text);
             margin: 0;
             display: flex;
             justify-content: center;
             padding: 40px 20px;
+            transition: background-color 0.3s ease;
         }
 
         .container {
-            max-width: 900px;
+            max-width: 1000px;
             width: 100%;
             background: var(--card);
             padding: 40px;
             border-radius: 32px;
-            box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
         }
 
         header {
@@ -48,10 +53,11 @@
             margin: 0;
             color: var(--primary);
             letter-spacing: -1px;
+            text-shadow: 0 0 15px rgba(99, 102, 241, 0.25);
         }
 
         p.desc {
-            color: #64748b;
+            color: var(--text-muted);
             font-size: 1.1rem;
             margin-top: 8px;
         }
@@ -64,6 +70,7 @@
             padding: 24px;
             border-radius: 20px;
             margin-bottom: 30px;
+            border: 1px solid var(--border);
         }
 
         .input-box {
@@ -76,22 +83,26 @@
             font-size: 0.85rem;
             font-weight: 600;
             text-transform: uppercase;
-            color: #64748b;
+            color: var(--text-muted);
+            letter-spacing: 0.5px;
         }
 
         input {
             padding: 12px 16px;
-            border: 2px solid #e2e8f0;
+            background: var(--bg);
+            border: 2px solid var(--border);
             border-radius: 12px;
             font-family: inherit;
             font-size: 1rem;
-            transition: all 0.2s;
+            color: var(--text);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         input:focus {
             border-color: var(--primary);
             outline: none;
-            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
+            background: var(--card);
         }
 
         .folder-status {
@@ -99,8 +110,8 @@
             align-items: center;
             justify-content: space-between;
             padding: 16px 24px;
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
+            background: var(--bg);
+            border: 1px solid var(--border);
             border-radius: 16px;
             margin-bottom: 30px;
         }
@@ -115,7 +126,7 @@
             width: 10px;
             height: 10px;
             border-radius: 50%;
-            background: #cbd5e1;
+            background: #475569;
         }
 
         .dot.active {
@@ -131,19 +142,33 @@
             border-radius: 12px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             display: flex;
             align-items: center;
             gap: 8px;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+            font-family: inherit;
         }
 
         button:hover {
             background: var(--primary-hover);
-            transform: translateY(-1px);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35);
+        }
+
+        button:active {
+            transform: translateY(0);
         }
 
         button.secondary {
-            background: #64748b;
+            background: #334155;
+            color: #f8fafc;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.15);
+        }
+
+        button.secondary:hover {
+            background: #475569;
+            box-shadow: 0 6px 12px -1px rgba(0, 0, 0, 0.25);
         }
 
         .action-bar {
@@ -155,8 +180,8 @@
         }
 
         .action-bar button {
-            padding: 8px 16px;
-            font-size: 0.85rem;
+            padding: 10px 20px;
+            font-size: 0.9rem;
             border-radius: 8px;
             white-space: nowrap;
         }
@@ -170,29 +195,31 @@
         th {
             text-align: left;
             padding: 12px;
-            color: #64748b;
+            color: var(--text-muted);
             font-size: 0.85rem;
-            border-bottom: 2px solid #f1f5f9;
+            border-bottom: 2px solid var(--border);
         }
 
         td {
             padding: 16px 12px;
-            border-bottom: 1px solid #f1f5f9;
+            border-bottom: 1px solid var(--border);
             font-size: 0.95rem;
         }
 
         .code-pill {
-            background: #eef2ff;
-            color: var(--primary);
+            background: rgba(99, 102, 241, 0.15);
+            color: #818cf8;
+            border: 1px solid rgba(99, 102, 241, 0.3);
             padding: 4px 10px;
             border-radius: 6px;
             font-family: monospace;
             font-weight: 700;
+            display: inline-block;
         }
 
         .file-name {
             font-size: 0.8rem;
-            color: #94a3b8;
+            color: var(--text-muted);
             display: block;
         }
 
@@ -202,28 +229,33 @@
             padding: 20px;
             color: var(--primary);
             font-weight: 600;
+            font-size: 1.1rem;
         }
 
         mark {
-            background: #fbbf2466;
-            padding: 0 2px;
-            border-radius: 3px;
+            background: rgba(245, 158, 11, 0.22);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
         }
 
         .info-panel {
-            background: var(--accent);
+            background: rgba(99, 102, 241, 0.05);
+            border: 1px solid rgba(99, 102, 241, 0.15);
+            border-left: 5px solid var(--primary);
             padding: 20px;
             border-radius: 16px;
             margin-bottom: 24px;
             display: flex;
             flex-direction: column;
             gap: 10px;
-            border-left: 5px solid var(--primary);
         }
 
         .filter-badge {
             font-size: 0.95rem;
-            color: #475569;
+            color: var(--text);
             display: flex;
             align-items: center;
             gap: 8px;
@@ -234,13 +266,13 @@
         }
 
         select.filter-select {
-            padding: 4px 12px;
-            border: 1px solid #e2e8f0;
+            padding: 6px 12px;
+            border: 1px solid var(--border);
             border-radius: 8px;
             font-family: inherit;
             font-size: 0.9rem;
-            color: #475569;
-            background: white;
+            color: var(--text);
+            background: var(--bg);
             cursor: pointer;
             outline: none;
             transition: all 0.2s;
@@ -249,7 +281,7 @@
 
         select.filter-select:focus {
             border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
         }
 
         /* Modal Styles */
@@ -259,7 +291,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(15, 23, 42, 0.6);
+            background: rgba(15, 23, 42, 0.75);
             backdrop-filter: blur(4px);
             display: none;
             justify-content: center;
@@ -268,15 +300,17 @@
         }
 
         .modal-content {
-            background: white;
+            background: var(--card);
+            border: 1px solid var(--border);
             padding: 32px;
             border-radius: 24px;
             max-width: 600px;
             width: 90%;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
             display: flex;
             flex-direction: column;
             gap: 20px;
+            color: var(--text);
         }
 
         .modal-header {
@@ -289,6 +323,7 @@
             margin: 0;
             font-size: 1.5rem;
             color: var(--primary);
+            text-shadow: 0 0 10px rgba(99, 102, 241, 0.2);
         }
 
         .modal-body textarea,
@@ -296,19 +331,20 @@
             width: 100%;
             height: 300px;
             padding: 16px;
-            border: 2px solid #e2e8f0;
+            border: 2px solid var(--border);
             border-radius: 12px;
             font-family: inherit;
             font-size: 0.95rem;
             resize: none;
-            color: #334155;
-            background: #f8fafc;
+            color: var(--text);
+            background: var(--bg);
             overflow-y: auto;
         }
 
         .modal-body .rich-preview {
-            background: white;
+            background: #ffffff; /* S'ha de mantenir blanc per a copiar a l'Outlook correctament */
             white-space: normal;
+            color: #000000;
         }
 
         .modal-footer {
@@ -329,16 +365,20 @@
             border-radius: 12px;
             font-size: 0.95rem;
             cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 10px rgba(0, 120, 212, 0.3);
         }
 
         .modal-footer .btn-outlook:hover {
             background: #005a9e;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 14px rgba(0, 120, 212, 0.45);
         }
 
         .spinner {
             width: 40px;
             height: 40px;
-            border: 4px solid #f3f3f3;
+            border: 4px solid rgba(255, 255, 255, 0.1);
             border-top: 4px solid var(--primary);
             border-radius: 50%;
             animation: spin 1s linear infinite;
@@ -346,13 +386,132 @@
         }
 
         @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
 
-            100% {
-                transform: rotate(360deg);
-            }
+        /* Estils per a la Barra de Resum i Caselles de Selecció */
+        .results-summary-bar {
+            background: rgba(16, 185, 129, 0.08);
+            border: 1px solid rgba(16, 185, 129, 0.25);
+            border-left: 5px solid #10b981;
+            border-radius: 16px;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            gap: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .btn-save-selected {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            box-shadow: 0 4px 10px rgba(16, 185, 129, 0.25);
+            font-family: inherit;
+        }
+
+        .btn-save-selected:hover:not(:disabled) {
+            background: #059669;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 14px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-save-selected:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn-save-selected:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        /* Caselles de selecció customitzades */
+        input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #475569;
+            border-radius: 6px;
+            background: #0f172a;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            vertical-align: middle;
+            position: relative;
+        }
+
+        input[type="checkbox"]:hover {
+            border-color: var(--primary);
+            box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+        }
+
+        input[type="checkbox"]:checked {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        input[type="checkbox"]:checked::after {
+            content: '✓';
+            font-size: 13px;
+            color: white;
+            font-weight: 800;
+        }
+
+        .row-checkbox, .folder-header-checkbox {
+            transition: transform 0.1s ease, border-color 0.2s, background-color 0.2s;
+        }
+
+        .row-checkbox:active, .folder-header-checkbox:active {
+            transform: scale(0.9);
+        }
+
+        .project-folder-btn {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.15);
+        }
+
+        .project-folder-btn:hover {
+            background: var(--card);
+            color: var(--primary);
+            border-color: var(--primary);
+            transform: translateY(-1px);
+        }
+
+        .project-folder-btn:active {
+            transform: translateY(0);
         }
     </style>
 </head>
@@ -362,8 +521,20 @@
     <div class="container">
         <header>
             <h1>Sessions de Govern <span style="font-size:0.9rem;background:#217346;color:white;padding:3px 10px;border-radius:99px;vertical-align:middle;font-weight:700;">v2</span></h1>
-            <p class="desc">Gestió i extracció de diligències per a les sessions del Govern.</p>
+            <p class="desc">Cercador dels punts de l'Ordre del dia relacionats amb el RSP</p>
         </header>
+
+        <!-- Fila de Projecte i Info (centrada al mig) -->
+        <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 24px; flex-wrap: wrap; gap: 24px; border-bottom: 1px solid var(--border); padding-bottom: 16px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div id="statusDot" class="dot"></div>
+                <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                    <span id="statusText" style="font-weight: 600; color: var(--text); font-size: 0.95rem;">Carpeta del projecte: No connectada</span>
+                    <span id="entityCount" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Carregant entitats...</span>
+                </div>
+            </div>
+            <button id="btnConnect" class="project-folder-btn">📁 Carpeta del projecte</button>
+        </div>
 
         <div class="info-panel">
             <div class="filter-badge">
@@ -380,19 +551,15 @@
                     <option value="marques_aprova">(marca OR marques) I (aprova)</option>
                 </select>
             </div>
-            <div class="filter-badge">
-                <strong>Extracció:</strong> SIG [Codi] -
-            </div>
         </div>
 
-        <!-- Carpeta documents -->
-        <div class="folder-status">
-            <div class="status-info">
-                <div id="statusDot" class="dot"></div>
-                <span id="statusText">Carpeta no connectada</span>
-                <span id="entityCount" style="font-size: 0.7rem; color: #64748b; margin-left: 8px;">Carregant entitats...</span>
+        <!-- Carpetes del Projecte i Escaneig -->
+        <div class="folder-status" style="display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-radius: 16px; margin-bottom: 30px; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div id="statusScanDot" class="dot"></div>
+                <span id="statusScanText" style="font-weight: 600; color: var(--text); font-size: 0.95rem;">🔍 Carpeta a escanejar: El mateix del projecte</span>
             </div>
-            <button id="btnConnect" class="secondary">📁 Canviar Carpeta</button>
+            <button id="btnConnectScan" class="secondary" style="padding: 8px 16px; font-size: 0.85rem; border-radius: 8px; background: #0284c7; color: white; border: none; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3); font-weight: 600;">📂 Carpeta de cerca</button>
         </div>
 
 
@@ -443,8 +610,8 @@
         <div class="modal-content" style="max-width:480px; text-align:center; gap:24px;">
             <div style="font-size:3rem;">📁</div>
             <div>
-                <h2 style="margin:0 0 10px 0;">Benvingut al Cercador SIGOV</h2>
-                <p style="color:#64748b; margin:0; font-size:0.95rem; line-height:1.6;">
+                <h2 style="margin:0 0 10px 0; color: var(--primary);">Benvingut al Cercador SIGOV</h2>
+                <p style="color: var(--text-muted); margin:0; font-size:0.95rem; line-height:1.6;">
                     Per continuar, selecciona la carpeta del projecte. Aquesta carpeta ha de contenir l'Excel de consulta i totes les subcarpetes necessàries (la subcarpeta <strong>app_dades</strong>, les carpetes amb els documents Word a analitzar, etc.).
                     <br><br>
                     Aquesta carpeta serà memoritzada per a properes sessions.
@@ -454,7 +621,7 @@
             <button id="btnWelcomeConnect" style="margin:0 auto; padding:16px 32px; font-size:1.05rem;">
                 📂 Selecciona carpeta del projecte
             </button>
-            <p style="font-size:0.78rem; color:#94a3b8; margin:0;">
+            <p style="font-size:0.78rem; color: var(--text-muted); margin:0;">
                 Necessari per accedir als documents i guardar els resultats.
             </p>
         </div>
@@ -466,36 +633,36 @@
             <div class="modal-header">
                 <h2>Manteniment Entitats NO RSP</h2>
                 <button onclick="closeMantenimentModal()"
-                    style="background:none; color:#64748b; padding:0; font-size:1.5rem;">&times;</button>
+                    style="background:none; color: var(--text-muted); padding:0; font-size:1.5rem; border: none;">&times;</button>
             </div>
             <div class="modal-body" style="padding: 0;">
-                <p style="font-size: 0.85rem; color: #64748b; margin: 20px;">Afegeix o elimina entitats directament a la taula. Els canvis es guardaran al fitxer CSV d'entitats locals.</p>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin: 20px;">Afegeix o elimina entitats directament a la taula. Els canvis es guardaran al fitxer CSV d'entitats locals.</p>
                 
                 <div style="padding: 0 20px 20px 20px;">
-                    <div id="spreadsheetContainer" style="border: 1px solid #e2e8f0; border-radius: 8px; overflow-y: auto; max-height: 450px; background: white; position: relative;">
+                    <div id="spreadsheetContainer" style="border: 1px solid var(--border); border-radius: 8px; overflow-y: auto; max-height: 450px; background: var(--bg); position: relative;">
                         <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
                             <thead>
-                                <tr style="background: #f1f5f9; border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 10;">
-                                    <th style="width: 40px; padding: 10px; border-right: 1px solid #e2e8f0; background: #f1f5f9;">#</th>
-                                    <th style="padding: 10px; text-align: left; background: #f1f5f9;">Nom de l'Entitat</th>
-                                    <th style="width: 40px; padding: 10px; background: #f1f5f9;">Acció</th>
+                                <tr style="background: var(--card); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;">
+                                    <th style="width: 40px; padding: 10px; border-right: 1px solid var(--border); background: var(--card); color: var(--text-muted);">#</th>
+                                    <th style="padding: 10px; text-align: left; background: var(--card); color: var(--text-muted);">Nom de l'Entitat</th>
+                                    <th style="width: 40px; padding: 10px; background: var(--card); color: var(--text-muted);">Acció</th>
                                 </tr>
                             </thead>
                             <tbody id="spreadsheetBody">
                                 <!-- Files de la taula -->
                             </tbody>
                         </table>
-                        <div style="background: #f8fafc; padding: 8px 12px; border-top: 1px solid #e2e8f0;">
-                            <button id="btnAddRow" style="background: none; color: var(--primary); padding: 0; font-size: 0.85rem; font-weight: 600; cursor: pointer;">+ Afegir fila nova</button>
+                        <div style="background: var(--card); padding: 8px 12px; border-top: 1px solid var(--border);">
+                            <button id="btnAddRow" style="background: none; color: var(--primary); padding: 0; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: none; box-shadow: none;">+ Afegir fila nova</button>
                         </div>
                     </div>
                 </div>
             </div>
             <div class="modal-footer" style="justify-content: space-between;">
-                <button id="btnExportEntities" class="secondary" style="background: #0284c7;">📥 Exportar CSV</button>
+                <button id="btnExportEntities" class="secondary" style="background: #0284c7; color: white; border: none;">📥 Exportar CSV</button>
                 <div style="display: flex; gap: 12px;">
-                    <button id="btnSaveAndSync" style="background: #059669;">💾 Acceptar</button>
-                    <button onclick="document.getElementById('mantenimentModal').style.display = 'none'" class="secondary">Cancel·lar</button>
+                    <button id="btnSaveAndSync" style="background: #059669; color: white; border: none;">💾 Acceptar</button>
+                    <button onclick="document.getElementById('mantenimentModal').style.display = 'none'" class="secondary" style="border: 1px solid var(--border); background: var(--bg); color: var(--text-muted);">Cancel·lar</button>
                 </div>
             </div>
         </div>
@@ -503,11 +670,11 @@
 
     <!-- Modal Error app_dades no existeix -->
     <div id="appDadesErrorModal" class="modal-overlay" style="display:none; z-index: 10000;">
-        <div class="modal-content" style="max-width:480px; text-align:center; gap:20px; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); border-radius: 16px; padding: 24px;">
+        <div class="modal-content" style="max-width:480px; text-align:center; gap:20px; border-radius: 16px; padding: 24px;">
             <div style="font-size:3rem; margin-bottom: 5px;">⚠️</div>
             <div>
-                <h2 style="margin:0 0 10px 0; color: #1e293b; font-size: 1.35rem; font-weight: 700;">La subcarpeta 'app_dades' no existeix</h2>
-                <p style="color:#64748b; margin:0; font-size:0.95rem; line-height:1.6; text-align: left;">
+                <h2 style="margin:0 0 10px 0; color: var(--text); font-size: 1.35rem; font-weight: 700;">La subcarpeta 'app_dades' no existeix</h2>
+                <p style="color: var(--text-muted); margin:0; font-size:0.95rem; line-height:1.6; text-align: left;">
                     No s'ha trobat la subcarpeta indispensable <strong>app_dades</strong> dins de la carpeta de treball seleccionada. Aquesta carpeta conté les dades històriques d'extraccions i l'Excel de consulta.
                     <br><br>
                     Tria una opció per continuar:
@@ -521,8 +688,47 @@
                 <button id="btnChangeFolderAppDades" style="background: #0284c7; color: white; padding: 12px; border-radius: 8px; border: none; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#0369a1'" onmouseout="this.style.background='#0284c7'">
                     📂 Carregar carpeta existent (Canviar)
                 </button>
-                <button id="btnCancelAppDades" class="secondary" style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; background: #f1f5f9; color: #475569; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">
+                <button id="btnCancelAppDades" class="secondary" style="padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text-muted); font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='var(--bg)'">
                     ❌ Cancel·lar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Error Permisos de Xarxa / Unitat inaccessible -->
+    <div id="networkPermissionErrorModal" class="modal-overlay" style="display:none; z-index: 10001;">
+        <div class="modal-content" style="max-width:520px; text-align:center; gap:20px; border-radius: 16px; padding: 28px;">
+            <div style="font-size:3.5rem; margin-bottom: 5px;">🌐</div>
+            <div>
+                <h2 style="margin:0 0 10px 0; color: #f43f5e; font-size: 1.4rem; font-weight: 700;">Error d'accés a la unitat de xarxa</h2>
+                <p style="color: var(--text-muted); margin:0; font-size:0.95rem; line-height:1.6; text-align: left;">
+                    L'aplicació no ha pogut accedir a les dades <span id="networkErrorContext"></span>. Això pot ser degut a una manca de permisos o a un tall en la connexió amb el servidor de la unitat de xarxa.
+                </p>
+                
+                <div style="background: rgba(244,63,94,0.1); border-left: 4px solid #f43f5e; padding: 12px 16px; border-radius: 8px; margin-top: 16px; text-align: left;">
+                    <strong style="color: #fda4af; font-size: 0.85rem; text-transform: uppercase; display: block; margin-bottom: 4px;">Detall tècnic de l'error:</strong>
+                    <code id="networkErrorDetail" style="font-family: monospace; font-size: 0.85rem; color: #fda4af; word-break: break-all;"></code>
+                </div>
+
+                <div style="margin-top: 16px; text-align: left; font-size: 0.9rem; color: var(--text-muted);">
+                    <strong style="color: var(--text); display: block; margin-bottom: 6px;">💡 Comprovacions recomanades:</strong>
+                    <ul style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px;">
+                        <li>Verifica que estàs connectat a la xarxa corporativa de la Generalitat (o via <strong>VPN</strong> si estàs treballant en remot).</li>
+                        <li>Comprova que la ruta compartida de xarxa <code>//03.FITXERS.CTTI.INTRANET.GENCAT.CAT/...</code> o la carpeta seleccionada és accessible des de l'Explorador de fitxers de Windows.</li>
+                        <li>Si els permisos temporals concedits al navegador han expirat o s'han revocat, fes clic a <strong>Reintentar accés</strong> per tornar-los a demanar.</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 10px;">
+                <button id="btnRetryNetworkAccess" style="background: #4f46e5; color: white; padding: 12px; border-radius: 8px; border: none; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;" onmouseover="this.style.background='#4338ca'" onmouseout="this.style.background='#4f46e5'">
+                    🔄 Reintentar accés (Renovar permisos)
+                </button>
+                <button id="btnChangeFolderNetwork" style="background: #0284c7; color: white; padding: 12px; border-radius: 8px; border: none; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;" onmouseover="this.style.background='#0369a1'" onmouseout="this.style.background='#0284c7'">
+                    📂 Reconnectar / Canviar carpeta de treball
+                </button>
+                <button id="btnCancelNetworkError" class="secondary" style="padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text-muted); font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;" onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='var(--bg)'">
+                    ❌ Tancar
                 </button>
             </div>
         </div>
@@ -530,10 +736,47 @@
 
     <script>
         let directoryHandle = null;
+        let scanFolderHandle = null;
         let excelFileHandle = null;
         let entities = [];
         let manualEntities = [];
         let allFoundResults = [];
+
+        // --- GESTIÓ D'ERRORS DE PERMISOS I XARXA ---
+        let lastFailedOperation = null;
+
+        function isNetworkOrPermissionError(e) {
+            if (!e) return false;
+            const name = (e.name || "").toString();
+            const msg = (e.message || "").toLowerCase();
+            
+            const matchesName = ['NotAllowedError', 'SecurityError', 'UnknownError'].includes(name);
+            const matchesMsg = msg.includes('permission') || 
+                               msg.includes('access') || 
+                               msg.includes('denied') || 
+                               msg.includes('network') ||
+                               msg.includes('vpn') ||
+                               msg.includes('disconnected') ||
+                               msg.includes('unc path') ||
+                               msg.includes('failed to execute');
+                               
+            return matchesName || matchesMsg;
+        }
+
+        function handleNetworkPermissionError(error, contextDescription, retryFunction = null) {
+            console.error("Network/Permission Error caught during: " + contextDescription, error);
+            
+            const modal = document.getElementById('networkPermissionErrorModal');
+            const contextSpan = document.getElementById('networkErrorContext');
+            const detailCode = document.getElementById('networkErrorDetail');
+            
+            contextSpan.innerText = contextDescription ? `al intentar ${contextDescription}` : "";
+            detailCode.innerText = `[${error.name || 'Error'}] ${error.message || 'Sense detalls addicionals'}`;
+            
+            lastFailedOperation = retryFunction;
+            modal.style.display = 'flex';
+        }
+
 
         const FILTERS = {
             nomenaments: { keywords: ["nomenament", "cessament"] },
@@ -599,19 +842,23 @@
 
         // --- EXCEL (SheetJS) ---
         // --- CSV STORAGE MANAGER ---
-        async function verifyPermission(readWrite = true) {
-            if (!directoryHandle) return false;
+        async function verifyFolderPermission(handle, readWrite = true) {
+            if (!handle) return false;
             const opts = { mode: readWrite ? 'readwrite' : 'read' };
-            if (await directoryHandle.queryPermission(opts) === 'granted') return true;
+            if (await handle.queryPermission(opts) === 'granted') return true;
             try {
-                if (await directoryHandle.requestPermission(opts) === 'granted') {
+                if (await handle.requestPermission(opts) === 'granted') {
                     updateUIConnected();
                     return true;
                 }
             } catch (e) {
-                console.warn("Permís denegat:", e);
+                console.warn("Permís denegat sobre carpeta:", e);
             }
             return false;
+        }
+
+        async function verifyPermission(readWrite = true) {
+            return await verifyFolderPermission(directoryHandle, readWrite);
         }
 
         async function loadEntitiesFromExcel(allowPermissionRequest = true) {
@@ -635,7 +882,22 @@
                         return true;
                     });
             } catch (e) {
-                console.log("No s'ha trobat el fitxer d'entitats CSV locals:", e.message);
+                console.log("No s'ha trobat el fitxer d'entitats CSV locals o error d'accés:", e.message);
+                let isAccessError = false;
+                try {
+                    if (directoryHandle) {
+                        const it = directoryHandle.keys();
+                        await it.next();
+                    }
+                } catch (accessErr) {
+                    isAccessError = true;
+                    e = accessErr;
+                }
+                
+                if (isAccessError || (isNetworkOrPermissionError(e) && e.name !== 'NotFoundError')) {
+                    handleNetworkPermissionError(e, "llegir les entitats locals", () => fetchEntities(allowPermissionRequest));
+                    throw e;
+                }
                 return [];
             }
         }
@@ -652,6 +914,7 @@
                 });
                 
                 const dataFolder = await getDataFolderHandle();
+                if (!dataFolder) throw new Error("No s'ha pogut obtenir la carpeta de dades.");
                 const fh = await dataFolder.getFileHandle(ENTITIES_FILENAME, { create: true });
                 const writable = await fh.createWritable({ keepExistingData: false });
                 await writable.write(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }));
@@ -659,6 +922,10 @@
                 return true;
             } catch (e) {
                 console.error("Error guardant entitats a CSV:", e);
+                if (isNetworkOrPermissionError(e)) {
+                    handleNetworkPermissionError(e, "guardar les entitats locals", () => saveEntitiesToExcel(list));
+                    return e;
+                }
                 const isLockError = e.name === 'InvalidStateError' || 
                                     e.name === 'NotAllowedError' || 
                                     e.message.toLowerCase().includes('state cached') ||
@@ -672,15 +939,19 @@
             }
         }
 
-        async function saveResultsToExcel(results) {
-            if (!directoryHandle || !results.length) return;
+        async function saveResultsToExcel(results, silent = true) {
+            if (!directoryHandle) return;
             try {
                 const headers = ['Codi SIG','Data','Entitat','Codi Entitat','Context','Fitxer','Carpeta','Data Inscripció'];
                 let existingData = [];
                 let existingCodes = new Set();
                 
+                // Obtenim els codis SIG que han estat desseleccionats en l'escaneig actual per esborrar-los del CSV
+                const deselectedCodes = new Set(allFoundResults.filter(r => !r.selected).map(r => r.code));
+                
                 try {
                     const dataFolder = await getDataFolderHandle();
+                    if (!dataFolder) throw new Error("No s'ha pogut obtenir la carpeta de dades.");
                     const fh = await dataFolder.getFileHandle(EXCEL_FILENAME, { create: false });
                     const file = await fh.getFile();
                     const text = await file.text();
@@ -688,22 +959,42 @@
                     if (rows.length > 0) {
                         // Conservem la capçalera
                         existingData.push(rows[0]);
-                        // Filtrem qualsevol fila buida o amb cel·les buides per evitar salts de línia en blanc
+                        
                         rows.slice(1).forEach(r => {
                             if (r && r.length > 0 && r[0] && r[0].toString().trim()) {
-                                existingData.push(r);
-                                existingCodes.add(r[0].toString().trim());
+                                const code = r[0].toString().trim();
+                                // Si el codi està desseleccionat en aquesta sessió, l'esborrem (no el fiquem al CSV)
+                                if (deselectedCodes.has(code)) {
+                                    console.log(`🗑️ Eliminat del CSV el codi desseleccionat: ${code}`);
+                                } else {
+                                    existingData.push(r);
+                                    existingCodes.add(code);
+                                }
                             }
                         });
                     } else {
                         existingData = [headers];
                     }
                 } catch (e) {
+                    let isAccessError = false;
+                    try {
+                        if (directoryHandle) {
+                            const it = directoryHandle.keys();
+                            await it.next();
+                        }
+                    } catch (accessErr) {
+                        isAccessError = true;
+                        e = accessErr;
+                    }
+                    if (isAccessError || (isNetworkOrPermissionError(e) && e.name !== 'NotFoundError')) {
+                        throw e; // Propagate up to show network permission error modal
+                    }
                     existingData = [headers];
                 }
                 
                 let added = 0;
                 results.forEach(r => {
+                    // Només afegim si no existeix ja al CSV (evita duplicats si es clica desar varis cops)
                     if (!existingCodes.has(r.code)) {
                         existingData.push([
                             r.code, 
@@ -727,18 +1018,26 @@
                 
                 try {
                     const dataFolder = await getDataFolderHandle();
+                    if (!dataFolder) throw new Error("No s'ha pogut obtenir la carpeta de dades.");
                     const fh = await dataFolder.getFileHandle(EXCEL_FILENAME, { create: true });
                     const writable = await fh.createWritable({ keepExistingData: false });
                     await writable.write(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }));
                     await writable.close();
                     
-                    console.log(`💾 S'han desat correctament els resultats al CSV. Nous afegits: ${added}.`);
+                    if (!silent) {
+                        alert(`💾 Base de dades actualitzada!\n\nS'han desat correctament els resultats seleccionats al fitxer CSV.\n\n- Nous afegits/actualitzats: ${added}\n- Eliminats desseleccionats: ${deselectedCodes.size}`);
+                    }
+                    console.log(`💾 S'han desat correctament els resultats al CSV. Nous afegits: ${added}, Eliminats desseleccionats: ${deselectedCodes.size}.`);
                 } catch (writeErr) {
-                    console.error("Error d'escriptura directe:", writeErr);
-                    throw writeErr;
+                     console.error("Error d'escriptura directe:", writeErr);
+                     throw writeErr;
                 }
             } catch (e) {
                 console.error("Error guardant resultats a CSV:", e);
+                if (isNetworkOrPermissionError(e)) {
+                    handleNetworkPermissionError(e, "desar els resultats de l'extracció", () => saveResultsToExcel(results, silent));
+                    throw e;
+                }
                 const isLockError = e.name === 'InvalidStateError' || 
                                     e.name === 'NotAllowedError' || 
                                     e.message.toLowerCase().includes('state cached') ||
@@ -746,10 +1045,11 @@
                                     e.message.toLowerCase().includes('permission');
                                     
                 if (isLockError) {
-                    alert(`⚠️ EL FITXER ESTÀ BLOCAT PER EXCEL!\n\nNo s'ha pogut desar al fitxer "Sessions Govern Dades.csv" perquè accidentment està obert o bloquejat per Microsoft Excel.\n\n💡 Solució:\n1. Tanca el fitxer "Sessions Govern Dades.csv" si el tens obert directament a Microsoft Excel.\n2. Tanca el teu Excel de consulta si està actualitzant-se de fons.\n3. Un cop tancat, torna a prémer "Cercar / Actualitzar" per desar els resultats.`);
+                    alert(`⚠️ EL FITXER ESTÀ BLOCAT PER EXCEL!\n\nNo s'ha pogut desar al fitxer "Sessions Govern Dades.csv" perquè accidentment està obert o bloquejat per Microsoft Excel.\n\n💡 Solució:\n1. Tanca el fitxer "Sessions Govern Dades.csv" si el tens obert directament a Microsoft Excel.\n2. Tanca el teu Excel de consulta si està actualitzant-se de fons.\n3. Un cop tancat, es tornarà a intentar l'operació.`);
                 } else {
                     alert(`⚠️ Error inesperat en desar a l'arxiu CSV: [${e.name}] ${e.message}`);
                 }
+                throw e;
             }
         }
 
@@ -873,7 +1173,23 @@
 
                 // 2. Entitats locals (Excel)
                 desc.innerText = "Carregant entitats locals des de l'Excel...";
-                manualEntities = await loadEntitiesFromExcel(allowPermissionRequest);
+                
+                // Comprovem si tenim permís real de lectura/escriptura per llegir el CSV d'extres
+                let hasPermission = false;
+                if (directoryHandle) {
+                    try {
+                        const permState = await directoryHandle.queryPermission({ mode: 'readwrite' });
+                        hasPermission = (permState === 'granted');
+                    } catch (permErr) {
+                        console.warn("Error comprovant permisos per a entitats:", permErr);
+                    }
+                }
+
+                if (hasPermission) {
+                    manualEntities = await loadEntitiesFromExcel(allowPermissionRequest);
+                } else {
+                    manualEntities = [];
+                }
 
                 const extraEntities = manualEntities.map(name => ({
                     original: name,
@@ -882,17 +1198,53 @@
                 }));
 
                 const icon = excelFileHandle ? "📊" : "⚠️ (sense Excel)";
-                document.getElementById('entityCount').innerText =
-                    `${icon} ${officialEntities.length + extraEntities.length} entitats (${officialEntities.length} RSP + ${extraEntities.length} extres)`;
+                const entityCountEl = document.getElementById('entityCount');
+                
+                if (directoryHandle && !hasPermission) {
+                    // Si tenim carpeta connectada però el navegador demana renovar permisos, mostrem l'avís interactiu
+                    entityCountEl.innerHTML = `${icon} ${officialEntities.length} entitats (${officialEntities.length} RSP + <span id="btnActivateExtres" style="color: #e11d48; font-weight: 600; text-decoration: underline; cursor: pointer; transition: color 0.2s;" onmouseover="this.style.color='#be123c'" onmouseout="this.style.color='#e11d48'">⚠️ Activar extres</span>)`;
+                    
+                    // Ens assegurem de registrar l'esdeveniment clic per demanar permisos i recarregar
+                    setTimeout(() => {
+                        const btnAct = document.getElementById('btnActivateExtres');
+                        if (btnAct) {
+                            btnAct.onclick = async (ev) => {
+                                ev.stopPropagation();
+                                const ok = await verifyPermission(true);
+                                if (ok) {
+                                    await fetchEntities(true);
+                                }
+                            };
+                        }
+                    }, 50);
+                } else {
+                    entityCountEl.innerText = `${icon} ${officialEntities.length + extraEntities.length} entitats (${officialEntities.length} RSP + ${extraEntities.length} extres)`;
+                }
+
                 entities = [...officialEntities, ...extraEntities];
                 modal.style.display = 'none';
             } catch (err) {
                 console.error("Error carregant entitats:", err);
                 document.getElementById('entityCount').innerText = "⚠️ Error";
-                title.innerText = "⚠️ Error de connexió";
-                desc.innerText = "No s'han pogut carregar les entitats. Comprova la connexió.";
+                title.innerText = "⚠️ Error de connexió o permisos";
+                desc.innerText = "No s'han pogut carregar les entitats de consulta corporatives o locals.";
                 spinner.style.display = 'none';
                 btnRetry.style.display = 'block';
+                
+                let isAccessError = false;
+                try {
+                    if (directoryHandle) {
+                        const it = directoryHandle.keys();
+                        await it.next();
+                    }
+                } catch (accessErr) {
+                    isAccessError = true;
+                    err = accessErr;
+                }
+                
+                if (isAccessError || isNetworkOrPermissionError(err)) {
+                    handleNetworkPermissionError(err, "carregar les entitats de consulta", () => fetchEntities(allowPermissionRequest));
+                }
             }
         }
 
@@ -989,33 +1341,55 @@
 
             // Comprovem si tenim permís sobre la carpeta arrel (pot caducar entre sessions)
             const opts = { mode: 'readwrite' };
-            const permState = await directoryHandle.queryPermission(opts);
-            if (permState !== 'granted') {
-                if (!allowPermissionRequest) {
-                    // Cridat durant l'inici sense user gesture: fallida silenciosa
-                    // L'usuari haurà de clicar un botó per concedir permisos
-                    console.warn("getDataFolderHandle: permisos caducats, s'han de renovar amb interacció d'usuari.");
-                    return null;
-                }
-                try {
-                    if (await directoryHandle.requestPermission(opts) !== 'granted') {
-                        console.warn("Cal concedir permisos de lectura/escriptura a la carpeta per poder accedir a 'app_dades'.");
+            try {
+                const permState = await directoryHandle.queryPermission(opts);
+                if (permState !== 'granted') {
+                    if (!allowPermissionRequest) {
+                        // Cridat durant l'inici sense user gesture: fallida silenciosa
+                        // L'usuari haurà de clicar un botó per concedir permisos
+                        console.warn("getDataFolderHandle: permisos caducats, s'han de renovar amb interacció d'usuari.");
                         return null;
                     }
-                    updateUIConnected();
-                } catch (permErr) {
-                    // requestPermission també pot fallar si no hi ha user gesture (per si de cas)
-                    console.warn("requestPermission fallat:", permErr.message);
-                    return null;
+                    try {
+                        if (await directoryHandle.requestPermission(opts) !== 'granted') {
+                            console.warn("Cal concedir permisos de lectura/escriptura a la carpeta per poder accedir a 'app_dades'.");
+                            return null;
+                        }
+                        updateUIConnected();
+                    } catch (permErr) {
+                        // requestPermission també pot fallar si no hi ha user gesture (per si de cas)
+                        console.warn("requestPermission fallat:", permErr.message);
+                        if (isNetworkOrPermissionError(permErr)) {
+                            handleNetworkPermissionError(permErr, "sol·licitar els permisos d'accés a la unitat de xarxa", () => getDataFolderHandle(allowPrompt, allowPermissionRequest));
+                        }
+                        return null;
+                    }
                 }
+            } catch (errQuery) {
+                console.warn("Error querying permission:", errQuery);
+                if (isNetworkOrPermissionError(errQuery)) {
+                    handleNetworkPermissionError(errQuery, "comprovar els permisos d'accés a la unitat de xarxa", () => getDataFolderHandle(allowPrompt, allowPermissionRequest));
+                }
+                return null;
             }
 
             try {
                 dataFolderHandle = await directoryHandle.getDirectoryHandle('app_dades', { create: false });
                 return dataFolderHandle;
             } catch (e) {
-                if (e.name === 'NotAllowedError' || e.name === 'SecurityError') {
-                    console.warn("Permisos insuficients per accedir a 'app_dades'.", e);
+                // Comprovem si l'error és realment que la carpeta arrel és inaccessible (desconnexió/permisos)
+                let isRootInaccessible = false;
+                try {
+                    const it = directoryHandle.keys();
+                    await it.next();
+                } catch (rootErr) {
+                    isRootInaccessible = true;
+                    e = rootErr; // utilitzem l'error d'accés a la carpeta arrel com a referència
+                }
+
+                if (isRootInaccessible || e.name === 'NotAllowedError' || e.name === 'SecurityError') {
+                    console.warn("Error d'accés o permisos a la carpeta de treball.", e);
+                    handleNetworkPermissionError(e, "accedir a la subcarpeta 'app_dades'", () => getDataFolderHandle(allowPrompt, allowPermissionRequest));
                     return null;
                 }
 
@@ -1029,7 +1403,11 @@
                         await initializeEmptyFiles(dataFolderHandle);
                         return dataFolderHandle;
                     } catch (errCreacio) {
-                        alert("⚠️ Error en crear la subcarpeta 'app_dades': " + errCreacio.message);
+                        if (isNetworkOrPermissionError(errCreacio)) {
+                            handleNetworkPermissionError(errCreacio, "crear la subcarpeta 'app_dades'", () => getDataFolderHandle(allowPrompt, allowPermissionRequest));
+                        } else {
+                            alert("⚠️ Error en crear la subcarpeta 'app_dades': " + errCreacio.message);
+                        }
                         return null;
                     }
                 } else if (choice === 'change') {
@@ -1047,15 +1425,16 @@
 
         // --- INICIALITZACIÓ ---
         window.addEventListener('DOMContentLoaded', async () => {
-            // 1. Carreguem PRIMER la carpeta desada (directoryHandle), perquè
-            //    fetchEntities -> loadEntitiesFromExcel -> getDataFolderHandle la necessita.
+            // 1. Carreguem PRIMER les carpetes desades (directoryHandle i scanFolderHandle)
             try {
                 directoryHandle = await loadHandle('last_folder');
-                if (directoryHandle) {
-                    document.getElementById('statusText').innerText = `Carpeta: ${directoryHandle.name}`;
-                    document.getElementById('statusDot').classList.add('active');
-                }
-            } catch (e) { console.error("No s'ha pogut carregar la carpeta guardada"); }
+            } catch (e) { console.error("No s'ha pogut carregar la carpeta del projecte guardada"); }
+            
+            try {
+                scanFolderHandle = await loadHandle('last_scan_folder');
+            } catch (e) { console.error("No s'ha pogut carregar la carpeta de sessió guardada"); }
+
+            updateUIConnected();
 
             // 2. Carreguem l'handle de l'Excel (després de tenir directoryHandle)
             try {
@@ -1166,8 +1545,10 @@
                 const isOk = (ok === true);
                 if (!isOk) {
                     const err = ok || new Error("Error desconegut");
-                    const fn = excelFileHandle ? excelFileHandle.name : 'Sessions Govern Dades.csv';
-                    alert(`⚠️ Error en desar al fitxer "${fn}"\n\nDetalls tècnics del sistema:\n[${err.name}] ${err.message}`);
+                    if (!isNetworkOrPermissionError(err)) {
+                        const fn = excelFileHandle ? excelFileHandle.name : 'Sessions Govern Dades.csv';
+                        alert(`⚠️ Error en desar al fitxer "${fn}"\n\nDetalls tècnics del sistema:\n[${err.name}] ${err.message}`);
+                    }
                 }
                 btn.innerText = isOk ? '✅ Guardat!' : '⚠️ Error';
                 setTimeout(() => { btn.disabled = false; btn.innerText = '💾 Acceptar'; }, 2000);
@@ -1187,6 +1568,44 @@
                 link.href = url;
                 link.download = `entitats_${new Date().toISOString().split('T')[0]}.csv`;
                 document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            };
+
+            // Listeners per al modal d'error de xarxa/permisos
+            document.getElementById('btnCancelNetworkError').onclick = () => {
+                document.getElementById('networkPermissionErrorModal').style.display = 'none';
+            };
+            
+            document.getElementById('btnChangeFolderNetwork').onclick = async () => {
+                document.getElementById('networkPermissionErrorModal').style.display = 'none';
+                await connectFolder(null);
+                if (lastFailedOperation) {
+                    try {
+                        await lastFailedOperation();
+                    } catch (e) {
+                        console.error("Error al reintentar després de canviar carpeta:", e);
+                    }
+                }
+            };
+            
+            document.getElementById('btnRetryNetworkAccess').onclick = async () => {
+                document.getElementById('networkPermissionErrorModal').style.display = 'none';
+                // Intentem verificar/demanar permisos de nou
+                const granted = await verifyPermission(true);
+                if (granted) {
+                    if (lastFailedOperation) {
+                        try {
+                            await lastFailedOperation();
+                        } catch (e) {
+                            console.error("Error al reintentar acció:", e);
+                        }
+                    } else {
+                        // Si no teníem cap operació fallida registrada, simplement actualitzem les entitats
+                        await fetchEntities(true);
+                    }
+                } else {
+                    // Si continua fallant, es torna a mostrar el modal
+                    handleNetworkPermissionError(new Error("No s'ha concedit el permís d'accés."), "renovar els permisos d'accés", lastFailedOperation);
+                }
             };
         });
 
@@ -1237,16 +1656,16 @@
             
             manualEntities.forEach((name, index) => {
                 const tr = document.createElement('tr');
-                tr.style.borderBottom = "1px solid #e2e8f0";
+                tr.style.borderBottom = "1px solid var(--border)";
                 tr.innerHTML = `
-                    <td style="text-align: center; color: #94a3b8; background: #f8fafc; border-right: 1px solid #e2e8f0; font-size: 0.75rem;">${index + 1}</td>
-                    <td style="padding: 0;">
+                    <td style="text-align: center; color: var(--text-muted); background: var(--card); border-right: 1px solid var(--border); font-size: 0.75rem;">${index + 1}</td>
+                    <td style="padding: 0; background: var(--bg);">
                         <input type="text" class="spreadsheet-input" value="${name.replace(/"/g, '&quot;')}" 
-                               style="width: 100%; border: none; padding: 8px 10px; font-family: inherit; font-size: 0.9rem; outline: none;"
+                               style="width: 100%; border: none; padding: 8px 10px; font-family: inherit; font-size: 0.9rem; outline: none; background: var(--bg); color: var(--text);"
                                onchange="updateManualEntity(${index}, this.value)">
                     </td>
-                    <td style="text-align: center; padding: 0;">
-                        <button onclick="removeManualEntity(${index})" style="background: none; color: #ef4444; padding: 8px; font-size: 1.1rem; cursor: pointer;">&times;</button>
+                    <td style="text-align: center; padding: 0; background: var(--bg);">
+                        <button onclick="removeManualEntity(${index})" style="background: none; color: #ef4444; padding: 8px; font-size: 1.1rem; cursor: pointer; border: none; box-shadow: none;">&times;</button>
                     </td>
                 `;
                 body.appendChild(tr);
@@ -1292,22 +1711,50 @@
             }
         }
 
+        // Funció de connexió de la carpeta de sessió d'escaneig
+        async function connectScanFolder(triggerBtn) {
+            if (triggerBtn) triggerBtn.disabled = true;
+            try {
+                scanFolderHandle = await window.showDirectoryPicker({
+                    startIn: scanFolderHandle || directoryHandle || 'downloads'
+                });
+                await saveHandle(scanFolderHandle, 'last_scan_folder');
+                updateUIConnected();
+            } catch (err) {
+                if (err.name !== 'AbortError') alert("Error: " + err.message);
+            } finally {
+                if (triggerBtn) triggerBtn.disabled = false;
+            }
+        }
+
         document.getElementById('btnConnect').onclick = (e) => connectFolder(e.currentTarget);
         document.getElementById('btnWelcomeConnect').onclick = (e) => connectFolder(e.currentTarget);
+        
+        document.getElementById('btnConnectScan').onclick = (e) => connectScanFolder(e.currentTarget);
 
         document.getElementById('btnScan').onclick = async (e) => {
             if (!directoryHandle) {
-                alert("Primer has de connectar una carpeta!");
+                alert("Primer has de connectar una carpeta de projecte!");
                 return;
             }
             const btn = e.currentTarget;
             if (btn.disabled) return;
             btn.disabled = true;
             try {
+                // 1. Verifiquem permisos de la carpeta del projecte (Base de dades)
                 if (!await verifyPermission(true)) {
                     btn.disabled = false;
                     return;
                 }
+                
+                // 2. Si hi ha carpeta de sessió específica, verifiquem permís d'aquella (només lectura per escanejar)
+                if (scanFolderHandle) {
+                    if (!await verifyFolderPermission(scanFolderHandle, false)) {
+                        btn.disabled = false;
+                        return;
+                    }
+                }
+                
                 // Si l'Excel no estava connectat, el busquem ara que tenim permís
                 if (!excelFileHandle) {
                     await autoDetectExcel();
@@ -1324,12 +1771,13 @@
         };
 
         document.getElementById('btnExport').onclick = () => {
-            if (allFoundResults.length === 0) return;
+            const selectedResults = allFoundResults.filter(r => r.selected);
+            if (selectedResults.length === 0) return;
 
             let csvRows = [];
             csvRows.push("Carpeta;Fitxer;Entitat;Codi Entitat;Data Acte;Codi SIG;Context");
 
-            allFoundResults.forEach(r => {
+            selectedResults.forEach(r => {
                 const row = [
                     r.folder,
                     r.fileNames.join(", "),
@@ -1357,9 +1805,12 @@
         };
 
         document.getElementById('btnEmail').onclick = () => {
+            const selectedResults = allFoundResults.filter(r => r.selected);
+            if (selectedResults.length === 0) return;
+
             // Agrupem els resultats per data
             const groups = {};
-            allFoundResults.forEach(r => {
+            selectedResults.forEach(r => {
                 if (!groups[r.dateFound]) groups[r.dateFound] = [];
                 groups[r.dateFound].push(r.text);
             });
@@ -1452,8 +1903,21 @@
         }
 
         function updateUIConnected() {
-            document.getElementById('statusText').innerText = `Carpeta: ${directoryHandle.name}`;
-            document.getElementById('statusDot').classList.add('active');
+            if (directoryHandle) {
+                document.getElementById('statusText').innerText = `Carpeta del projecte: ${directoryHandle.name}`;
+                document.getElementById('statusDot').classList.add('active');
+            } else {
+                document.getElementById('statusText').innerText = `Carpeta del projecte: No connectada`;
+                document.getElementById('statusDot').classList.remove('active');
+            }
+            
+            if (scanFolderHandle) {
+                document.getElementById('statusScanText').innerText = `🔍 Carpeta a escanejar: ${scanFolderHandle.name}`;
+                document.getElementById('statusScanDot').classList.add('active');
+            } else {
+                document.getElementById('statusScanText').innerText = `🔍 Carpeta a escanejar: El mateix del projecte`;
+                document.getElementById('statusScanDot').classList.remove('active');
+            }
         }
 
         async function scanAndProcess() {
@@ -1479,45 +1943,50 @@
             const seenResults = new Set();
 
             try {
-                await scanDirectory(directoryHandle, "", regexCodi, resultsMap, seenResults);
+                const baseFolder = scanFolderHandle || directoryHandle;
+                const baseFolderName = baseFolder ? baseFolder.name : "Sessions_Govern";
+                await scanDirectory(baseFolder, "", regexCodi, resultsMap, seenResults, baseFolderName);
                 loader.style.display = "none";
-                if (Object.keys(resultsMap).length > 0) {
-                    btnExport.disabled = false;
-                    btnExport.style.opacity = "1";
-                    btnExport.style.cursor = "pointer";
-                    
-                    const btnEmail = document.getElementById('btnEmail');
-                    btnEmail.disabled = false;
-                    btnEmail.style.opacity = "1";
-                    btnEmail.style.cursor = "pointer";
-                }
+                
                 renderAllResults(resultsMap);
-                // Guardem els resultats a l'Excel automàticament
+                updateSummaryBar(); // Gestiona la barra superior de resum i l'estat dels botons d'acció
+                
+                // Desa els resultats de l'escaneig a l'històric automàticament
                 if (allFoundResults.length > 0) {
-                    await saveResultsToExcel(allFoundResults);
+                    await saveResultsToExcel(allFoundResults.filter(r => r.selected), true);
                 }
             } catch (err) {
-                alert("Error general: " + err.message);
+                console.error("Error durant l'escaneig:", err);
                 loader.style.display = "none";
+                if (isNetworkOrPermissionError(err)) {
+                    handleNetworkPermissionError(err, "escanejar els documents Word a la carpeta", scanAndProcess);
+                } else {
+                    alert("Error general: " + err.message);
+                }
             }
         }
 
 
 
-        async function scanDirectory(handle, path, regexCodi, resultsMap, seenResults) {
+        async function scanDirectory(handle, path, regexCodi, resultsMap, seenResults, baseFolderName) {
             for await (const entry of handle.values()) {
                 if (entry.kind === 'directory') {
-                    await scanDirectory(entry, (path ? path + '/' : '') + entry.name, regexCodi, resultsMap, seenResults);
+                    await scanDirectory(entry, (path ? path + '/' : '') + entry.name, regexCodi, resultsMap, seenResults, baseFolderName);
                 } else if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.docx')) {
                     try {
                         const file = await entry.getFile();
-                        await processFile(file, entry.name, path, regexCodi, resultsMap, seenResults);
-                    } catch (e) { console.warn("Error llegint: " + entry.name, e); }
+                        await processFile(file, entry.name, path, regexCodi, resultsMap, seenResults, baseFolderName);
+                    } catch (e) {
+                        console.warn("Error llegint: " + entry.name, e);
+                        if (isNetworkOrPermissionError(e)) {
+                            throw e;
+                        }
+                    }
                 }
             }
         }
 
-        async function processFile(file, fileName, path, regexCodi, resultsMap, seenResults) {
+        async function processFile(file, fileName, path, regexCodi, resultsMap, seenResults, baseFolderName) {
             const arrayBuffer = await file.arrayBuffer();
             const result = await mammoth.extractRawText({ arrayBuffer });
             const paragraphs = result.value.split(/\n\n+/);
@@ -1623,7 +2092,7 @@
                 if (matchFound) {
                     const match = pText.match(regexCodi);
                     if (match) {
-                        const folderName = path || "Arrel";
+                        const folderName = path || baseFolderName;
 
                         if (seenResults.has(resultKey)) {
                             const existing = resultsMap[folderName].find(r => r.text === pText);
@@ -1643,6 +2112,7 @@
                         const finalCode = [...new Set(collectedCodes)].filter(c => c && c !== "N/A" && c !== "-").join("; ") || "-";
 
                         const resObj = {
+                            id: 'res_' + Math.random().toString(36).substr(2, 9),
                             folder: folderName,
                             fileNames: [fileName],
                             entity: finalEntity || "N/A",
@@ -1650,7 +2120,8 @@
                             dateFound: dateFound,
                             text: pText,
                             code: "SIG" + match[1].trim(),
-                            fullMatch: match[0]
+                            fullMatch: match[0],
+                            selected: true
                         };
                         resultsMap[folderName].push(resObj);
                         allFoundResults.push(resObj);
@@ -1663,7 +2134,17 @@
             const container = document.getElementById('resultsContainer');
             const folders = Object.keys(groupedResults).sort();
 
-            if (!append && folders.length === 0) {
+            if (!append) {
+                container.innerHTML = "";
+                if (folders.length > 0) {
+                    const summaryBar = document.createElement('div');
+                    summaryBar.id = 'resultsSummaryBar';
+                    summaryBar.className = 'results-summary-bar';
+                    container.appendChild(summaryBar);
+                }
+            }
+
+            if (folders.length === 0 && !append) {
                 container.innerHTML = "<p style='text-align:center; padding: 40px; color: #64748b;'>No s'ha trobat cap coincidència.</p>";
                 return;
             }
@@ -1671,38 +2152,44 @@
             folders.forEach(folderPath => {
                 const section = document.createElement('div');
                 section.className = 'folder-section';
-                section.style.cssText = "background: white; border-radius: 16px; border: 1px solid #e2e8f0; margin-bottom: 24px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);";
+                section.style.cssText = "background: var(--card); border-radius: 16px; border: 1px solid #334155; margin-bottom: 24px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);";
 
                 let html = `
-                <div style="background: #f8fafc; padding: 12px 20px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: var(--primary);">
-                    📂 ${folderPath}
+                <div style="background: #0f172a; padding: 16px 20px; border-bottom: 1px solid #334155; font-weight: 600; color: #f8fafc; display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" class="folder-header-checkbox" data-folder="${folderPath.replace(/"/g, '&quot;')}" ${groupedResults[folderPath].every(r => r.selected) ? 'checked' : ''} onchange="toggleFolderSelection('${folderPath.replace(/'/g, "\\'")}', this.checked, this)" style="margin: 0;">
+                    <span style="font-size: 1.15rem; display: inline-flex; align-items: center;">📂</span>
+                    <span style="font-size: 1rem; letter-spacing: -0.2px;">${folderPath}</span>
                 </div>
                 <table style="width: 100%; border-collapse: collapse;">
                     <thead>
-                        <tr style="background: #fff; border-bottom: 2px solid #f1f5f9;">
-                            <th style="text-align: left; padding: 12px 20px; color: #64748b; font-size: 0.8rem;">Entitat Detectada / Fitxer</th>
-                            <th style="text-align: left; padding: 12px 20px; color: #64748b; font-size: 0.8rem;">Context del Paràgraf</th>
-                            <th style="text-align: left; padding: 12px 20px; color: #64748b; font-size: 0.8rem; width: 140px;">Codi SIG</th>
+                        <tr style="background: #1e293b; border-bottom: 2px solid #334155;">
+                            <th style="padding: 12px 20px; width: 40px; text-align: center;"></th>
+                            <th style="text-align: left; padding: 12px 20px; color: #94a3b8; font-size: 0.8rem; width: 250px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Entitat Detectada / Fitxer</th>
+                            <th style="text-align: left; padding: 12px 20px; color: #94a3b8; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Context del Paràgraf</th>
+                            <th style="text-align: left; padding: 12px 20px; color: #94a3b8; font-size: 0.8rem; width: 140px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Codi SIG</th>
                         </tr>
                     </thead>
                     <tbody>
             `;
 
                 groupedResults[folderPath].forEach(item => {
-                    const contextHighlighted = item.text.replace(item.fullMatch, `<mark>${item.fullMatch}</mark>`);
+                    const contextHighlighted = item.text;
                     html += `
-                    <tr style="border-bottom: 1px solid #f1f5f9;">
-                        <td style="padding: 16px 20px; vertical-align: top; width: 250px;">
-                            <strong style="color: #334155; font-size: 0.9rem;">${item.entity}</strong>
-                            <span style="font-size: 0.75rem; color: #64748b; font-weight: 600; display: block;">Cod: ${item.entityCode}</span>
-                            <span style="font-size: 0.75rem; color: #94a3b8; display: block; margin-top: 4px;">📄 ${item.fileNames.join(', ')}</span>
+                    <tr style="border-bottom: 1px solid #334155; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
+                        <td style="padding: 16px 20px; vertical-align: middle; width: 40px; text-align: center;">
+                            <input type="checkbox" class="row-checkbox" data-id="${item.id}" data-folder="${folderPath.replace(/"/g, '&quot;')}" ${item.selected ? 'checked' : ''} onchange="toggleRowSelection('${item.id}', this.checked, this)">
                         </td>
-                        <td style="padding: 16px 20px; color: #475569; font-size: 0.9rem;">
+                        <td style="padding: 20px 20px; vertical-align: top; width: 250px;">
+                            <strong style="color: #f8fafc; font-size: 0.95rem; font-weight: 600; display: block; line-height: 1.4;">${item.entity}</strong>
+                            <span style="font-size: 0.78rem; color: #94a3b8; font-weight: 600; display: block; margin-top: 6px;">Cod: ${item.entityCode}</span>
+                            <span style="font-size: 0.78rem; color: #64748b; display: block; margin-top: 6px;">📄 ${item.fileNames.join(', ')}</span>
+                        </td>
+                        <td style="padding: 20px 20px; color: #cbd5e1; font-size: 0.95rem; line-height: 1.6; vertical-align: top; text-align: justify;">
                             ${contextHighlighted}
                         </td>
-                        <td style="padding: 16px 20px; vertical-align: top;">
+                        <td style="padding: 20px 20px; vertical-align: top; width: 140px;">
                             <span class="code-pill">${item.code}</span>
-                            <span style="display: block; font-size: 0.75rem; color: #64748b; font-weight: 600; margin-top: 5px;">📅 ${item.dateFound}</span>
+                            <span style="display: block; font-size: 0.78rem; color: #94a3b8; font-weight: 600; margin-top: 10px;">📅 ${item.dateFound}</span>
                         </td>
                     </tr>
                 `;
@@ -1712,6 +2199,143 @@
                 section.innerHTML = html;
                 container.appendChild(section);
             });
+        }
+
+        // --- FUNCIONS REACTIVES PER AL SISTEMA DE DESSELECCIÓ AMB DESAT AUTOMÀTIC ---
+        async function toggleRowSelection(id, isChecked, checkboxEl) {
+            const item = allFoundResults.find(r => r.id === id);
+            if (!item) return;
+
+            // 1. Mostrar confirmació al canviar de selecció
+            let confirmMsg = "";
+            if (isChecked) {
+                confirmMsg = `Vols desar l'acord "${item.code}" (${item.entity}) a l'històric del CSV?`;
+            } else {
+                confirmMsg = `Vols eliminar l'acord "${item.code}" de l'històric del CSV?`;
+            }
+
+            if (!confirm(confirmMsg)) {
+                // Si es cancel·la, es reverteix la casella del DOM
+                if (checkboxEl) checkboxEl.checked = !isChecked;
+                return;
+            }
+
+            // 2. Modifiquem l'estat localment per realitzar la sincronització
+            const oldSelected = item.selected;
+            item.selected = isChecked;
+
+            try {
+                const selectedResults = allFoundResults.filter(r => r.selected);
+                await saveResultsToExcel(selectedResults, true);
+
+                // Sincronitzar la casella general de la carpeta en cas d'èxit
+                const folderPath = item.folder;
+                const folderRows = allFoundResults.filter(r => r.folder === folderPath);
+                const allChecked = folderRows.every(r => r.selected);
+                
+                const headerCheckbox = document.querySelector(`.folder-header-checkbox[data-folder="${folderPath.replace(/"/g, '&quot;')}"]`);
+                if (headerCheckbox) {
+                    headerCheckbox.checked = allChecked;
+                }
+            } catch (err) {
+                console.error("Error durant la sincronització automàtica, es reverteix:", err);
+                item.selected = oldSelected;
+                if (checkboxEl) checkboxEl.checked = oldSelected;
+            }
+
+            updateSummaryBar();
+        }
+
+        async function toggleFolderSelection(folderPath, isChecked, checkboxEl) {
+            const folderRows = allFoundResults.filter(r => r.folder === folderPath);
+            if (folderRows.length === 0) return;
+
+            // 1. Mostrar confirmació per a tutta la carpeta
+            let confirmMsg = "";
+            if (isChecked) {
+                confirmMsg = `Vols desar tots els ${folderRows.length} acords de la carpeta "${folderPath}" a l'històric del CSV?`;
+            } else {
+                confirmMsg = `Vols eliminar tots els ${folderRows.length} acords de la carpeta "${folderPath}" de l'històric del CSV?`;
+            }
+
+            if (!confirm(confirmMsg)) {
+                // Si es cancel·la, revertim el checkbox de capçalera del DOM
+                if (checkboxEl) checkboxEl.checked = !isChecked;
+                return;
+            }
+
+            // 2. Guardem estats anteriors i apliquem canvis a memòria
+            const oldStates = folderRows.map(r => ({ id: r.id, selected: r.selected }));
+            folderRows.forEach(r => { r.selected = isChecked; });
+
+            try {
+                const selectedResults = allFoundResults.filter(r => r.selected);
+                await saveResultsToExcel(selectedResults, true);
+
+                // Si ha funcionat, actualitzem les caselles individuals del DOM
+                const checkboxes = document.querySelectorAll(`.row-checkbox[data-folder="${folderPath.replace(/"/g, '&quot;')}"]`);
+                checkboxes.forEach(cb => {
+                    cb.checked = isChecked;
+                });
+            } catch (err) {
+                console.error("Error sincronitzant la carpeta, es reverteix l'estat:", err);
+                folderRows.forEach(r => {
+                    const old = oldStates.find(o => o.id === r.id);
+                    if (old) r.selected = old.selected;
+                });
+                
+                if (checkboxEl) checkboxEl.checked = !isChecked;
+                
+                folderRows.forEach(r => {
+                    const cb = document.querySelector(`.row-checkbox[data-id="${r.id}"]`);
+                    if (cb) cb.checked = r.selected;
+                });
+            }
+
+            updateSummaryBar();
+        }
+
+        function updateSummaryBar() {
+            const summaryBar = document.getElementById('resultsSummaryBar');
+            if (!summaryBar) return;
+            
+            const total = allFoundResults.length;
+            const selectedCount = allFoundResults.filter(r => r.selected).length;
+            
+            summaryBar.innerHTML = `
+                <div class="summary-text" style="font-size: 0.95rem; color: var(--text); display: flex; align-items: center; gap: 8px;">
+                    🔍 S'han trobat <strong>${total}</strong> resultats. Hi ha <strong>${selectedCount}</strong> seleccionats a l'històric.
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; color: #10b981; font-weight: 600; font-size: 0.9rem;">
+                    <span>💾 Sincronització instantània activa</span>
+                </div>
+            `;
+            
+            // Actualitzar botons de dalt (Exportar i Correu)
+            const btnExport = document.getElementById('btnExport');
+            const btnEmail = document.getElementById('btnEmail');
+            
+            if (selectedCount > 0) {
+                btnExport.disabled = false;
+                btnExport.style.opacity = "1";
+                btnExport.style.cursor = "pointer";
+                btnExport.classList.remove('secondary');
+                btnExport.style.background = "#059669";
+                
+                btnEmail.disabled = false;
+                btnEmail.style.opacity = "1";
+                btnEmail.style.cursor = "pointer";
+                btnEmail.classList.remove('secondary');
+                btnEmail.style.background = "#6366f1";
+            } else {
+                btnExport.disabled = true;
+                btnExport.style.opacity = "0.5";
+                btnExport.style.cursor = "not-allowed";
+                
+                btnEmail.disabled = true;
+                btnEmail.style.opacity = "0.5";
+                btnEmail.style.cursor = "not-allowed";
+            }
         }
     </script>
 
