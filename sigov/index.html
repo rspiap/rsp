@@ -557,7 +557,7 @@
         <div class="folder-status" style="display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-radius: 16px; margin-bottom: 30px; flex-wrap: wrap; gap: 12px;">
             <div style="display: flex; align-items: center; gap: 12px;">
                 <div id="statusScanDot" class="dot"></div>
-                <span id="statusScanText" style="font-weight: 600; color: var(--text); font-size: 0.95rem;">🔍 Carpeta a escanejar: El mateix del projecte</span>
+                <span id="statusScanText" style="font-weight: 600; color: var(--text); font-size: 0.95rem;">🔍 Carpeta a escanejar: la mateixa del projecte</span>
             </div>
             <button id="btnConnectScan" class="secondary" style="padding: 8px 16px; font-size: 0.85rem; border-radius: 8px; background: #0284c7; color: white; border: none; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3); font-weight: 600;">📂 Carpeta de cerca</button>
         </div>
@@ -1915,8 +1915,12 @@
                 document.getElementById('statusScanText').innerText = `🔍 Carpeta a escanejar: ${scanFolderHandle.name}`;
                 document.getElementById('statusScanDot').classList.add('active');
             } else {
-                document.getElementById('statusScanText').innerText = `🔍 Carpeta a escanejar: El mateix del projecte`;
-                document.getElementById('statusScanDot').classList.remove('active');
+                document.getElementById('statusScanText').innerText = `🔍 Carpeta a escanejar: la mateixa del projecte`;
+                if (directoryHandle) {
+                    document.getElementById('statusScanDot').classList.add('active');
+                } else {
+                    document.getElementById('statusScanDot').classList.remove('active');
+                }
             }
         }
 
