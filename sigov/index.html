@@ -556,10 +556,11 @@
                     <option value="all">Tots els filtres</option>
                     <option value="nomenaments">(nomenament OR cessament) I (Entitat Sector Públic)</option>
                     <option value="estatuts">(estatuts) I (Entitat Sector Públic)</option>
-                    <option value="reestructuracio">(reestructuració AND departament)</option>
+                    <option value="reestructuracio">(estructuració AND departament)</option>
                     <option value="dissolucio">(dissolució OR creació OR liquidació) I (Entitat Sector Públic)</option>
                     <option value="representant">(representant OR patró) I (Entitat Sector Públic) NOT (s'autoritza)</option>
-                    <option value="membre_independent">(membre independent) I (Entitat Sector Públic)</option>
+                    <option value="membre_independent">(membre independent o de ple dret) I (Entitat Sector Públic)</option>
+                    <option value="simplificacio">(mesures de simplificació) I (Entitat Sector Públic)</option>
                     <option value="sac_carecs">(nomenament OR cessament) AND (departament) NOT (Entitat Sector Públic)</option>
                     <option value="marques_aprova">(marca OR marques) I (aprova)</option>
                 </select>
@@ -652,7 +653,7 @@
                 <p style="font-size: 0.85rem; color: var(--text-muted); margin: 20px;">Afegeix o elimina entitats directament a la taula. Els canvis es guardaran al fitxer CSV d'entitats locals.</p>
                 
                 <div style="padding: 0 20px 20px 20px;">
-                    <div id="spreadsheetContainer" style="border: 1px solid var(--border); border-radius: 8px; overflow-y: auto; max-height: 450px; background: var(--bg); position: relative;">
+                    <div id="spreadsheetContainer" style="border: 1px solid var(--border); border-radius: 8px; overflow-y: auto; max-height: 380px; background: var(--bg); position: relative; margin-bottom: 12px;">
                         <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
                             <thead>
                                 <tr style="background: var(--card); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;">
@@ -665,9 +666,9 @@
                                 <!-- Files de la taula -->
                             </tbody>
                         </table>
-                        <div style="background: var(--card); padding: 8px 12px; border-top: 1px solid var(--border);">
-                            <button id="btnAddRow" style="background: none; color: var(--primary); padding: 0; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: none; box-shadow: none;">+ Afegir fila nova</button>
-                        </div>
+                    </div>
+                    <div style="display: flex; justify-content: flex-start;">
+                        <button id="btnAddRow" style="background: var(--primary); color: white; padding: 8px 16px; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: none; border-radius: 8px; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2); transition: all 0.2s;">+ Afegir fila nova</button>
                     </div>
                 </div>
             </div>
@@ -794,10 +795,11 @@
         const FILTERS = {
             nomenaments: { keywords: ["nomenament", "cessament"] },
             estatuts: { keywords: ["estatut"] },
-            reestructuracio: { keywords: ["reestructuracio", "departament"], requiresEntity: false, matchAll: true },
+            reestructuracio: { keywords: ["estructuracio", "departament"], requiresEntity: false, matchAll: true },
             dissolucio: { keywords: ["dissolucio", "creacio", "liquidacio"] },
             representant: { keywords: ["representant", "patró"] },
-            membre_independent: { keywords: ["membre independent"] },
+            membre_independent: { keywords: ["membre independent", "membre de ple dret"] },
+            simplificacio: { keywords: ["simplificacio", "sector public"], requiresEntity: false, matchAll: true },
             'sac_carecs': { label: "(nomenament OR cessament) AND (departament) NOT (Entitat Sector Públic)", keywords: ["nomenament", "cessament"], requiresEntity: false, isSAC: true },
             'marques_aprova': { keywords: ["marca", "marques"], requiresAprova: true }
         };
@@ -1486,14 +1488,18 @@
                 }
                 
                 let excelPath = "";
+                let currentPath = decodeURIComponent(window.location.pathname);
                 
-                // Si la carpeta connectada és la de xarxa "Sessions_Govern", o no estem en file:// protocol,
-                // utilitzem la ruta de xarxa directa de la carpeta de treball (usant el camí UNC per independència de lletra d'unitat)
-                if (directoryHandle.name === "Sessions_Govern" || window.location.protocol !== "file:") {
+                // Comprovem si estem accedint/treballant sobre la unitat de xarxa de la Generalitat
+                const isNetworkShare = directoryHandle.name === "Sessions_Govern" || 
+                                       window.location.protocol !== "file:" || 
+                                       window.location.host === "03.fitxers.ctti.intranet.gencat.cat" || 
+                                       currentPath.includes("F1051 Seguiment Entitats");
+                
+                if (isNetworkShare) {
                     excelPath = "//03.FITXERS.CTTI.INTRANET.GENCAT.CAT/0301_EIFBCN001W_f20in$/F0815_ SG_SEPG/F1051 Seguiment Entitats/Quadres de control d'informes i expedients/RSP/Sessions_Govern/Sessions Govern Sincronitzat - v2.xlsx";
                 } else {
                     // Estem executant localment (file:///) i hem seleccionat una altra carpeta local (o per proves)
-                    let currentPath = decodeURIComponent(window.location.pathname);
                     if (currentPath.startsWith('/') && currentPath.charAt(2) === ':') {
                         currentPath = currentPath.substring(1);
                     }
@@ -1520,6 +1526,7 @@
                 
                 const a = document.createElement('a');
                 a.href = officeUrl;
+                a.target = "_blank";
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -2017,16 +2024,17 @@
                 // 1. Cribratge ràpid per keywords (motiu de la cerca)
                 const hasNomCess = /\bnomenaments?\b|\bcessaments?\b/i.test(pNorm);
                 const hasEstatut = /\bestatuts?\b/i.test(pNorm);
-                const hasReestr = /\breestructuracios?\b/i.test(pNorm) && /\bdepartaments?\b/i.test(pNorm);
+                const hasReestr = /\b(re|d|l)?estructuracios?\b/i.test(pNorm) && /\bdepartaments?\b/i.test(pNorm);
                 const hasDissol = /\b(dissolucio|creacio|liquidacio)\b/i.test(pNorm);
                 const hasRepres = /\brepresents?\b|\brepresentants?\b|\bpatro(ns?)?\b/i.test(pNorm);
-                const hasMembreIndep = /membre independent/i.test(pNorm);
+                const hasMembreIndep = /\bmembres?\s+(independents?|de\s+ple\s+drets?)\b/i.test(pNorm);
                 const hasAutoritza = /autoritza/i.test(pNorm);
                 const hasMarques = /\b(marca|marques)\b/i.test(pNorm);
                 const hasAprova = /aprova/i.test(pNorm);
+                const hasSimplificacio = pNorm.includes("simplificacio") && pNorm.includes("sector public");
 
                 // Si no hi ha cap keyword rellevant, descartem el paràgraf immediatament
-                if (!hasNomCess && !hasEstatut && !hasReestr && !hasDissol && !hasRepres && !hasMembreIndep && !hasMarques) return;
+                if (!hasNomCess && !hasEstatut && !hasReestr && !hasDissol && !hasRepres && !hasMembreIndep && !hasMarques && !hasSimplificacio) return;
 
                 let matchFound = false;
                 let collectedEntities = [];
@@ -2093,6 +2101,17 @@
                     matchFound = true;
                     collectedEntities.push(matchedEntity.original);
                     collectedCodes.push(matchedEntity.regCode);
+                }
+
+                // Lògica per a Mesures de Simplificació
+                if (hasSimplificacio && (isAll || currentFilterKey === 'simplificacio')) {
+                    matchFound = true;
+                    if (matchedEntity) {
+                        collectedEntities.push(matchedEntity.original);
+                        collectedCodes.push(matchedEntity.regCode);
+                    } else {
+                        collectedEntities.push("Sector Públic");
+                    }
                 }
 
                 // Lògica per a Marques / Aprova
