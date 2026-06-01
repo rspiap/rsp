@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Merge GPG - Gestió de Partícips i Usuaris</title>
+    <meta name="description" content="Replicació de la lògica ETL de Power Query per a la fusió de fitxers de catàleg i usuaris de forma local i segura.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- CSS Estils -->
+    <link rel="stylesheet" href="index.css">
+    <!-- SheetJS (XLSX Parsing & Writing) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+    <div class="background-decor">
+        <div class="blur-circle circle-1"></div>
+        <div class="blur-circle circle-2"></div>
+    </div>
+
+    <header>
+        <div class="nav-container">
+            <div class="logo">
+                Consulta d'usuaris de <span class="logo-accent">Catens</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="container" style="padding-top: 1.5rem;">
+
+        <!-- Slim SharePoint Top Bar -->
+        <section class="sharepoint-top-bar glass-panel slim-bar" id="sharepointStatusBadge">
+            <!-- Disconnected State -->
+            <div id="sharepointPickerState" class="flex-bar">
+                <div class="bar-info">
+                    <span class="status-dot red" id="statusDot"></span>
+                    <span id="statusText">Carpeta de SharePoint / OneDrive no connectada</span>
+                </div>
+                <div class="bar-actions" id="assistantActions">
+                    <button class="btn btn-outline-sm" id="btnShowManualUpload">Pujar manualment</button>
+                    <button class="btn btn-primary-sm" id="btnConnectFolder">📂 Concedir accés i Connectar Carpeta</button>
+                    <div class="auto-sync-status hidden" id="autoSyncStatus" style="display:inline-flex; align-items:center; gap:8px;">
+                        <span style="font-size:0.85rem;" id="syncProgressText">Cercant...</span>
+                        <button class="btn btn-primary-sm hidden" id="btnReauthorize">🔄 Re-autoritzar</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Connected State -->
+            <div id="sharepointConnectedState" class="flex-bar hidden">
+                <div class="bar-info">
+                    <span class="status-dot green"></span>
+                    <span><strong>Sincronitzat amb SharePoint / OneDrive</strong></span>
+                </div>
+                <div class="bar-actions">
+                    <button class="btn btn-primary-sm" id="btnSyncNow">🔄 Sincronitzar i Actualitzar Dades</button>
+                    <button class="btn btn-outline-sm" id="btnDisconnectFolder">Desconnectar</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dropzones Section (Hidden if folder connected, unless user chooses to upload manually) -->
+        <section class="hidden" id="manualUploadSection" style="display: flex; flex-direction: column; gap: 1.5rem; width: 100%;">
+            <div class="upload-grid">
+                <!-- File 1: Catàleg Dens -->
+                <div class="upload-card" id="cardCat">
+                    <div class="card-glow"></div>
+                    <div class="card-content">
+                        <div class="icon-wrapper">
+                            <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        </div>
+                        <h3>Catàleg de Partícips</h3>
+                        <p class="file-spec">S'espera fitxer: <strong>Cataleg_dens_export.xls</strong></p>
+                        <div class="drop-zone" id="dropZoneCat">
+                            <input type="file" id="fileInputCat" accept=".xls,.xlsx" class="file-input">
+                            <span class="drop-text">Arrossega el fitxer o fes clic per seleccionar-lo</span>
+                        </div>
+                        <div class="file-info" id="fileInfoCat">
+                            <span class="file-name">Cap fitxer seleccionat</span>
+                            <span class="remove-btn" id="removeCat">&times;</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- File 2: Exportació Usuaris -->
+                <div class="upload-card" id="cardUsr">
+                    <div class="card-glow"></div>
+                    <div class="card-content">
+                        <div class="icon-wrapper">
+                            <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                        </div>
+                        <h3>Exportació d'Usuaris</h3>
+                        <p class="file-spec">S'espera fitxer: <strong>Export_Usuaris.xls</strong></p>
+                        <div class="drop-zone" id="dropZoneUsr">
+                            <input type="file" id="fileInputUsr" accept=".xls,.xlsx" class="file-input">
+                            <span class="drop-text">Arrossega el fitxer o fes clic per seleccionar-lo</span>
+                        </div>
+                        <div class="file-info" id="fileInfoUsr">
+                            <span class="file-name">Cap fitxer seleccionat</span>
+                            <span class="remove-btn" id="removeUsr">&times;</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Big Upload & Sync Button -->
+            <div class="text-center" style="display: flex; justify-content: center; margin-top: 1rem; width: 100%;">
+                <button class="btn btn-primary hidden" id="btnUploadToSharepoint" style="padding: 0.9rem 2.5rem; font-size: 1.05rem; min-width: 280px; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);">
+                    📤 Carregar i sincronitzar
+                </button>
+            </div>
+        </section>
+
+        <!-- Process Progress Tracker -->
+        <section class="process-section hidden" id="processSection">
+            <div class="glass-panel" style="padding: 1.25rem;">
+                <div class="panel-header" style="margin-bottom: 1rem; padding-bottom: 0.75rem;">
+                    <h2 style="font-size: 1.2rem;">Estat del Processament</h2>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button class="btn btn-primary" id="btnProcess" disabled style="display: none;">Processar Dades</button>
+                    </div>
+                </div>
+                <div class="steps-container-slim">
+                    <div class="step-item-slim" id="stepRead">
+                        <span class="step-dot-slim"></span>
+                        <span class="step-title-slim">Lectura fitxers</span>
+                    </div>
+                    <div class="step-item-slim" id="stepParticips">
+                        <span class="step-dot-slim"></span>
+                        <span class="step-title-slim">Filtre partícips</span>
+                    </div>
+                    <div class="step-item-slim" id="stepJoins">
+                        <span class="step-dot-slim"></span>
+                        <span class="step-title-slim">Fusió creuada (Joins)</span>
+                    </div>
+                    <div class="step-item-slim" id="stepDepts">
+                        <span class="step-dot-slim"></span>
+                        <span class="step-title-slim">Integració departaments</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <section class="results-section hidden" id="resultsSection">
+            <div class="glass-panel">
+                <div class="panel-header table-actions">
+                    <div class="left-actions">
+                        <h2>Taula de Resultats</h2>
+                        <span class="record-count" id="recordCount">0 registres trobats</span>
+                    </div>
+                    <div class="right-actions">
+                        <div class="search-wrapper">
+                            <input type="text" id="searchInput" placeholder="Cerca usuaris, codis, emails...">
+                        </div>
+                        <button class="btn btn-success" id="btnExport">
+                            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            Exportar a Excel (.xlsx)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table id="resultsTable">
+                        <thead>
+                            <tr>
+                                <th data-column="codi" class="sortable">
+                                    <div class="header-cell-content">
+                                        <span class="header-title">Codi</span>
+                                        <span class="sort-icon">↕</span>
+                                    </div>
+                                    <input type="text" class="column-filter" data-col="codi" placeholder="Filtra..." onclick="event.stopPropagation();">
+                                </th>
+                                <th data-column="ens" class="sortable">
+                                    <div class="header-cell-content">
+                                        <span class="header-title">Denominació Ens</span>
+                                        <span class="sort-icon">↕</span>
+                                    </div>
+                                    <input type="text" class="column-filter" data-col="ens" placeholder="Filtra ens..." onclick="event.stopPropagation();">
+                                </th>
+                                <th data-column="particip" class="sortable">
+                                    <div class="header-cell-content">
+                                        <span class="header-title">Partícip Agregat</span>
+                                        <span class="sort-icon">↕</span>
+                                    </div>
+                                    <input type="text" class="column-filter" data-col="particip" placeholder="Filtra partícip..." onclick="event.stopPropagation();">
+                                </th>
+                                <th data-column="dept" class="sortable">
+                                    <div class="header-cell-content">
+                                        <span class="header-title">Departament</span>
+                                        <span class="sort-icon">↕</span>
+                                    </div>
+                                    <input type="text" class="column-filter" data-col="dept" placeholder="Filtra dept..." onclick="event.stopPropagation();">
+                                </th>
+                                <th data-column="nom" class="sortable">
+                                    <div class="header-cell-content">
+                                        <span class="header-title">Nom</span>
+                                        <span class="sort-icon">↕</span>
+                                    </div>
+                                    <input type="text" class="column-filter" data-col="nom" placeholder="Filtra nom..." onclick="event.stopPropagation();">
+                                </th>
+                                <th data-column="cognoms" class="sortable">
+                                    <div class="header-cell-content">
+                                        <span class="header-title">Cognoms</span>
+                                        <span class="sort-icon">↕</span>
+                                    </div>
+                                    <input type="text" class="column-filter" data-col="cognoms" placeholder="Filtra cognoms..." onclick="event.stopPropagation();">
+                                </th>
+                                <th data-column="email" class="sortable">
+                                    <div class="header-cell-content">
+                                        <span class="header-title">Email</span>
+                                        <span class="sort-icon">↕</span>
+                                    </div>
+                                    <input type="text" class="column-filter" data-col="email" placeholder="Filtra email..." onclick="event.stopPropagation();">
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="pagination-container">
+                    <button class="btn btn-outline" id="btnPrev" disabled>Anterior</button>
+                    <span class="page-indicator" id="pageIndicator">Pàgina 1 de 1</span>
+                    <button class="btn btn-outline" id="btnNext" disabled>Següent</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Subdirecció General d'Entitats i Participacions de la Generalitat</p>
+    </footer>
+
+    <!-- App Script -->
+    <script src="app.js"></script>
+</body>
+</html>
