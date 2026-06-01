@@ -127,7 +127,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (btnChangeFolder) btnChangeFolder.addEventListener('click', disconnectSharepointFolder);
     if (btnReauthorize) btnReauthorize.addEventListener('click', reauthorizeFolderAccess);
     if (btnSyncNow) btnSyncNow.addEventListener('click', () => {
-        syncWithDirectory(directoryHandle, true);
+        showManualUpload();
     });
     
     const btnUploadToSharepoint = document.getElementById('btnUploadToSharepoint');
