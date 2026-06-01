@@ -120,8 +120,6 @@ const pageIndicator = document.getElementById('pageIndicator');
 
 // Initialize events on load
 window.addEventListener('DOMContentLoaded', async () => {
-    if (btnShowManualUpload) btnShowManualUpload.addEventListener('click', showManualUpload);
-    if (btnShowManualConnected) btnShowManualConnected.addEventListener('click', showManualUpload);
     
     // 4. Setup folder connect/disconnect/sync buttons
     if (btnConnectFolder) btnConnectFolder.addEventListener('click', connectSharepointFolder);
@@ -129,7 +127,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (btnChangeFolder) btnChangeFolder.addEventListener('click', disconnectSharepointFolder);
     if (btnReauthorize) btnReauthorize.addEventListener('click', reauthorizeFolderAccess);
     if (btnSyncNow) btnSyncNow.addEventListener('click', () => {
-        syncWithDirectory(directoryHandle);
+        syncWithDirectory(directoryHandle, true);
     });
     
     const btnUploadToSharepoint = document.getElementById('btnUploadToSharepoint');
@@ -276,7 +274,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 // Show manual drag and drop section
 function showManualUpload() {
     manualUploadSection.classList.remove('hidden');
-    btnShowManualUpload.classList.add('hidden');
+    if (btnShowManualUpload) btnShowManualUpload.classList.add('hidden');
     // Scroll to section
     manualUploadSection.scrollIntoView({ behavior: 'smooth' });
 }
@@ -292,7 +290,7 @@ function showInitialState() {
     manualUploadSection.classList.add('hidden');
     autoSyncStatus.classList.add('hidden');
     assistantActions.classList.remove('hidden');
-    btnShowManualUpload.classList.remove('hidden');
+    if (btnShowManualUpload) btnShowManualUpload.classList.remove('hidden');
 }
 
 // Connect new folder using File System Access API
@@ -379,6 +377,17 @@ async function syncWithDirectorySilent(handle) {
             const rows = XLSX.utils.sheet_to_json(sheet);
             
             mergedResults = rows.map(r => {
+                if (r['Detall de partícips.Codi Catàleg'] !== undefined || r['Desc. Departament'] !== undefined || r['Nom'] !== undefined) {
+                    return {
+                        'Detall de partícips.Codi Catàleg': r['Detall de partícips.Codi Catàleg'] !== undefined ? r['Detall de partícips.Codi Catàleg'] : null,
+                        'Detall de partícips.Denominació': r['Detall de partícips.Denominació'] !== undefined ? r['Detall de partícips.Denominació'] : null,
+                        'Desc. Departament': r['Desc. Departament'] !== undefined ? r['Desc. Departament'] : null,
+                        'Nom': r['Nom'] !== undefined ? r['Nom'] : null,
+                        'Cognoms': r['Cognoms'] !== undefined ? r['Cognoms'] : null,
+                        'Email': r['Email'] !== undefined ? r['Email'] : null,
+                        'Detall de partícips.Denominació partícip (agregat)': r['Detall de partícips.Denominació partícip (agregat)'] !== undefined ? r['Detall de partícips.Denominació partícip (agregat)'] : null
+                    };
+                }
                 const isDept = r['Denominació Partícip (Agregat)'] === 'Departament';
                 return {
                     'Detall de partícips.Codi Catàleg': r['Codi Catàleg'] || null,
@@ -454,6 +463,7 @@ async function syncWithDirectorySilent(handle) {
             // Automatically launch ETL
             btnProcess.removeAttribute('disabled');
             processSection.classList.remove('hidden');
+            if (manualUploadSection) manualUploadSection.classList.add('hidden');
             btnProcess.click();
         } else {
             statusDot.className = 'status-dot yellow';
@@ -470,7 +480,7 @@ async function syncWithDirectorySilent(handle) {
 }
 
 // Query handle permission and load files
-async function syncWithDirectory(handle) {
+async function syncWithDirectory(handle, forceRecalculate = false) {
     // Show spinner in connected state or loading progress
     btnSyncNow.setAttribute('disabled', 'true');
     statusDot.className = 'status-dot yellow';
@@ -501,7 +511,75 @@ async function syncWithDirectory(handle) {
         statusText.textContent = 'SharePoint Connectat';
         btnDisconnectFolder.style.display = 'inline-block';
         
-        const { fileCat, fileUsr } = await loadFilesFromDirectory(handle);
+        const { fileCat, fileUsr, fileOut } = await loadFilesFromDirectory(handle);
+        
+        // 1. Si ja disposem de la fusió pre-calculada i no estem forçant la recàrrega, la carreguem directament!
+        if (fileOut && !forceRecalculate) {
+            statusText.textContent = 'Carregant dades desades...';
+            const arrayBuffer = await fileOut.arrayBuffer();
+            const wb = XLSX.read(new Uint8Array(arrayBuffer), {type: 'array'});
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet);
+            
+            mergedResults = rows.map(r => {
+                if (r['Detall de partícips.Codi Catàleg'] !== undefined || r['Desc. Departament'] !== undefined || r['Nom'] !== undefined) {
+                    return {
+                        'Detall de partícips.Codi Catàleg': r['Detall de partícips.Codi Catàleg'] !== undefined ? r['Detall de partícips.Codi Catàleg'] : null,
+                        'Detall de partícips.Denominació': r['Detall de partícips.Denominació'] !== undefined ? r['Detall de partícips.Denominació'] : null,
+                        'Desc. Departament': r['Desc. Departament'] !== undefined ? r['Desc. Departament'] : null,
+                        'Nom': r['Nom'] !== undefined ? r['Nom'] : null,
+                        'Cognoms': r['Cognoms'] !== undefined ? r['Cognoms'] : null,
+                        'Email': r['Email'] !== undefined ? r['Email'] : null,
+                        'Detall de partícips.Denominació partícip (agregat)': r['Detall de partícips.Denominació partícip (agregat)'] !== undefined ? r['Detall de partícips.Denominació partícip (agregat)'] : null
+                    };
+                }
+                const isDept = r['Denominació Partícip (Agregat)'] === 'Departament';
+                return {
+                    'Detall de partícips.Codi Catàleg': r['Codi Catàleg'] || null,
+                    'Detall de partícips.Denominació': isDept ? null : r['Denominació Ens'],
+                    'Desc. Departament': isDept ? r['Denominació Ens'] : null,
+                    'Nom': r['Nom'] || null,
+                    'Cognoms': r['Cognoms'] || null,
+                    'Email': r['Email'] || null,
+                    'Detall de partícips.Denominació partícip (agregat)': isDept ? null : r['Denominació Partícip (Agregat)']
+                };
+            });
+            filteredResults = [...mergedResults];
+            
+            statusDot.className = 'status-dot green';
+            statusText.textContent = 'Dades Carregades';
+            btnDisconnectFolder.style.display = 'inline-block';
+            
+            // Mostrar resultats directament a la taula
+            resultsSection.classList.remove('hidden');
+            currentPage = 1;
+            renderTable();
+            
+            // Pre-omplir en segon pla les targetes de càrrega manual
+            fileInfoCat.classList.remove('active');
+            dropZoneCat.style.display = 'block';
+            fileInfoUsr.classList.remove('active');
+            dropZoneUsr.style.display = 'block';
+            
+            if (fileCat) {
+                fileDataCat = new Uint8Array(await fileCat.arrayBuffer());
+                fileInfoCat.querySelector('.file-name').textContent = `${fileCat.name} (SharePoint)`;
+                fileInfoCat.classList.add('active');
+                dropZoneCat.style.display = 'none';
+            }
+            if (fileUsr) {
+                fileDataUsr = new Uint8Array(await fileUsr.arrayBuffer());
+                fileInfoUsr.querySelector('.file-name').textContent = `${fileUsr.name} (SharePoint)`;
+                fileInfoUsr.classList.add('active');
+                dropZoneUsr.style.display = 'none';
+            }
+            if (fileCat && fileUsr) {
+                if (manualUploadSection) manualUploadSection.classList.add('hidden');
+            } else {
+                showManualUpload();
+            }
+            return; // Sortida ràpida de la inicialització exitosa!
+        }
         
         // Reset manual upload card visual states before populating
         fileInfoCat.classList.remove('active');
@@ -535,8 +613,12 @@ async function syncWithDirectory(handle) {
             // Trigger process
             btnProcess.click();
             
-            // Show manual upload section with files pre-filled so they can update them by dragging
-            showManualUpload();
+            // If the user clicked the sync button manually, show the drag section. Otherwise, keep it hidden.
+            if (forceRecalculate) {
+                showManualUpload();
+            } else {
+                if (manualUploadSection) manualUploadSection.classList.add('hidden');
+            }
             checkReadyToProcess(); // Update buttons visibility
         } else {
             statusDot.className = 'status-dot yellow';
