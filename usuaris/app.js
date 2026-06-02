@@ -291,7 +291,7 @@ window.addEventListener('DOMContentLoaded', async () => {
             sharepointConnectedState.classList.remove('hidden');
             const pathLabel = document.getElementById('sharepointPathLabel');
             if (pathLabel && savedHandle) {
-                pathLabel.textContent = `Ruta: D:\\34761933D\\OneDrive - Generalitat de Catalunya\\Documents (PROVES) - SDG Entitats\\04. Usuaris\\${savedHandle.name}`;
+                pathLabel.textContent = `Ruta: D:\\fakepath\\OneDrive - Generalitat de Catalunya\\Documents (PROVES) - SDG Entitats\\04. Usuaris\\${savedHandle.name}`;
             }
             
             // Query permission silently (NO prompt, no user gesture yet)
@@ -360,7 +360,7 @@ async function connectSharepointFolder() {
         sharepointConnectedState.classList.remove('hidden');
         const pathLabel = document.getElementById('sharepointPathLabel');
         if (pathLabel && handle) {
-            pathLabel.textContent = `Ruta: D:\\34761933D\\OneDrive - Generalitat de Catalunya\\Documents (PROVES) - SDG Entitats\\04. Usuaris\\${handle.name}`;
+            pathLabel.textContent = `Ruta: D:\\fakepath\\OneDrive - Generalitat de Catalunya\\Documents (PROVES) - SDG Entitats\\04. Usuaris\\${handle.name}`;
         }
         
         await syncWithDirectory(handle);
