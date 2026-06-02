@@ -541,7 +541,7 @@ table {
 }
 
 th, td {
-    padding: 0.5rem 0.75rem;
+    padding: 0.3rem 0.6rem;
     border-bottom: 1px solid var(--glass-border);
 }
 

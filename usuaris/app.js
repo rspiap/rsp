@@ -130,12 +130,48 @@ window.addEventListener('DOMContentLoaded', async () => {
         showManualUpload();
     });
     
+    const btnCancelManualUpload = document.getElementById('btnCancelManualUpload');
+    if (btnCancelManualUpload) {
+        btnCancelManualUpload.addEventListener('click', async () => {
+            if (manualUploadSection) manualUploadSection.classList.add('hidden');
+            
+            if (directoryHandle) {
+                // Revert in-memory files and table data to SharePoint's state
+                try {
+                    await syncWithDirectorySilent(directoryHandle);
+                } catch (e) {
+                    console.error("Error restoring SharePoint state on cancel", e);
+                }
+            } else {
+                // Offline mode: clear everything
+                fileDataCat = null;
+                fileDataUsr = null;
+                mergedResults = [];
+                filteredResults = [];
+                
+                if (fileInfoCat) fileInfoCat.classList.remove('active');
+                if (fileInputCat) fileInputCat.value = '';
+                if (dropZoneCat) dropZoneCat.style.display = 'block';
+                
+                if (fileInfoUsr) fileInfoUsr.classList.remove('active');
+                if (fileInputUsr) fileInputUsr.value = '';
+                if (dropZoneUsr) dropZoneUsr.style.display = 'block';
+                
+                if (processSection) processSection.classList.add('hidden');
+                if (resultsSection) resultsSection.classList.add('hidden');
+            }
+        });
+    }
+    
     const btnUploadToSharepoint = document.getElementById('btnUploadToSharepoint');
     if (btnUploadToSharepoint) {
         btnUploadToSharepoint.addEventListener('click', async () => {
             hasClickedSync = true;
             if (!directoryHandle) {
-                alert("No hi ha cap carpeta de SharePoint connectada.");
+                // Offline mode: hide buttons and process directly!
+                if (btnUploadToSharepoint) btnUploadToSharepoint.classList.add('hidden');
+                if (btnCancelManualUpload) btnCancelManualUpload.classList.add('hidden');
+                btnProcess.click();
                 return;
             }
             if (!fileDataCat || !fileDataUsr) {
@@ -143,8 +179,9 @@ window.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             
-            btnUploadToSharepoint.setAttribute('disabled', 'true');
-            btnUploadToSharepoint.textContent = 'Carregant...';
+            // Hide buttons to only show progress tracker
+            if (btnUploadToSharepoint) btnUploadToSharepoint.classList.add('hidden');
+            if (btnCancelManualUpload) btnCancelManualUpload.classList.add('hidden');
             
             try {
                 let filesSaved = [];
@@ -158,13 +195,16 @@ window.addEventListener('DOMContentLoaded', async () => {
                     btnProcess.click();
                 } else {
                     alert("⚠️ Hi ha hagut un problema en desar un o ambdós fitxers.");
+                    // Restore button visibility on failure
+                    if (btnUploadToSharepoint) btnUploadToSharepoint.classList.remove('hidden');
+                    if (btnCancelManualUpload) btnCancelManualUpload.classList.remove('hidden');
                 }
             } catch (e) {
                 console.error(e);
                 alert("Error en desar els fitxers: " + e.message);
-            } finally {
-                btnUploadToSharepoint.removeAttribute('disabled');
-                btnUploadToSharepoint.textContent = '📤 Carregar i sincronitzar';
+                // Restore button visibility on error
+                if (btnUploadToSharepoint) btnUploadToSharepoint.classList.remove('hidden');
+                if (btnCancelManualUpload) btnCancelManualUpload.classList.remove('hidden');
             }
         });
     }
@@ -249,6 +289,10 @@ window.addEventListener('DOMContentLoaded', async () => {
             // Switch UI to connected state
             sharepointPickerState.classList.add('hidden');
             sharepointConnectedState.classList.remove('hidden');
+            const pathLabel = document.getElementById('sharepointPathLabel');
+            if (pathLabel && savedHandle) {
+                pathLabel.textContent = `Ruta: D:\\34761933D\\OneDrive - Generalitat de Catalunya\\Documents (PROVES) - SDG Entitats\\04. Usuaris\\${savedHandle.name}`;
+            }
             
             // Query permission silently (NO prompt, no user gesture yet)
             const permissionState = await directoryHandle.queryPermission({ mode: 'readwrite' });
@@ -275,8 +319,8 @@ window.addEventListener('DOMContentLoaded', async () => {
 function showManualUpload() {
     manualUploadSection.classList.remove('hidden');
     if (btnShowManualUpload) btnShowManualUpload.classList.add('hidden');
-    // Scroll to section
-    manualUploadSection.scrollIntoView({ behavior: 'smooth' });
+    // Scroll and center the section on the screen
+    manualUploadSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 // Show SharePoint initial configuration
@@ -314,6 +358,10 @@ async function connectSharepointFolder() {
         // Switch UI to connected state
         sharepointPickerState.classList.add('hidden');
         sharepointConnectedState.classList.remove('hidden');
+        const pathLabel = document.getElementById('sharepointPathLabel');
+        if (pathLabel && handle) {
+            pathLabel.textContent = `Ruta: D:\\34761933D\\OneDrive - Generalitat de Catalunya\\Documents (PROVES) - SDG Entitats\\04. Usuaris\\${handle.name}`;
+        }
         
         await syncWithDirectory(handle);
     } catch (e) {
@@ -712,14 +760,14 @@ function checkReadyToProcess() {
         processSection.classList.remove('hidden');
         resetSteps();
         
-        if (directoryHandle) {
-            if (btnUploadToSharepoint) btnUploadToSharepoint.classList.remove('hidden');
-        } else {
-            if (btnUploadToSharepoint) btnUploadToSharepoint.classList.add('hidden');
+        if (btnUploadToSharepoint) {
+            btnUploadToSharepoint.classList.remove('hidden');
+            if (directoryHandle) {
+                btnUploadToSharepoint.textContent = '📤 Carregar i sincronitzar';
+            } else {
+                btnUploadToSharepoint.textContent = '⚡ Processar Dades';
+            }
         }
-        
-        // Trigger ETL process automatically!
-        btnProcess.click();
     } else {
         btnProcess.setAttribute('disabled', 'true');
         processSection.classList.add('hidden');
@@ -989,6 +1037,12 @@ btnProcess.addEventListener('click', async () => {
     } catch (err) {
         alert("S'ha produït un error en processar els fitxers: " + err.message);
         console.error(err);
+        
+        // Restore buttons visibility on process error so user can retry or cancel
+        const btnUploadToSharepoint = document.getElementById('btnUploadToSharepoint');
+        const btnCancelManualUpload = document.getElementById('btnCancelManualUpload');
+        if (btnUploadToSharepoint) btnUploadToSharepoint.classList.remove('hidden');
+        if (btnCancelManualUpload) btnCancelManualUpload.classList.remove('hidden');
     } finally {
         btnProcess.removeAttribute('disabled');
     }
@@ -1163,18 +1217,37 @@ btnExport.addEventListener('click', () => {
     XLSX.writeFile(wb, "Consulta usuaris final + depts.xlsx");
 });
 
+// Helper to normalize text (ignore accents and common punctuation)
+function normalizeText(str) {
+    if (str === undefined || str === null) return '';
+    return String(str)
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // removes accents
+        .toLowerCase()
+        .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"'’]/g, "") // removes punctuation
+        .trim();
+}
+
 // Unified Filtering and Sorting Engine
 function applyFiltersAndSort() {
-    const query = searchInput.value.toLowerCase().trim();
+    const query = normalizeText(searchInput.value);
+    
+    const filterCodi = normalizeText(columnFilters.codi);
+    const filterEns = normalizeText(columnFilters.ens);
+    const filterParticip = normalizeText(columnFilters.particip);
+    const filterDept = normalizeText(columnFilters.dept);
+    const filterNom = normalizeText(columnFilters.nom);
+    const filterCognoms = normalizeText(columnFilters.cognoms);
+    const filterEmail = normalizeText(columnFilters.email);
     
     filteredResults = mergedResults.filter(row => {
-        const codiStr = String(row['Detall de partícips.Codi Catàleg'] || '').toLowerCase();
-        const ensStr = String(row['Detall de partícips.Denominació'] || '').toLowerCase();
-        const participStr = String(row['Detall de partícips.Denominació partícip (agregat)'] || '').toLowerCase();
-        const deptStr = String(row['Desc. Departament'] || '').toLowerCase();
-        const nomStr = String(row['Nom'] || '').toLowerCase();
-        const cognomsStr = String(row['Cognoms'] || '').toLowerCase();
-        const emailStr = String(row['Email'] || '').toLowerCase();
+        const codiStr = normalizeText(row['Detall de partícips.Codi Catàleg']);
+        const ensStr = normalizeText(row['Detall de partícips.Denominació']);
+        const participStr = normalizeText(row['Detall de partícips.Denominació partícip (agregat)']);
+        const deptStr = normalizeText(row['Desc. Departament']);
+        const nomStr = normalizeText(row['Nom']);
+        const cognomsStr = normalizeText(row['Cognoms']);
+        const emailStr = normalizeText(row['Email']);
         
         // General search query check
         if (query) {
@@ -1189,13 +1262,13 @@ function applyFiltersAndSort() {
         }
         
         // Column-specific filter checks
-        if (columnFilters.codi && !codiStr.includes(columnFilters.codi.toLowerCase())) return false;
-        if (columnFilters.ens && !ensStr.includes(columnFilters.ens.toLowerCase())) return false;
-        if (columnFilters.particip && !participStr.includes(columnFilters.particip.toLowerCase())) return false;
-        if (columnFilters.dept && !deptStr.includes(columnFilters.dept.toLowerCase())) return false;
-        if (columnFilters.nom && !nomStr.includes(columnFilters.nom.toLowerCase())) return false;
-        if (columnFilters.cognoms && !cognomsStr.includes(columnFilters.cognoms.toLowerCase())) return false;
-        if (columnFilters.email && !emailStr.includes(columnFilters.email.toLowerCase())) return false;
+        if (filterCodi && !codiStr.includes(filterCodi)) return false;
+        if (filterEns && !ensStr.includes(filterEns)) return false;
+        if (filterParticip && !participStr.includes(filterParticip)) return false;
+        if (filterDept && !deptStr.includes(filterDept)) return false;
+        if (filterNom && !nomStr.includes(filterNom)) return false;
+        if (filterCognoms && !cognomsStr.includes(filterCognoms)) return false;
+        if (filterEmail && !emailStr.includes(filterEmail)) return false;
         
         return true;
     });
