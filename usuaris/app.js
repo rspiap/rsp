@@ -52,11 +52,13 @@ async function clearDirectoryHandle() {
 let directoryHandle = null;
 let fileDataCat = null;
 let fileDataUsr = null;
+let dateCatModified = null;
+let dateUsrModified = null;
 let mergedResults = [];
 let filteredResults = [];
 let hasClickedSync = false;
-let currentSortColumn = null;
-let currentSortDirection = 'asc';
+let currentSortColumn = 'ens';
+let currentSortDirection = 'desc';
 const columnFilters = {
     codi: '',
     ens: '',
@@ -210,13 +212,17 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
     
     // 5. Setup Drag & Drop manual zones
-    setupDropZone(dropZoneCat, fileInputCat, fileInfoCat, (data) => {
+    setupDropZone(dropZoneCat, fileInputCat, fileInfoCat, (data, lastModified) => {
         fileDataCat = data;
+        dateCatModified = lastModified || new Date().getTime();
         checkReadyToProcess();
+        updateDateDisplay(dateCatModified, dateUsrModified);
     });
-    setupDropZone(dropZoneUsr, fileInputUsr, fileInfoUsr, (data) => {
+    setupDropZone(dropZoneUsr, fileInputUsr, fileInfoUsr, (data, lastModified) => {
         fileDataUsr = data;
+        dateUsrModified = lastModified || new Date().getTime();
         checkReadyToProcess();
+        updateDateDisplay(dateCatModified, dateUsrModified);
     });
 
     // 5b. Setup remove cross buttons for manual cards
@@ -390,8 +396,18 @@ async function disconnectSharepointFolder() {
         directoryHandle = null;
         fileDataCat = null;
         fileDataUsr = null;
+        dateCatModified = null;
+        dateUsrModified = null;
         mergedResults = [];
         filteredResults = [];
+        
+        const sharepointDateLabel = document.getElementById('sharepointDateLabel');
+        const infoUpdateDate = document.getElementById('infoUpdateDate');
+        if (sharepointDateLabel) sharepointDateLabel.textContent = 'Darrera actualització: -';
+        if (infoUpdateDate) {
+            infoUpdateDate.textContent = "📅 Data d'actualització: -";
+            infoUpdateDate.classList.add('hidden');
+        }
         
         // Clear UI states
         fileInfoCat.classList.remove('active');
@@ -421,6 +437,22 @@ async function syncWithDirectorySilent(handle) {
             statusText.textContent = 'Carregant dades desades...';
             const arrayBuffer = await fileOut.arrayBuffer();
             const wb = XLSX.read(new Uint8Array(arrayBuffer), {type: 'array'});
+            
+            // Extract original dates from comments to avoid reading heavy source files
+            if (wb.Props && wb.Props.Comments) {
+                const comments = wb.Props.Comments;
+                const match = comments.match(/CatDate:(\d+)\|UsrDate:(\d+)/);
+                if (match) {
+                    dateCatModified = parseInt(match[1]) || null;
+                    dateUsrModified = parseInt(match[2]) || null;
+                }
+            }
+            if (!dateCatModified && !dateUsrModified) {
+                dateCatModified = fileOut.lastModified;
+                dateUsrModified = fileOut.lastModified;
+            }
+            updateDateDisplay(dateCatModified, dateUsrModified);
+
             const sheet = wb.Sheets[wb.SheetNames[0]];
             const rows = XLSX.utils.sheet_to_json(sheet);
             
@@ -456,7 +488,7 @@ async function syncWithDirectorySilent(handle) {
             // Mostrar resultats directament a la taula
             resultsSection.classList.remove('hidden');
             currentPage = 1;
-            renderTable();
+            applyFiltersAndSort();
             
             // Pre-omplir en segon pla les targetes de càrrega manual
             fileInfoCat.classList.remove('active');
@@ -478,6 +510,9 @@ async function syncWithDirectorySilent(handle) {
             }
             return; // Sortida ràpida de la inicialització exitosa!
         }
+        
+        await extractMetadataDatesFromFiles(fileCat, fileUsr);
+        updateDateDisplay(dateCatModified, dateUsrModified);
         
         // Reset manual upload card visual states before populating
         fileInfoCat.classList.remove('active');
@@ -566,6 +601,22 @@ async function syncWithDirectory(handle, forceRecalculate = false) {
             statusText.textContent = 'Carregant dades desades...';
             const arrayBuffer = await fileOut.arrayBuffer();
             const wb = XLSX.read(new Uint8Array(arrayBuffer), {type: 'array'});
+            
+            // Extract original dates from comments to avoid reading heavy source files
+            if (wb.Props && wb.Props.Comments) {
+                const comments = wb.Props.Comments;
+                const match = comments.match(/CatDate:(\d+)\|UsrDate:(\d+)/);
+                if (match) {
+                    dateCatModified = parseInt(match[1]) || null;
+                    dateUsrModified = parseInt(match[2]) || null;
+                }
+            }
+            if (!dateCatModified && !dateUsrModified) {
+                dateCatModified = fileOut.lastModified;
+                dateUsrModified = fileOut.lastModified;
+            }
+            updateDateDisplay(dateCatModified, dateUsrModified);
+
             const sheet = wb.Sheets[wb.SheetNames[0]];
             const rows = XLSX.utils.sheet_to_json(sheet);
             
@@ -601,7 +652,7 @@ async function syncWithDirectory(handle, forceRecalculate = false) {
             // Mostrar resultats directament a la taula
             resultsSection.classList.remove('hidden');
             currentPage = 1;
-            renderTable();
+            applyFiltersAndSort();
             
             // Pre-omplir en segon pla les targetes de càrrega manual
             fileInfoCat.classList.remove('active');
@@ -628,6 +679,9 @@ async function syncWithDirectory(handle, forceRecalculate = false) {
             }
             return; // Sortida ràpida de la inicialització exitosa!
         }
+        
+        await extractMetadataDatesFromFiles(fileCat, fileUsr);
+        updateDateDisplay(dateCatModified, dateUsrModified);
         
         // Reset manual upload card visual states before populating
         fileInfoCat.classList.remove('active');
@@ -746,7 +800,7 @@ function handleFileSelection(file, fileInput, fileInfo, callback) {
         fileInfo.querySelector('.file-name').textContent = file.name;
         fileInfo.classList.add('active');
         dropZone.style.display = 'none';
-        callback(data);
+        callback(data, file.lastModified);
     };
     const dropZone = fileInput.parentElement;
     reader.readAsArrayBuffer(file);
@@ -816,6 +870,8 @@ btnProcess.addEventListener('click', async () => {
         let wbCat, wbUsr;
         try {
             wbCat = XLSX.read(fileDataCat, {type: 'array', cellDates: true});
+            const d = getWorkbookDate(wbCat);
+            if (d) dateCatModified = d.getTime();
         } catch (catErr) {
             console.error(catErr);
             throw new Error("El fitxer del Catàleg de Partícips ('Cataleg_dens_export.xls') és invàlid, està corrupte o està bloquejat per Excel.");
@@ -823,11 +879,16 @@ btnProcess.addEventListener('click', async () => {
 
         try {
             wbUsr = XLSX.read(fileDataUsr, {type: 'array', cellDates: true});
+            const d = getWorkbookDate(wbUsr);
+            if (d) dateUsrModified = d.getTime();
         } catch (usrErr) {
             console.error(usrErr);
             throw new Error("El fitxer d'Exportació d'Usuaris ('Export_Usuaris.xls') és invàlid, està corrupte o està bloquejat per Excel.");
         }
         updateStepStatus('stepRead', 'completed');
+        
+        // Update date display with extracted metadata dates
+        updateDateDisplay(dateCatModified, dateUsrModified);
 
         // Step 2: Detall de partícips ETL
         updateStepStatus('stepParticips', 'active');
@@ -982,7 +1043,7 @@ btnProcess.addEventListener('click', async () => {
         // Show table & set page 1
         resultsSection.classList.remove('hidden');
         currentPage = 1;
-        renderTable();
+        applyFiltersAndSort();
         
         // --- AUTOMATIC FILE WRITING TO SHAREPOINT ---
         if (directoryHandle) {
@@ -1014,6 +1075,12 @@ btnProcess.addEventListener('click', async () => {
             wsOut['!cols'] = colWidthsOut;
 
             XLSX.utils.book_append_sheet(wbOut, wsOut, "Dades Fusionades");
+            
+            // Embed original dates in the workbook comments metadata
+            wbOut.Props = {
+                Comments: `CatDate:${dateCatModified || 0}|UsrDate:${dateUsrModified || 0}`
+            };
+            
             const wbBinary = XLSX.write(wbOut, {bookType: 'xlsx', type: 'array'});
             
             let filesSaved = [];
@@ -1179,9 +1246,11 @@ btnNext.addEventListener('click', () => {
     }
 });
 
-searchInput.addEventListener('input', () => {
-    applyFiltersAndSort();
-});
+if (searchInput) {
+    searchInput.addEventListener('input', () => {
+        applyFiltersAndSort();
+    });
+}
 
 btnExport.addEventListener('click', () => {
     if (!filteredResults.length) return;
@@ -1230,7 +1299,7 @@ function normalizeText(str) {
 
 // Unified Filtering and Sorting Engine
 function applyFiltersAndSort() {
-    const query = normalizeText(searchInput.value);
+    const query = searchInput ? normalizeText(searchInput.value) : '';
     
     const filterCodi = normalizeText(columnFilters.codi);
     const filterEns = normalizeText(columnFilters.ens);
@@ -1311,4 +1380,75 @@ function applyFiltersAndSort() {
     
     currentPage = 1;
     renderTable();
+}
+
+function updateDateDisplay(timestampCat, timestampUsr) {
+    let tsCat = timestampCat;
+    let tsUsr = timestampUsr;
+    if (timestampCat && !timestampUsr) {
+        tsCat = timestampCat;
+        tsUsr = timestampCat;
+    }
+    
+    const formatDate = (ts) => {
+        if (!ts) return 'Sense dades';
+        const d = new Date(ts);
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        return `${day}/${month}/${year} ${hours}:${minutes}`;
+    };
+    
+    const strCat = formatDate(tsCat);
+    const strUsr = formatDate(tsUsr);
+    
+    const formattedText = `Actualitzacions: Usuaris: ${strUsr} / Entitats: ${strCat}`;
+    
+    const sharepointDateLabel = document.getElementById('sharepointDateLabel');
+    const infoUpdateDate = document.getElementById('infoUpdateDate');
+    
+    if (sharepointDateLabel) {
+        sharepointDateLabel.textContent = formattedText;
+    }
+    if (infoUpdateDate) {
+        infoUpdateDate.textContent = `📅 ${formattedText}`;
+        infoUpdateDate.classList.remove('hidden');
+    }
+}
+
+function getWorkbookDate(wb) {
+    if (!wb || !wb.Props) return null;
+    const d = wb.Props.CreatedDate || wb.Props.ModifiedDate || wb.Props.Created || wb.Props.Modified;
+    if (d) {
+        const parsed = new Date(d);
+        if (!isNaN(parsed.getTime())) return parsed;
+    }
+    return null;
+}
+
+async function extractMetadataDatesFromFiles(fileCat, fileUsr) {
+    if (fileCat) {
+        try {
+            const arrayBuffer = await fileCat.arrayBuffer();
+            const wb = XLSX.read(new Uint8Array(arrayBuffer), {type: 'array'});
+            const d = getWorkbookDate(wb);
+            if (d) dateCatModified = d.getTime();
+            else dateCatModified = fileCat.lastModified;
+        } catch (e) {
+            dateCatModified = fileCat.lastModified;
+        }
+    }
+    if (fileUsr) {
+        try {
+            const arrayBuffer = await fileUsr.arrayBuffer();
+            const wb = XLSX.read(new Uint8Array(arrayBuffer), {type: 'array'});
+            const d = getWorkbookDate(wb);
+            if (d) dateUsrModified = d.getTime();
+            else dateUsrModified = fileUsr.lastModified;
+        } catch (e) {
+            dateUsrModified = fileUsr.lastModified;
+        }
+    }
 }

@@ -25,43 +25,43 @@
             <div class="logo">
                 Consulta d'usuaris de <span class="logo-accent">Catens</span>
             </div>
+            
+            <!-- Slim SharePoint Header Bar -->
+            <div class="sharepoint-header-bar" id="sharepointStatusBadge">
+                <!-- Disconnected State -->
+                <div id="sharepointPickerState" class="flex-bar">
+                    <div class="bar-info">
+                        <span class="status-dot red" id="statusDot"></span>
+                        <span id="statusText" style="font-size: 0.8rem;">SharePoint no connectat</span>
+                    </div>
+                    <div class="bar-actions" id="assistantActions">
+                        <button class="btn btn-primary-sm" id="btnConnectFolder">📂 Connectar carpeta</button>
+                        <div class="auto-sync-status hidden" id="autoSyncStatus" style="display:inline-flex; align-items:center; gap:8px;">
+                            <span style="font-size:0.85rem;" id="syncProgressText">Cercant...</span>
+                            <button class="btn btn-primary-sm hidden" id="btnReauthorize">🔄 Re-autoritzar</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Connected State -->
+                <div id="sharepointConnectedState" class="flex-bar hidden">
+                    <div class="bar-info" style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span class="status-dot green"></span>
+                        <div style="display: flex; flex-direction: column; gap: 1px;">
+                            <span style="font-size: 0.8rem;"><strong>Sincronitzat amb SharePoint / OneDrive</strong></span>
+                            <span style="font-size: 0.72rem; color: var(--text-muted);" id="sharepointPathLabel">Ruta: D:\fakepath\OneDrive - Generalitat de Catalunya\Documents (PROVES) - SDG Entitats\04. Usuaris\Export_usuaris</span>
+                        </div>
+                    </div>
+                    <div class="bar-actions">
+                        <button class="btn btn-primary-sm" id="btnSyncNow">🔄 Sincronitzar</button>
+                        <button class="btn btn-outline-sm" id="btnDisconnectFolder">Desconnectar</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </header>
 
     <main class="container" style="padding-top: 1.5rem;">
-
-        <!-- Slim SharePoint Top Bar -->
-        <section class="sharepoint-top-bar glass-panel slim-bar" id="sharepointStatusBadge">
-            <!-- Disconnected State -->
-            <div id="sharepointPickerState" class="flex-bar">
-                <div class="bar-info">
-                    <span class="status-dot red" id="statusDot"></span>
-                    <span id="statusText">Carpeta de SharePoint / OneDrive no connectada</span>
-                </div>
-                <div class="bar-actions" id="assistantActions">
-                    <button class="btn btn-primary-sm" id="btnConnectFolder">📂 Concedir accés i Connectar Carpeta</button>
-                    <div class="auto-sync-status hidden" id="autoSyncStatus" style="display:inline-flex; align-items:center; gap:8px;">
-                        <span style="font-size:0.85rem;" id="syncProgressText">Cercant...</span>
-                        <button class="btn btn-primary-sm hidden" id="btnReauthorize">🔄 Re-autoritzar</button>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Connected State -->
-            <div id="sharepointConnectedState" class="flex-bar hidden">
-                <div class="bar-info" style="display: flex; align-items: center; gap: 0.75rem;">
-                    <span class="status-dot green"></span>
-                    <div style="display: flex; flex-direction: column; gap: 2px;">
-                        <span><strong>Sincronitzat amb SharePoint / OneDrive</strong></span>
-                        <span style="font-size: 0.78rem; color: var(--text-muted);" id="sharepointPathLabel">Ruta: D:\fakepath\OneDrive - Generalitat de Catalunya\Documents (PROVES) - SDG Entitats\04. Usuaris\Export_usuaris</span>
-                    </div>
-                </div>
-                <div class="bar-actions">
-                    <button class="btn btn-primary-sm" id="btnSyncNow">🔄 Sincronitzar i Actualitzar Dades</button>
-                    <button class="btn btn-outline-sm" id="btnDisconnectFolder">Desconnectar</button>
-                </div>
-            </div>
-        </section>
 
         <!-- Dropzones Section (Hidden if folder connected, unless user chooses to upload manually) -->
         <section class="hidden" id="manualUploadSection" style="display: flex; flex-direction: column; gap: 1.5rem; width: 100%;">
@@ -83,6 +83,9 @@
                             <span class="file-name">Cap fitxer seleccionat</span>
                             <span class="remove-btn" id="removeCat">&times;</span>
                         </div>
+                        <p style="font-size: 0.72rem; color: var(--text-muted); margin-top: 1.25rem; line-height: 1.4; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 0.75rem;">
+                            💡 <strong>Com obtenir el fitxer:</strong> L'excel a carregar s'obté a l'aplicació Catens > Informes > Exportar dades d'ens > Registre del Sector Públic: Entitats incloses i clicar Cercar.
+                        </p>
                     </div>
                 </div>
 
@@ -103,6 +106,9 @@
                             <span class="file-name">Cap fitxer seleccionat</span>
                             <span class="remove-btn" id="removeUsr">&times;</span>
                         </div>
+                        <p style="font-size: 0.72rem; color: var(--text-muted); margin-top: 1.25rem; line-height: 1.4; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 0.75rem;">
+                            💡 <strong>Com obtenir el fitxer:</strong> L'excel a carregar s'obté a l'aplicació Catens > Autoritzacions, marcant la casella Només Vigents > Cercar > Clicar icona d'excel a Export d'autoritzacions.
+                        </p>
                     </div>
                 </div>
             </div>
@@ -152,14 +158,14 @@
         <section class="results-section hidden" id="resultsSection">
             <div class="glass-panel">
                 <div class="panel-header table-actions">
-                    <div class="left-actions">
+                    <div class="left-actions" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">
                         <h2>Taula de Resultats</h2>
-                        <span class="record-count" id="recordCount">0 registres trobats</span>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span class="record-count" id="recordCount">0 registres trobats</span>
+                            <span id="infoUpdateDate" class="hidden" style="font-size: 0.82rem; color: var(--text-secondary); background: rgba(59, 130, 246, 0.1); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(59, 130, 246, 0.2); font-weight: 500;">📅 Data d'actualització: -</span>
+                        </div>
                     </div>
                     <div class="right-actions">
-                        <div class="search-wrapper">
-                            <input type="text" id="searchInput" placeholder="Cerca usuaris, codis, emails...">
-                        </div>
                         <button class="btn btn-success" id="btnExport">
                             <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                             Exportar a Excel (.xlsx)
@@ -178,10 +184,10 @@
                                     </div>
                                     <input type="text" class="column-filter" data-col="codi" placeholder="Filtra..." onclick="event.stopPropagation();">
                                 </th>
-                                <th data-column="ens" class="sortable">
+                                <th data-column="ens" class="sortable sorted-desc">
                                     <div class="header-cell-content">
                                         <span class="header-title">Denominació Ens</span>
-                                        <span class="sort-icon">↕</span>
+                                        <span class="sort-icon">▼</span>
                                     </div>
                                     <input type="text" class="column-filter" data-col="ens" placeholder="Filtra ens..." onclick="event.stopPropagation();">
                                 </th>

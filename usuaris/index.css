@@ -6,9 +6,9 @@
     --accent-indigo: #6366f1;
     --accent-violet: #8b5cf6;
     --accent-green: #10b981;
-    --text-primary: #f3f4f6;
-    --text-secondary: #9ca3af;
-    --text-muted: #6b7280;
+    --text-primary: #ffffff;
+    --text-secondary: #e5e7eb;
+    --text-muted: #b5bbcb;
     --glass-bg: rgba(255, 255, 255, 0.03);
     --glass-border: rgba(255, 255, 255, 0.08);
     --glass-glow: rgba(59, 130, 246, 0.15);
@@ -1025,5 +1025,30 @@ td:nth-child(1) {
     text-align: center !important;
     font-family: 'Outfit', sans-serif !important;
     font-size: 0.82rem !important;
+}
+
+/* Header-integrated SharePoint Bar Override */
+header #sharepointStatusBadge {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+}
+
+header #sharepointStatusBadge .bar-info {
+    font-size: 0.8rem;
+    gap: 0.5rem;
+}
+
+header #sharepointStatusBadge .bar-actions button {
+    padding: 0.3rem 0.65rem !important;
+    font-size: 0.76rem !important;
+}
+
+header #sharepointStatusBadge .flex-bar {
+    flex-direction: column-reverse !important;
+    align-items: flex-end !important;
+    gap: 4px !important;
 }
 
