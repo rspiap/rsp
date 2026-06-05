@@ -54,6 +54,13 @@ let fileDataCat = null;
 let fileDataUsr = null;
 let dateCatModified = null;
 let dateUsrModified = null;
+const DEFAULT_DEPT_MAPPING = {
+    'ECO': 'ECF',
+    'EXT': 'UEX',
+    'ACC': 'ARP',
+    'DSO': 'DSI'
+};
+let departmentMapping = {};
 let mergedResults = [];
 let filteredResults = [];
 let hasClickedSync = false;
@@ -132,6 +139,36 @@ window.addEventListener('DOMContentLoaded', async () => {
         showManualUpload();
     });
     
+    // Load department mapping
+    loadDepartmentMapping();
+    
+    // Bind mapping modal triggers
+    const mappingTriggers = document.querySelectorAll('.btn-show-mapping-trigger');
+    mappingTriggers.forEach(btn => {
+        btn.addEventListener('click', () => {
+            renderMappingRows();
+            const modal = document.getElementById('mappingModal');
+            if (modal) modal.classList.remove('hidden');
+        });
+    });
+    
+    const btnCloseMapping = document.getElementById('btnCloseMapping');
+    if (btnCloseMapping) {
+        btnCloseMapping.addEventListener('click', closeMappingModal);
+    }
+    
+    const btnCancelMapping = document.getElementById('btnCancelMapping');
+    if (btnCancelMapping) {
+        btnCancelMapping.addEventListener('click', closeMappingModal);
+    }
+    
+
+    
+    const btnSaveMapping = document.getElementById('btnSaveMapping');
+    if (btnSaveMapping) {
+        btnSaveMapping.addEventListener('click', saveDepartmentMapping);
+    }
+    
     const btnCancelManualUpload = document.getElementById('btnCancelManualUpload');
     if (btnCancelManualUpload) {
         btnCancelManualUpload.addEventListener('click', async () => {
@@ -169,13 +206,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (btnUploadToSharepoint) {
         btnUploadToSharepoint.addEventListener('click', async () => {
             hasClickedSync = true;
-            if (!directoryHandle) {
-                // Offline mode: hide buttons and process directly!
-                if (btnUploadToSharepoint) btnUploadToSharepoint.classList.add('hidden');
-                if (btnCancelManualUpload) btnCancelManualUpload.classList.add('hidden');
-                btnProcess.click();
-                return;
-            }
             if (!fileDataCat || !fileDataUsr) {
                 alert("Si us plau, puja primer els dos fitxers excel.");
                 return;
@@ -186,27 +216,15 @@ window.addEventListener('DOMContentLoaded', async () => {
             if (btnCancelManualUpload) btnCancelManualUpload.classList.add('hidden');
             
             try {
-                let filesSaved = [];
-                const saveCat = await saveFileToDirectory(directoryHandle, fileDataCat, "Cataleg_dens_export.xls");
-                if (saveCat) filesSaved.push("Cataleg_dens_export.xls");
-                
-                const saveUsr = await saveFileToDirectory(directoryHandle, fileDataUsr, "Export_Usuaris.xls");
-                if (saveUsr) filesSaved.push("Export_Usuaris.xls");
-                
-                if (filesSaved.length === 2) {
-                    btnProcess.click();
-                } else {
-                    alert("⚠️ Hi ha hagut un problema en desar un o ambdós fitxers.");
-                    // Restore button visibility on failure
-                    if (btnUploadToSharepoint) btnUploadToSharepoint.classList.remove('hidden');
-                    if (btnCancelManualUpload) btnCancelManualUpload.classList.remove('hidden');
+                if (directoryHandle) {
+                    // Save files back to SharePoint folder if they were manually uploaded/overridden
+                    await saveFileToDirectory(directoryHandle, fileDataCat, "Cataleg_dens_export.xls");
+                    await saveFileToDirectory(directoryHandle, fileDataUsr, "Export_Usuaris.xls");
                 }
+                btnProcess.click();
             } catch (e) {
-                console.error(e);
-                alert("Error en desar els fitxers: " + e.message);
-                // Restore button visibility on error
-                if (btnUploadToSharepoint) btnUploadToSharepoint.classList.remove('hidden');
-                if (btnCancelManualUpload) btnCancelManualUpload.classList.remove('hidden');
+                console.error("Error durant el desament dels fitxers d'origen, procedint en memòria:", e);
+                btnProcess.click();
             }
         });
     }
@@ -432,7 +450,7 @@ async function syncWithDirectorySilent(handle) {
     try {
         const { fileCat, fileUsr, fileOut } = await loadFilesFromDirectory(handle);
         
-        // 1. Si ja disposem de la fusió pre-calculada, la carreguem directament a l'acte!
+        // 1. Si ja disposem de la fusió pre-calculada, la carreguem directament sense recalcular
         if (fileOut) {
             statusText.textContent = 'Carregant dades desades...';
             const arrayBuffer = await fileOut.arrayBuffer();
@@ -457,26 +475,15 @@ async function syncWithDirectorySilent(handle) {
             const rows = XLSX.utils.sheet_to_json(sheet);
             
             mergedResults = rows.map(r => {
-                if (r['Detall de partícips.Codi Catàleg'] !== undefined || r['Desc. Departament'] !== undefined || r['Nom'] !== undefined) {
-                    return {
-                        'Detall de partícips.Codi Catàleg': r['Detall de partícips.Codi Catàleg'] !== undefined ? r['Detall de partícips.Codi Catàleg'] : null,
-                        'Detall de partícips.Denominació': r['Detall de partícips.Denominació'] !== undefined ? r['Detall de partícips.Denominació'] : null,
-                        'Desc. Departament': r['Desc. Departament'] !== undefined ? r['Desc. Departament'] : null,
-                        'Nom': r['Nom'] !== undefined ? r['Nom'] : null,
-                        'Cognoms': r['Cognoms'] !== undefined ? r['Cognoms'] : null,
-                        'Email': r['Email'] !== undefined ? r['Email'] : null,
-                        'Detall de partícips.Denominació partícip (agregat)': r['Detall de partícips.Denominació partícip (agregat)'] !== undefined ? r['Detall de partícips.Denominació partícip (agregat)'] : null
-                    };
-                }
-                const isDept = r['Denominació Partícip (Agregat)'] === 'Departament';
+                // Read exact columns from sheet
                 return {
-                    'Detall de partícips.Codi Catàleg': r['Codi Catàleg'] || null,
-                    'Detall de partícips.Denominació': isDept ? null : r['Denominació Ens'],
-                    'Desc. Departament': isDept ? r['Denominació Ens'] : null,
-                    'Nom': r['Nom'] || null,
-                    'Cognoms': r['Cognoms'] || null,
-                    'Email': r['Email'] || null,
-                    'Detall de partícips.Denominació partícip (agregat)': isDept ? null : r['Denominació Partícip (Agregat)']
+                    'Detall de partícips.Codi Catàleg': r['Detall de partícips.Codi Catàleg'] !== undefined ? r['Detall de partícips.Codi Catàleg'] : null,
+                    'Detall de partícips.Denominació': r['Detall de partícips.Denominació'] !== undefined ? r['Detall de partícips.Denominació'] : null,
+                    'Desc. Departament': r['Desc. Departament'] !== undefined ? r['Desc. Departament'] : null,
+                    'Nom': r['Nom'] !== undefined ? r['Nom'] : null,
+                    'Cognoms': r['Cognoms'] !== undefined ? r['Cognoms'] : null,
+                    'Email': r['Email'] !== undefined ? r['Email'] : null,
+                    'Detall de partícips.Denominació partícip (agregat)': r['Detall de partícips.Denominació partícip (agregat)'] !== undefined ? r['Detall de partícips.Denominació partícip (agregat)'] : null
                 };
             });
             filteredResults = [...mergedResults];
@@ -508,9 +515,9 @@ async function syncWithDirectorySilent(handle) {
                 fileInfoUsr.classList.add('active');
                 dropZoneUsr.style.display = 'none';
             }
-            return; // Sortida ràpida de la inicialització exitosa!
+            return; // Sortida ràpida
         }
-        
+
         await extractMetadataDatesFromFiles(fileCat, fileUsr);
         updateDateDisplay(dateCatModified, dateUsrModified);
         
@@ -595,90 +602,6 @@ async function syncWithDirectory(handle, forceRecalculate = false) {
         btnDisconnectFolder.style.display = 'inline-block';
         
         const { fileCat, fileUsr, fileOut } = await loadFilesFromDirectory(handle);
-        
-        // 1. Si ja disposem de la fusió pre-calculada i no estem forçant la recàrrega, la carreguem directament!
-        if (fileOut && !forceRecalculate) {
-            statusText.textContent = 'Carregant dades desades...';
-            const arrayBuffer = await fileOut.arrayBuffer();
-            const wb = XLSX.read(new Uint8Array(arrayBuffer), {type: 'array'});
-            
-            // Extract original dates from comments to avoid reading heavy source files
-            if (wb.Props && wb.Props.Comments) {
-                const comments = wb.Props.Comments;
-                const match = comments.match(/CatDate:(\d+)\|UsrDate:(\d+)/);
-                if (match) {
-                    dateCatModified = parseInt(match[1]) || null;
-                    dateUsrModified = parseInt(match[2]) || null;
-                }
-            }
-            if (!dateCatModified && !dateUsrModified) {
-                dateCatModified = fileOut.lastModified;
-                dateUsrModified = fileOut.lastModified;
-            }
-            updateDateDisplay(dateCatModified, dateUsrModified);
-
-            const sheet = wb.Sheets[wb.SheetNames[0]];
-            const rows = XLSX.utils.sheet_to_json(sheet);
-            
-            mergedResults = rows.map(r => {
-                if (r['Detall de partícips.Codi Catàleg'] !== undefined || r['Desc. Departament'] !== undefined || r['Nom'] !== undefined) {
-                    return {
-                        'Detall de partícips.Codi Catàleg': r['Detall de partícips.Codi Catàleg'] !== undefined ? r['Detall de partícips.Codi Catàleg'] : null,
-                        'Detall de partícips.Denominació': r['Detall de partícips.Denominació'] !== undefined ? r['Detall de partícips.Denominació'] : null,
-                        'Desc. Departament': r['Desc. Departament'] !== undefined ? r['Desc. Departament'] : null,
-                        'Nom': r['Nom'] !== undefined ? r['Nom'] : null,
-                        'Cognoms': r['Cognoms'] !== undefined ? r['Cognoms'] : null,
-                        'Email': r['Email'] !== undefined ? r['Email'] : null,
-                        'Detall de partícips.Denominació partícip (agregat)': r['Detall de partícips.Denominació partícip (agregat)'] !== undefined ? r['Detall de partícips.Denominació partícip (agregat)'] : null
-                    };
-                }
-                const isDept = r['Denominació Partícip (Agregat)'] === 'Departament';
-                return {
-                    'Detall de partícips.Codi Catàleg': r['Codi Catàleg'] || null,
-                    'Detall de partícips.Denominació': isDept ? null : r['Denominació Ens'],
-                    'Desc. Departament': isDept ? r['Denominació Ens'] : null,
-                    'Nom': r['Nom'] || null,
-                    'Cognoms': r['Cognoms'] || null,
-                    'Email': r['Email'] || null,
-                    'Detall de partícips.Denominació partícip (agregat)': isDept ? null : r['Denominació Partícip (Agregat)']
-                };
-            });
-            filteredResults = [...mergedResults];
-            
-            statusDot.className = 'status-dot green';
-            statusText.textContent = 'Dades Carregades';
-            btnDisconnectFolder.style.display = 'inline-block';
-            
-            // Mostrar resultats directament a la taula
-            resultsSection.classList.remove('hidden');
-            currentPage = 1;
-            applyFiltersAndSort();
-            
-            // Pre-omplir en segon pla les targetes de càrrega manual
-            fileInfoCat.classList.remove('active');
-            dropZoneCat.style.display = 'block';
-            fileInfoUsr.classList.remove('active');
-            dropZoneUsr.style.display = 'block';
-            
-            if (fileCat) {
-                fileDataCat = new Uint8Array(await fileCat.arrayBuffer());
-                fileInfoCat.querySelector('.file-name').textContent = `${fileCat.name} (SharePoint)`;
-                fileInfoCat.classList.add('active');
-                dropZoneCat.style.display = 'none';
-            }
-            if (fileUsr) {
-                fileDataUsr = new Uint8Array(await fileUsr.arrayBuffer());
-                fileInfoUsr.querySelector('.file-name').textContent = `${fileUsr.name} (SharePoint)`;
-                fileInfoUsr.classList.add('active');
-                dropZoneUsr.style.display = 'none';
-            }
-            if (fileCat && fileUsr) {
-                if (manualUploadSection) manualUploadSection.classList.add('hidden');
-            } else {
-                showManualUpload();
-            }
-            return; // Sortida ràpida de la inicialització exitosa!
-        }
         
         await extractMetadataDatesFromFiles(fileCat, fileUsr);
         updateDateDisplay(dateCatModified, dateUsrModified);
@@ -1008,6 +931,10 @@ btnProcess.addEventListener('click', async () => {
         
         const rowsDepts = XLSX.utils.sheet_to_json(sheetDeptsRaw, {defval: null});
 
+        // Populate unique user departments
+        const rawUserDepts = rowsDepts.map(r => r['Desc. Departament']).filter(Boolean);
+        userDepartments = Array.from(new Set(rawUserDepts)).sort();
+
         const autoritzacioDepts = rowsDepts
             .filter(r => r['Perfil'] !== 'Intervenció')
             .map(r => ({
@@ -1020,13 +947,134 @@ btnProcess.addEventListener('click', async () => {
                 'Detall de partícips.Denominació partícip (agregat)': null
             }));
 
+        // Parse 'Dades entitat' and filter for Generalitat de Catalunya entities
+        const sheetDadesEntitatRaw = wbCat.Sheets['Dades entitat'];
+        const generalitatDeptUsuaris = [];
+        if (sheetDadesEntitatRaw) {
+            // Read starting from header line 2 (index 1)
+            const rowsDadesEntitat = xlsxToObjectsWithDuplicateHeaders(sheetDadesEntitatRaw);
+
+            // Populate unique catalog departments
+            const rawCatDepts = rowsDadesEntitat.map(r => r["Departament d'adscripció"] || r["Departament d'adscripció_1"]).filter(Boolean);
+            catalogDepartments = Array.from(new Set(rawCatDepts)).sort();
+
+            // Create helper function to dynamically search properties
+            const getProp = (obj, partialName) => {
+                const normPartial = normalizeText(partialName);
+                const matchedKey = Object.keys(obj).find(k => normalizeText(k).includes(normPartial));
+                return matchedKey ? obj[matchedKey] : null;
+            };
+
+            // Build a dictionary lookup for Departament d'adscripció, Grau de participació, and Via de participació by Codi Catàleg
+            const entitatDepts = {};
+            const entitatGraus = {};
+            const entitatVies = {};
+
+            rowsDadesEntitat.forEach(entitat => {
+                let codi = null;
+                let deptAdscripcio = null;
+                let grau = null;
+                let via = null;
+
+                for (const key of Object.keys(entitat)) {
+                    const normKey = normalizeText(key);
+                    if (normKey === 'codi cataleg' || normKey === 'codi cataleg_1' || normKey === 'codi') {
+                        codi = entitat[key];
+                    }
+                    if (normKey === 'departament dadscripcio' || normKey === 'departament dadscripcio_1' || normKey === 'departament dadscripcio_2') {
+                        deptAdscripcio = entitat[key];
+                    }
+                    if (normKey === 'grau de participacio' || normKey === 'grau de participacio_1' || normKey === 'grau') {
+                        grau = entitat[key];
+                    }
+                    if (normKey === 'via de participacio' || normKey === 'via de participacio_1' || normKey === 'via') {
+                        via = entitat[key];
+                    }
+                }
+
+                // Fallback to contains search if not matched exactly
+                if (codi === null || codi === undefined) {
+                    const matchedCodiKey = Object.keys(entitat).find(k => normalizeText(k).includes('codi cataleg') || normalizeText(k).includes('codi'));
+                    if (matchedCodiKey) codi = entitat[matchedCodiKey];
+                }
+                if (deptAdscripcio === null || deptAdscripcio === undefined) {
+                    const matchedDeptKey = Object.keys(entitat).find(k => normalizeText(k).includes('adscripcio') || normalizeText(k).includes('departament'));
+                    if (matchedDeptKey) deptAdscripcio = entitat[matchedDeptKey];
+                }
+                if (grau === null || grau === undefined) {
+                    const matchedGrauKey = Object.keys(entitat).find(k => normalizeText(k).includes('grau'));
+                    if (matchedGrauKey) grau = entitat[matchedGrauKey];
+                }
+                if (via === null || via === undefined) {
+                    const matchedViaKey = Object.keys(entitat).find(k => normalizeText(k).includes('via'));
+                    if (matchedViaKey) via = entitat[matchedViaKey];
+                }
+
+                if (codi !== null && codi !== undefined) {
+                    const codiStr = String(codi).trim();
+                    if (deptAdscripcio !== null && deptAdscripcio !== undefined) {
+                        entitatDepts[codiStr] = deptAdscripcio;
+                    }
+                    if (grau !== null && grau !== undefined) {
+                        entitatGraus[codiStr] = grau;
+                    }
+                    if (via !== null && via !== undefined) {
+                        entitatVies[codiStr] = via;
+                    }
+                }
+            });
+
+            // Find all entities with Partícip agregat === "Administració de la Generalitat de Catalunya" from Detall de partícips
+            // AND whose Grau === "Minoritària" and Via === "Directa" in Dades entitat
+            const targetEntitats = detallParticips.filter(part => {
+                const codiStr = String(part['Codi Catàleg']).trim();
+                const isGeneralitat = part['Denominació partícip (agregat)'] === 'Administració de la Generalitat de Catalunya';
+                const grau = normalizeText(entitatGraus[codiStr] || '');
+                const via = normalizeText(entitatVies[codiStr] || '');
+                return isGeneralitat && grau === 'minoritaria' && via === 'directa';
+            });
+
+            targetEntitats.forEach(entitat => {
+                const codi = entitat['Codi Catàleg'];
+                const nom = entitat['Denominació'];
+                const deptAdscripcio = entitatDepts[String(codi).trim()];
+
+                if (codi && deptAdscripcio) {
+                    // Extract leading letters prefix, e.g. "SLT - Departament de Salut" -> "SLT"
+                    const prefixRaw = String(deptAdscripcio).match(/^[A-Z]+/i)?.[0].toUpperCase();
+                    if (prefixRaw) {
+                        // Resolve mapping, e.g. "ECO" -> "ECF"
+                        const mappedPrefix = departmentMapping[prefixRaw] || prefixRaw;
+
+                        // Find users in Autoritzacio a departaments whose department starts with mappedPrefix
+                        rowsDepts.forEach(usr => {
+                            const usrDept = usr['Desc. Departament'] || '';
+                            const usrDeptPrefix = usrDept.match(/^[A-Z]+/i)?.[0].toUpperCase();
+                            
+                            if (usrDeptPrefix === mappedPrefix && usr['Perfil'] !== 'Intervenció') {
+                                generalitatDeptUsuaris.push({
+                                    'Nom': usr['Nom'],
+                                    'Cognoms': usr['Cognoms'],
+                                    'Email': usr['Email'],
+                                    'Desc. Departament': deptAdscripcio, // Show it in the Departament column
+                                    'Detall de partícips.Codi Catàleg': codi,
+                                    'Detall de partícips.Denominació': nom,
+                                    'Detall de partícips.Denominació partícip (agregat)': deptAdscripcio // Set to the department's name as the participant
+                                });
+                            }
+                        });
+                    }
+                }
+            });
+        }
+
         const consultaUsuarisFinalFormatted = consultaUsuarisFinal.map(r => ({
             ...r,
             'Desc. Departament': null
         }));
 
         // Final Combine (Union)
-        mergedResults = [...consultaUsuarisFinalFormatted, ...autoritzacioDepts];
+        mergedResults = [...consultaUsuarisFinalFormatted, ...autoritzacioDepts, ...generalitatDeptUsuaris];
         filteredResults = [...mergedResults];
         
         updateStepStatus('stepDepts', 'completed');
@@ -1083,19 +1131,7 @@ btnProcess.addEventListener('click', async () => {
             
             const wbBinary = XLSX.write(wbOut, {bookType: 'xlsx', type: 'array'});
             
-            let filesSaved = [];
-            
-            // If the user uploaded files manually, write them directly back to the SharePoint folder!
-            if (manualUploadSection && !manualUploadSection.classList.contains('hidden')) {
-                if (fileDataCat) {
-                    const saveCat = await saveFileToDirectory(directoryHandle, fileDataCat, "Cataleg_dens_export.xls");
-                    if (saveCat) filesSaved.push("Cataleg_dens_export.xls");
-                }
-                if (fileDataUsr) {
-                    const saveUsr = await saveFileToDirectory(directoryHandle, fileDataUsr, "Export_Usuaris.xls");
-                    if (saveUsr) filesSaved.push("Export_Usuaris.xls");
-                }
-            }
+
             
             // Save the output merged excel directly
             await saveFileToDirectory(directoryHandle, new Uint8Array(wbBinary), "Consulta usuaris final + depts.xlsx");
@@ -1118,6 +1154,13 @@ btnProcess.addEventListener('click', async () => {
 // Helper to write files directly to directory handles (File System Access API)
 async function saveFileToDirectory(dirHandle, fileData, fileName) {
     try {
+        // To avoid InvalidStateError (browser stale file handle cache), try removing the entry first
+        try {
+            await dirHandle.removeEntry(fileName);
+        } catch (removeErr) {
+            // Ignore if file doesn't exist or can't be removed
+        }
+        
         const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
         const writable = await fileHandle.createWritable();
         await writable.write(fileData);
@@ -1125,7 +1168,7 @@ async function saveFileToDirectory(dirHandle, fileData, fileName) {
         console.log(`Saved ${fileName} directly to local SharePoint directory`);
         return true;
     } catch (e) {
-        console.error(`Failed to save ${fileName} to local SharePoint directory`, e);
+        console.warn(`[OneDrive Sync Warning] No s'ha pogut desar ${fileName} al directori local (fitxer bloquejat per sincronització de Windows/OneDrive):`, e);
         return false;
     }
 }
@@ -1139,9 +1182,39 @@ function xlsxToObjectsWithDuplicateHeaders(sheet) {
     const rows = [];
     const headers = [];
     
+    // Robust header row detection by searching for 'Codi Catàleg' or 'Denominació' in the first few rows
+    let headerRowIndex = range.s.r;
+    for (let r = range.s.r; r <= Math.min(range.s.r + 5, range.e.r); r++) {
+        let isHeaderRow = false;
+        for (let col = range.s.c; col <= range.e.c; col++) {
+            const cell = sheet[XLSX.utils.encode_cell({r: r, c: col})];
+            if (cell && cell.v) {
+                const normVal = normalizeText(String(cell.v));
+                if (normVal.includes('codi cataleg') || normVal.includes('codi cat') || normVal.includes('denominacio')) {
+                    isHeaderRow = true;
+                    break;
+                }
+            }
+        }
+        if (isHeaderRow) {
+            headerRowIndex = r;
+            break;
+        }
+    }
+    
     for (let col = range.s.c; col <= range.e.c; col++) {
-        const cell = sheet[XLSX.utils.encode_cell({r: range.s.r, c: col})];
-        let val = cell ? cell.v : `Column${col + 1}`;
+        const cell = sheet[XLSX.utils.encode_cell({r: headerRowIndex, c: col})];
+        let val = cell ? String(cell.v).trim() : `Column${col + 1}`;
+        
+        // Normalize column header character replacements (e.g.  or other encoding glitches -> standard Catalan characters)
+        val = val.replace(/[\uFFFD\u00A0\u00AD\u0080-\u00FF]/g, (match, offset, string) => {
+            const prevChar = string.slice(0, offset).toLowerCase();
+            if (prevChar.endsWith('cat')) return 'à';
+            if (prevChar.endsWith('denominaci') || prevChar.endsWith('participaci') || prevChar.endsWith('adscripci')) return 'ó';
+            if (prevChar.endsWith('presid') || prevChar.endsWith('just')) return 'è';
+            if (prevChar.endsWith('part') && string.slice(offset + 1).startsWith('cip')) return 'í';
+            return 'ó'; // Default fallback for Catalan XLS headers commonly carrying 'ó' (e.g. Denominació, adscripció, participació)
+        });
         
         let finalVal = val;
         let count = 1;
@@ -1152,7 +1225,7 @@ function xlsxToObjectsWithDuplicateHeaders(sheet) {
         headers.push(finalVal);
     }
     
-    for (let r = range.s.r + 1; r <= range.e.r; r++) {
+    for (let r = headerRowIndex + 1; r <= range.e.r; r++) {
         const rowObj = {};
         let hasData = false;
         
@@ -1197,7 +1270,7 @@ function renderTable() {
         const email = row['Email'] || '-';
         
         // Visual badge for departments
-        if (row['Desc. Departament']) {
+        if (row['Desc. Departament'] && !row['Detall de partícips.Codi Catàleg']) {
             dept = `<span style="color:var(--accent-violet); font-size:0.8rem; font-weight:600; background:rgba(139,92,246,0.1); padding:2px 8px; border-radius:4px;">${row['Desc. Departament']}</span>`;
             particip = `<span style="color:var(--text-muted); font-size:0.8rem;">DEPARTAMENT</span>`;
         }
@@ -1452,3 +1525,196 @@ async function extractMetadataDatesFromFiles(fileCat, fileUsr) {
         }
     }
 }
+
+// State variables for departments extracted from excels
+let catalogDepartments = []; // Extracted from Cataleg_dens_export (Dades entitat -> Departament d'adscripció)
+let userDepartments = [];    // Extracted from Export_Usuaris (Autoritzacio a departaments -> Desc. Departament)
+
+// --- DEPARTMENT MAPPING ENGINE & MODAL FUNCTIONS ---
+function loadDepartmentMapping() {
+    try {
+        const stored = localStorage.getItem('gpg_department_mapping');
+        if (stored) {
+            departmentMapping = JSON.parse(stored);
+        } else {
+            departmentMapping = { ...DEFAULT_DEPT_MAPPING };
+        }
+    } catch (e) {
+        console.error("Error loading department mapping, fallback to default", e);
+        departmentMapping = { ...DEFAULT_DEPT_MAPPING };
+    }
+}
+
+function saveDepartmentMapping() {
+    const container = document.getElementById('mappingListContainer');
+    if (!container) return;
+    
+    const rows = container.querySelectorAll('.mapping-row');
+    const newMapping = {};
+    
+    rows.forEach(row => {
+        const selects = row.querySelectorAll('select');
+        if (selects.length === 2) {
+            const key = selects[0].value.trim().toUpperCase();
+            const val = selects[1].value.trim().toUpperCase();
+            
+            if (key && val) {
+                newMapping[key] = val;
+            }
+        }
+    });
+    
+    departmentMapping = newMapping;
+    try {
+        localStorage.setItem('gpg_department_mapping', JSON.stringify(departmentMapping));
+    } catch (e) {
+        console.error("Could not write to localStorage", e);
+    }
+    
+    closeMappingModal();
+    
+    // If we already have data loaded, trigger reprocessing to apply the new mapping rules
+    if (fileDataCat && fileDataUsr) {
+        btnProcess.click();
+    }
+}
+
+function renderMappingRows() {
+    const container = document.getElementById('mappingListContainer');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    // Determine the list of keys to display: either current mapping keys or any catalog prefix we extracted
+    const currentKeys = new Set(Object.keys(departmentMapping));
+    catalogDepartments.forEach(dept => {
+        const prefix = dept.split(/[\s\-]/)[0].trim().toUpperCase();
+        if (prefix) currentKeys.add(prefix);
+    });
+    
+    // If we don't have files loaded yet, use DEFAULT_DEPT_MAPPING keys
+    if (currentKeys.size === 0) {
+        Object.keys(DEFAULT_DEPT_MAPPING).forEach(k => currentKeys.add(k));
+    }
+
+    Array.from(currentKeys).sort().forEach(key => {
+        const value = departmentMapping[key] || '';
+        const row = createMappingRowElement(key, value);
+        container.appendChild(row);
+    });
+}
+
+function createMappingRowElement(key, value) {
+    const div = document.createElement('div');
+    div.className = 'mapping-row';
+    div.style.display = 'flex';
+    div.style.alignItems = 'center';
+    div.style.gap = '10px';
+    
+    // Dropdown for catalog prefix (fixed to the extracted/mapped key)
+    const selectKey = document.createElement('select');
+    selectKey.className = 'mapping-input';
+    selectKey.style.flex = '1';
+    selectKey.style.background = '#1e1b4b';
+    selectKey.style.color = '#e5e7eb';
+    selectKey.style.border = '1px solid var(--glass-border)';
+    selectKey.style.padding = '0.5rem';
+    selectKey.style.borderRadius = '6px';
+    
+    // Populate selectKey with catalog departments or fallback
+    let catOptions = catalogDepartments.map(d => {
+        const prefix = d.split(/[\s\-]/)[0].trim().toUpperCase();
+        return { prefix, label: d };
+    });
+    // Remove duplicates
+    catOptions = catOptions.filter((v, i, a) => a.findIndex(t => t.prefix === v.prefix) === i);
+    
+    if (catOptions.length === 0) {
+        // Fallback options
+        const fallbacks = ['ECO', 'EXT', 'ACC', 'DSO', 'CLT', 'REU', 'SLT', 'PRE', 'EMT', 'TER', 'JUS'];
+        fallbacks.forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f;
+            opt.textContent = f;
+            if (f === key) opt.selected = true;
+            selectKey.appendChild(opt);
+        });
+    } else {
+        catOptions.forEach(optData => {
+            const opt = document.createElement('option');
+            opt.value = optData.prefix;
+            opt.textContent = optData.label;
+            if (optData.prefix === key) opt.selected = true;
+            selectKey.appendChild(opt);
+        });
+    }
+    
+    const arrow = document.createElement('span');
+    arrow.textContent = '➔';
+    arrow.style.color = 'var(--text-muted)';
+    arrow.style.width = '30px';
+    arrow.style.textAlign = 'center';
+    
+    // Dropdown for target user departments
+    const selectValue = document.createElement('select');
+    selectValue.className = 'mapping-input';
+    selectValue.style.flex = '1';
+    selectValue.style.background = '#1e1b4b';
+    selectValue.style.color = '#e5e7eb';
+    selectValue.style.border = '1px solid var(--glass-border)';
+    selectValue.style.padding = '0.5rem';
+    selectValue.style.borderRadius = '6px';
+    
+    // Populate selectValue with user departments or fallback
+    let usrOptions = userDepartments.map(d => {
+        const prefix = d.split(/[\s\-]/)[0].trim().toUpperCase();
+        return { prefix, label: d };
+    });
+    // Remove duplicates
+    usrOptions = usrOptions.filter((v, i, a) => a.findIndex(t => t.prefix === v.prefix) === i);
+    
+    // Add default empty/identity option
+    const optDefault = document.createElement('option');
+    optDefault.value = key; // If not explicitly mapped, default is matching itself
+    optDefault.textContent = `Sense equivalència (${key})`;
+    selectValue.appendChild(optDefault);
+
+    if (usrOptions.length === 0) {
+        // Fallback options
+        const fallbacks = ['ECF', 'UEX', 'ARP', 'DSI', 'CLT', 'REU', 'SLT', 'PRE', 'EMT', 'TER', 'JUS'];
+        fallbacks.forEach(f => {
+            if (f === key) return; // Already covered by default option
+            const opt = document.createElement('option');
+            opt.value = f;
+            opt.textContent = f;
+            if (f === value) opt.selected = true;
+            selectValue.appendChild(opt);
+        });
+    } else {
+        usrOptions.forEach(optData => {
+            if (optData.prefix === key) {
+                // Update default option text to full label if match
+                optDefault.textContent = optData.label;
+                return;
+            }
+            const opt = document.createElement('option');
+            opt.value = optData.prefix;
+            opt.textContent = optData.label;
+            if (optData.prefix === value) opt.selected = true;
+            selectValue.appendChild(opt);
+        });
+    }
+    
+    div.appendChild(selectKey);
+    div.appendChild(arrow);
+    div.appendChild(selectValue);
+    
+    return div;
+}
+
+function closeMappingModal() {
+    const modal = document.getElementById('mappingModal');
+    if (modal) modal.classList.add('hidden');
+}
+
+

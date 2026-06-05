@@ -35,6 +35,7 @@
                         <span id="statusText" style="font-size: 0.8rem;">SharePoint no connectat</span>
                     </div>
                     <div class="bar-actions" id="assistantActions">
+                        <button class="btn btn-outline-sm btn-show-mapping-trigger" style="border-color: rgba(255,255,255,0.15) !important; color: #a5b4fc !important; margin-right: 2px;">⚙️ Mapeigs</button>
                         <button class="btn btn-primary-sm" id="btnConnectFolder">📂 Connectar carpeta</button>
                         <div class="auto-sync-status hidden" id="autoSyncStatus" style="display:inline-flex; align-items:center; gap:8px;">
                             <span style="font-size:0.85rem;" id="syncProgressText">Cercant...</span>
@@ -53,6 +54,7 @@
                         </div>
                     </div>
                     <div class="bar-actions">
+                        <button class="btn btn-outline-sm btn-show-mapping-trigger" id="btnShowMapping" style="border-color: rgba(255,255,255,0.15) !important; color: #a5b4fc !important; margin-right: 2px;">⚙️ Mapeigs</button>
                         <button class="btn btn-primary-sm" id="btnSyncNow">🔄 Actualitzar</button>
                         <button class="btn btn-outline-sm" id="btnDisconnectFolder">Desconnectar</button>
                     </div>
@@ -242,6 +244,36 @@
             </div>
         </section>
     </main>
+
+    <!-- Modal per editar equivalències de departaments -->
+    <div id="mappingModal" class="modal-overlay hidden">
+        <div class="modal-content glass-panel" style="max-width: 550px; width: 90%; margin: 10% auto; padding: 2rem; position: relative; max-height: 80vh; overflow-y: auto;">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 1rem; margin-bottom: 1.5rem;">
+                <h3 style="margin: 0; font-size: 1.3rem;">⚙️ Mapeig de Departaments</h3>
+                <span class="close-modal" id="btnCloseMapping" style="cursor: pointer; font-size: 1.8rem; font-weight: bold; color: var(--text-muted); line-height: 1;">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1.5rem; line-height: 1.4;">
+                    Configureu les correspondències entre els acrònims dels departaments quan no coincideixen exactament entre el Catàleg i la llista d'usuaris (exemple: ECO ➔ ECF).
+                </p>
+                
+                <div style="display: flex; font-size: 0.75rem; font-weight: 700; color: var(--accent-indigo); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; padding-bottom: 0.25rem; border-bottom: 1px dashed rgba(255,255,255,0.06);">
+                    <div style="flex: 1; padding-left: 5px;">Acrònim Catàleg</div>
+                    <div style="width: 40px; text-align: center;">➔</div>
+                    <div style="flex: 1; padding-left: 5px;">Acrònim Usuaris</div>
+                    <div style="width: 40px;"></div>
+                </div>
+
+                <div class="mapping-list" id="mappingListContainer" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    <!-- Es renderitzarà dinàmicament des de JS -->
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 1.75rem; padding-top: 1rem; border-top: 1px solid var(--glass-border);">
+                <button class="btn btn-outline" id="btnCancelMapping" style="padding: 0.5rem 1.25rem; font-size: 0.85rem;">Cancel·lar</button>
+                <button class="btn btn-primary" id="btnSaveMapping" style="padding: 0.5rem 1.5rem; font-size: 0.85rem;">Desar configuració</button>
+            </div>
+        </div>
+    </div>
 
     <footer>
         <p>&copy; 2026 Subdirecció General d'Entitats i Participacions de la Generalitat</p>
