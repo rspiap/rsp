@@ -1096,7 +1096,7 @@ btnProcess.addEventListener('click', async () => {
         // --- AUTOMATIC FILE WRITING TO SHAREPOINT ---
         if (directoryHandle) {
             // 1. Generate output Excel binary data using SheetJS
-            const exportData = filteredResults.map(r => ({
+            const exportData = mergedResults.map(r => ({
                 'Detall de partícips.Codi Catàleg': r['Detall de partícips.Codi Catàleg'],
                 'Detall de partícips.Denominació': r['Detall de partícips.Denominació'],
                 'Detall de partícips.Denominació partícip (agregat)': r['Detall de partícips.Denominació partícip (agregat)'],
@@ -1135,6 +1135,10 @@ btnProcess.addEventListener('click', async () => {
             
             // Save the output merged excel directly
             await saveFileToDirectory(directoryHandle, new Uint8Array(wbBinary), "Consulta usuaris final + depts.xlsx");
+
+            // Also save as CSV for easy direct consumption by other applications
+            const csvString = XLSX.utils.sheet_to_csv(wsOut);
+            await saveFileToDirectory(directoryHandle, new TextEncoder().encode(csvString), "Consulta usuaris final + depts.csv");
         }
         
     } catch (err) {
