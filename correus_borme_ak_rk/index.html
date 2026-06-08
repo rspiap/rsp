@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ca">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BORME — Generador de Correu</title>
+    <meta name="description" content="Generador automàtic de correus a partir de PDFs del BORME utilitzant Gemini AI">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-main" style="display: flex; align-items: center; justify-content: space-between; max-width: 800px; margin: 0 auto 0.5rem auto; gap: 1rem;">
+                <div class="logo" style="margin-bottom: 0;">
+                    <div class="logo-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                            <line x1="16" y1="13" x2="8" y2="13" />
+                            <line x1="16" y1="17" x2="8" y2="17" />
+                            <polyline points="10 9 9 9 8 9" />
+                        </svg>
+                    </div>
+                    <h1 style="margin-bottom: 0;">BORME <span class="accent">Mail Generator</span></h1>
+                </div>
+                <button class="btn-settings" id="btnSettings" title="Configuració de la base de dades" style="display: flex; align-items: center; gap: 0.5rem; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.2); color: var(--text-primary); padding: 0.5rem 0.85rem; border-radius: var(--radius-sm); font-size: 0.82rem; font-weight: 500; cursor: pointer; transition: all 0.2s;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                    Configurar BBDD
+                </button>
+            </div>
+            <p class="subtitle">Extreu dades de PDFs del BORME i genera correus automàticament amb Gemini AI</p>
+        </header>
+
+         <!-- Main Content -->
+         <main class="main-content">
+             <!-- Top Section: 2 Columns -->
+             <div class="top-section">
+                 <!-- Left Panel: Inputs -->
+                 <section class="panel input-panel">
+                     <div class="panel-header">
+                         <h2>
+                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                 <circle cx="12" cy="12" r="3" />
+                                 <path
+                                     d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                             </svg>
+                             Configuració
+                         </h2>
+                     </div>
+ 
+                     <!-- API Key -->
+                     <div class="form-group">
+                         <label for="apiKey">
+                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                 <path
+                                     d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+                             </svg>
+                             Clau API de Gemini
+                         </label>
+                         <input type="password" id="apiKey" placeholder="Enganxa la teva clau API de Google AI Studio"
+                             autocomplete="off">
+                         <small class="hint">Obté la teva clau a <a href="https://aistudio.google.com/apikey" target="_blank"
+                                 rel="noopener">Google AI Studio</a></small>
+                     </div>
+ 
+                     <!-- Model Selector -->
+                     <div class="form-group">
+                         <label for="modelSelect">
+                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                 <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                                 <polyline points="2 17 12 22 22 17" />
+                                 <polyline points="2 12 12 17 22 12" />
+                             </svg>
+                             Model de Gemini
+                         </label>
+                         <select id="modelSelect">
+                             <option value="gemini-2.5-flash">Gemini 2.5 Flash (recomanat)</option>
+                             <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                             <option value="gemini-1.5-pro">Gemini 1.5 Pro (legacy)</option>
+                             <option value="gemini-1.5-flash">Gemini 1.5 Flash (legacy)</option>
+                         </select>
+                     </div>
+ 
+                     <!-- Entity Name -->
+                     <div class="form-group autocomplete-container" style="position: relative;">
+                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                             <label for="entityName" style="margin-bottom: 0;">
+                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                     <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                                     <polyline points="9 22 9 12 15 12 15 22" />
+                                 </svg>
+                                 Nom de l'entitat
+                             </label>
+                             <span id="csvConnectionStatusBadge" class="connection-badge unconnected" style="font-size: 0.7rem; font-weight: 600; padding: 0.15rem 0.45rem; border-radius: 4px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.02em;" title="Clica per configurar el CSV">Sense fitxer</span>
+                         </div>
+                         <input type="text" id="entityName"
+                             placeholder="p. ex. Fundació Institut de Ciències Fotòniques (ICFO)" autocomplete="off">
+                         <div class="autocomplete-list" id="autocompleteList" style="display: none;"></div>
+                     </div>
+ 
+                     <!-- PDF Upload -->
+                     <div class="form-group">
+                         <label>
+                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                 <polyline points="17 8 12 3 7 8" />
+                                 <line x1="12" y1="3" x2="12" y2="15" />
+                             </svg>
+                             Fitxers PDF del BORME
+                         </label>
+                         <div class="drop-zone" id="dropZone">
+                             <div class="drop-zone-content">
+                                 <div class="drop-icon">
+                                     <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                         stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                         <polyline points="14 2 14 8 20 8" />
+                                     </svg>
+                                 </div>
+                                 <p>Arrossega els PDFs aquí o <span class="browse-link">cerca'ls</span></p>
+                                 <small>Només fitxers .pdf</small>
+                             </div>
+                             <input type="file" id="pdfInput" multiple accept=".pdf" hidden>
+                         </div>
+                         <div class="file-list" id="fileList"></div>
+                     </div>
+                 </section>
+
+                 <!-- Right Panel: Found Data -->
+                 <section class="panel data-panel">
+                     <div class="panel-header">
+                         <h2>
+                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                             </svg>
+                             Dades Trobades
+                         </h2>
+                     </div>
+                     
+                     <div class="empty-data-state" id="emptyDataState">
+                         <div class="empty-icon" style="margin-bottom: 1rem; color: var(--text-muted); opacity: 0.5;">
+                             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                 <polyline points="14 2 14 8 20 8"></polyline>
+                                 <line x1="16" y1="13" x2="8" y2="13"></line>
+                                 <line x1="16" y1="17" x2="8" y2="17"></line>
+                                 <polyline points="10 9 9 9 8 9"></polyline>
+                             </svg>
+                         </div>
+                         <p style="color: var(--text-secondary); font-size: 0.95rem; text-align: center;">Les dades dels usuaris apareixeran aquí</p>
+                     </div>
+
+                     <!-- Entity Data Panel (CSV Extracted info) -->
+                     <div class="entity-data-panel" id="entityDataPanel" style="display: none; background: transparent; border: none; padding: 0; margin-top: 0; animation: fadeIn 0.4s ease both;">
+                         <div class="entity-data-header" style="margin-bottom: 1.5rem;">
+                             <h3 id="selectedEntityTitle" style="color: var(--text-primary); font-size: 1.15rem; font-weight: 600; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; margin: 0;"></h3>
+                         </div>
+                         <div class="entity-data-section">
+                             <label class="section-label" id="entitiesCountLabel">Entitats cercades</label>
+                             <div class="entities-list" id="entitiesList"></div>
+                         </div>
+     
+                         <div class="entity-data-section">
+                             <div class="emails-header">
+                                 <label class="section-label">Correus dels usuaris</label>
+                                 <button class="btn-copy-emails" id="copyEmailsBtn" title="Copiar tots els correus">
+                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                     Copiar
+                                 </button>
+                             </div>
+                             <div class="emails-list" id="emailsList" style="max-height: 400px;"></div>
+                         </div>
+                     </div>
+                 </section>
+             </div>
+
+             <!-- Bottom Section: Actions & Output -->
+             <div class="bottom-section">
+                 <!-- Generate Action Container -->
+                 <div class="generate-action-container">
+                     <!-- Generate Button -->
+                     <button class="btn-generate btn-generate-large" id="generateBtn" disabled>
+                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round">
+                             <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                         </svg>
+                         Generar Correu
+                     </button>
+                 </div>
+
+                 <!-- Output Panel -->
+                 <section class="panel output-panel">
+                     <div class="panel-header">
+                         <h2>
+                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                                 <polyline points="22,6 12,13 2,6" />
+                             </svg>
+                             Correu Generat
+                         </h2>
+                         <button class="btn-copy" id="copyBtn" title="Copiar al porta-retalls" style="display:none;">
+                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                             </svg>
+                             Copiar
+                         </button>
+                     </div>
+     
+                     <!-- Loading State -->
+                     <div class="loading-state" id="loadingState" style="display:none;">
+                         <div class="spinner"></div>
+                         <p>Processant PDFs amb Gemini AI...</p>
+                         <small>Això pot trigar uns segons</small>
+                     </div>
+     
+                     <!-- Empty State -->
+                     <div class="empty-state" id="emptyState">
+                         <div class="empty-icon">
+                             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                                 <polyline points="22,6 12,13 2,6" />
+                             </svg>
+                         </div>
+                         <p>El correu apareixerà aquí</p>
+                         <small>Puja els teus PDFs i clica "Generar Correu"</small>
+                     </div>
+     
+                     <!-- Output Content -->
+                     <div class="output-content output-content-large" id="outputContent" style="display:none;"></div>
+     
+                     <!-- Error State -->
+                     <div class="error-state" id="errorState" style="display:none;">
+                         <div class="error-icon">⚠️</div>
+                         <p class="error-title">Error</p>
+                         <p class="error-message" id="errorMessage"></p>
+                     </div>
+                 </section>
+             </div>
+
+             <!-- Entity mismatch modal (Moved outside flow to absolute) -->
+             <div class="modal-backdrop" id="mismatchBackdrop" style="display:none;">
+                 <div class="mismatch-modal">
+                     <div class="mismatch-modal-icon">
+                         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                     </div>
+                     <h2 class="mismatch-modal-title">L'entitat detectada no coincideix</h2>
+                     <p class="mismatch-modal-desc">El fitxer afegit pertany a una entitat diferent de l'actual:</p>
+                     <div class="mismatch-entities">
+                         <div class="mismatch-entity-row">
+                             <span class="mismatch-label">Actual</span>
+                             <span class="mismatch-value" id="mismatchCurrentEntity"></span>
+                         </div>
+                         <div class="mismatch-arrow">&#8595;</div>
+                         <div class="mismatch-entity-row detected">
+                             <span class="mismatch-label">Detectada</span>
+                             <span class="mismatch-value" id="mismatchNewEntity"></span>
+                         </div>
+                     </div>
+                     <p class="mismatch-modal-question">Què vols fer?</p>
+                     <div class="mismatch-modal-actions">
+                         <button class="btn-mismatch btn-mismatch-undo"    id="btnMismatchUndo">Desfer canvis</button>
+                         <button class="btn-mismatch btn-mismatch-replace"  id="btnMismatchReplace">Substituir entitat</button>
+                         <button class="btn-mismatch btn-mismatch-keep"    id="btnMismatchKeep">Mantenir entitat</button>
+                     </div>
+                 </div>
+             </div>
+        </main>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal" style="display: none;">
+        <div class="modal-card" style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius-lg); width: 100%; max-width: 500px; padding: 1.75rem; box-shadow: var(--shadow-lg); position: relative;">
+            <div class="modal-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                <h2 style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin: 0;">Configuració Base de Dades</h2>
+                <button class="btn-close-modal" id="btnCloseModal" title="Tancar" style="background: none; border: none; color: var(--text-muted); font-size: 1.2rem; cursor: pointer; transition: color 0.2s;">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-desc" style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.5rem; line-height: 1.5;">
+                    Vincula el fitxer de dades dels usuaris des de la seva ubicació a OneDrive per assegurar que sempre es sincronitzin les dades més recents automàticament al iniciar l'aplicació.
+                </p>
+                
+                <div class="csv-container" id="csvContainer">
+                    <!-- Unconnected State -->
+                    <div class="csv-unconnected" id="csvUnconnectedState" style="width: 100%;">
+                        <div class="drop-zone csv-drop-zone" id="csvDropZone" style="width: 100%; border: 1px dashed var(--border-hover); padding: 1.75rem 1rem; text-align: center; border-radius: var(--radius-md); cursor: pointer; transition: all 0.3s ease; background: rgba(15, 23, 42, 0.25);">
+                            <div class="drop-zone-content">
+                                <div class="drop-icon" style="margin-bottom: 0.5rem; color: var(--accent-1);">
+                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                                    </svg>
+                                </div>
+                                <p style="font-size: 0.85rem; font-weight: 600; margin-bottom: 0.2em; color: var(--text-primary);">Arrossega el CSV d'OneDrive aquí</p>
+                                <small style="color: var(--text-muted); font-size: 0.72rem; display: block; margin-bottom: 0.6rem;">per vincular-lo de manera persistent</small>
+                                <button class="btn-link-csv" id="btnLinkCSV" type="button" style="width: auto; display: inline-flex; margin: 0 auto; padding: 0.45rem 1rem; border: 1px solid var(--accent-1); background: rgba(99, 102, 241, 0.1);">
+                                    Cerca el fitxer a OneDrive
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Connected State -->
+                    <div class="csv-connected" id="csvConnectedState" style="display: none;">
+                        <div class="csv-file-info">
+                            <div class="csv-file-icon">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                    <polyline points="14 2 14 8 20 8" />
+                                </svg>
+                            </div>
+                            <div class="csv-file-details">
+                                <span class="csv-filename" id="connectedFileName">NomDelFitxer.csv</span>
+                                <span class="csv-file-status" id="connectedFileStatus">Pendent de permís</span>
+                            </div>
+                        </div>
+                        <div class="csv-actions">
+                            <button class="btn-grant" id="btnGrantAccess" type="button">
+                                Permetre accés i actualitzar
+                            </button>
+                            <button class="btn-refresh" id="btnRefreshCSV" type="button" style="display: none;">
+                                Actualitzar dades
+                            </button>
+                            <button class="btn-unlink" id="btnUnlinkCSV" type="button">
+                                Desvincular
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+
+</html>
