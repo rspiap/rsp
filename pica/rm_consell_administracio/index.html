@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PICA Extractor - Registre Mercantil</title>
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    </script>
+    <!-- ExcelJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    
+    <style>
+        :root {
+            --primary: #1E3A8A; /* Formal dark blue */
+            --primary-light: #EFF6FF;
+            --bg-color: #F5F7FA;
+            --text-color: #333;
+            --border-color: #E2E8F0;
+        }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: var(--primary);
+            margin-bottom: 30px;
+            font-size: 2.2rem;
+            text-align: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 1100px;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        .drop-zone {
+            border: 3px dashed #CBD5E1;
+            border-radius: 12px;
+            padding: 50px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background-color: #F8FAFC;
+            margin-bottom: 30px;
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: var(--primary);
+            background-color: var(--primary-light);
+        }
+        .drop-zone p {
+            margin: 0;
+            font-size: 1.2rem;
+            color: #64748B;
+        }
+        .drop-zone.active {
+            border-color: var(--primary);
+            background-color: var(--primary-light);
+            color: var(--primary);
+        }
+        input[type="file"] {
+            display: none;
+        }
+        
+        .table-container {
+            overflow-x: auto;
+            margin-bottom: 30px;
+            display: none; /* Amagat inicialment */
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            white-space: nowrap; /* Evita que el text salti de línia */
+        }
+        th {
+            background-color: #F1F5F9;
+            font-weight: 600;
+            color: #475569;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        tr:nth-child(even) {
+            background-color: #F8FAFC;
+        }
+        .expired {
+            color: #DC2626;
+            font-weight: bold;
+        }
+        
+        .btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            font-size: 1.1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.2s;
+            display: block;
+            margin: 0 auto;
+            display: none; /* Amagat inicialment */
+        }
+        .btn:hover {
+            background-color: #1B5E20;
+        }
+        
+        .loading {
+            text-align: center;
+            display: none;
+            margin: 20px 0;
+            color: #64748B;
+            font-size: 1.1rem;
+        }
+        
+        .company-info {
+            background-color: #F1F5F9;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .company-info div {
+            margin-bottom: 5px;
+        }
+        .company-info span {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Consell Administració RM</h1>
+    
+    <div class="container">
+        <div class="drop-zone" id="dropZone">
+            <p id="dropZoneText">Arrossega un PDF aquí<br>o fes clic per seleccionar</p>
+            <input type="file" id="fileInput" accept="application/pdf">
+        </div>
+        
+        <div class="loading" id="loading">Processant PDF, si us plau espera...</div>
+        
+        <div class="company-info" id="companyInfo">
+            <div><span>Denominació:</span> <span id="valDenominacion"></span></div>
+            <div><span>NIF:</span> <span id="valNif"></span></div>
+        </div>
+        
+        <div class="table-container" id="tableContainer">
+            <table id="dataTable">
+                <thead>
+                    <tr>
+                        <th>DNI</th>
+                        <th>Cognoms</th>
+                        <th>Nom</th>
+                        <th>Nomenament</th>
+                        <th>Duració</th>
+                        <th>Rol al CA</th>
+                        <th>Data rol</th>
+                        <th>Duració rol</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Dades injectades amb JS -->
+                </tbody>
+            </table>
+        </div>
+        
+        <button class="btn" id="btnExport">Descarregar Excel</button>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const dropZoneText = document.getElementById('dropZoneText');
+        const loading = document.getElementById('loading');
+        const tableContainer = document.getElementById('tableContainer');
+        const companyInfo = document.getElementById('companyInfo');
+        const tableBody = document.getElementById('tableBody');
+        const btnExport = document.getElementById('btnExport');
+        const valDenominacion = document.getElementById('valDenominacion');
+        const valNif = document.getElementById('valNif');
+        
+        let extractedData = [];
+        let extractedDenominacion = '';
+        let extractedNif = '';
+        let extractedExpedida = '';
+
+        // --- Drag and Drop Logic ---
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length > 0 && files[0].type === 'application/pdf') {
+                processFile(files[0]);
+            } else {
+                alert("Si us plau, selecciona un arxiu PDF.");
+            }
+        });
+        
+        fileInput.addEventListener('change', function() {
+            if (this.files.length > 0) {
+                processFile(this.files[0]);
+            }
+        });
+
+        // --- PDF Processing ---
+        async function processFile(file) {
+            dropZoneText.innerHTML = `Processant: <strong>${file.name}</strong>`;
+            dropZone.classList.add('active');
+            loading.style.display = 'block';
+            tableContainer.style.display = 'none';
+            btnExport.style.display = 'none';
+            companyInfo.style.display = 'none';
+            
+            try {
+                const text = await extractTextFromPDF(file);
+                parseText(text);
+                renderTable();
+            } catch (err) {
+                console.error(err);
+                alert("Error processant el PDF: " + err.message);
+                dropZoneText.innerHTML = "Arrossega un PDF aquí<br>o fes clic per seleccionar";
+                dropZone.classList.remove('active');
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+        
+        async function extractTextFromPDF(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+            let fullText = "";
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                
+                // Ordenar els elements per coordenades Y i X per reconstruir les línies de text
+                let items = textContent.items.sort((a, b) => {
+                    let yA = a.transform[5];
+                    let yB = b.transform[5];
+                    // Si la diferència de Y és més gran que 4, considerem que estan en línies diferents
+                    if (Math.abs(yA - yB) > 4) {
+                        return yB - yA; // pdf.js Y creix cap a dalt, per tant ordenem de gran a petit
+                    }
+                    // Si estan a la mateixa línia, ordenem per X (d'esquerra a dreta)
+                    return a.transform[4] - b.transform[4];
+                });
+                
+                let text = "";
+                let lastY = -1;
+                for (let item of items) {
+                    let str = item.str.trim();
+                    if (!str) continue;
+                    
+                    if (lastY !== -1 && Math.abs(lastY - item.transform[5]) > 4) {
+                        text += "\n";
+                    } else if (text.length > 0 && !text.endsWith("\n") && !text.endsWith(" ")) {
+                        text += " ";
+                    }
+                    text += str;
+                    lastY = item.transform[5];
+                }
+                
+                fullText += text + "\n\n";
+            }
+            return fullText;
+        }
+        
+        // Formateig de text
+        function toTitleCase(str) {
+            if (!str) return "";
+            return str.toLowerCase().replace(/(?:^|\s|-)\S/g, function(a) { return a.toUpperCase(); });
+        }
+        function toCapitalize(str) {
+            if (!str) return "";
+            str = str.toLowerCase();
+            return str.charAt(0).toUpperCase() + str.slice(1);
+        }
+        
+        function parseText(text) {
+            // Netejar dobles espais
+            text = text.replace(/\s+/g, ' ');
+            
+            // Extreure Denominación i NIF
+            const matchDenom = text.match(/Denominación\s*:\s*(.*?)\s+(?:\d{2}\/\d{2}\/\d{4}|Inicio de Operaciones|Domicilio Social)/i);
+            extractedDenominacion = matchDenom ? matchDenom[1].trim() : '';
+            
+            let matchNif = text.match(/N\.I\.F\.\s*:\s*([A-Z0-9]+)/i);
+            extractedNif = matchNif ? matchNif[1].trim() : '';
+            if (!extractedNif) {
+                matchNif = text.match(/([A-Z0-9]{9})\s+EUID/i);
+                extractedNif = matchNif ? matchNif[1].trim() : '';
+            }
+            
+            // Extreure data expedició
+            const matchExpedida = text.match(/Expedida el día:\s*(\d{2})\/(\d{2})\/(\d{4})/i);
+            if (matchExpedida) {
+                // Convertim dd/mm/yyyy a yyyymmdd per a arxius
+                extractedExpedida = `${matchExpedida[3]}${matchExpedida[2]}${matchExpedida[1]}`;
+            }
+            
+            // Regex pels càrrecs en text pla (una sola línia gegant)
+            const patternAlt = /Nombre:\s*(.*?)\s+DNI:\s*([A-Z0-9-]*?)\s+Cargo:\s*(.*?)\s+Fecha de nombramiento:\s*(\d{2}\/\d{2}\/\d{4})\s+Duración:\s*(.*?)(?=\s*(?:Inscripción|Fecha inscripción|Fecha de la escritura|Número de protocolo|Nombre|$))/gi;
+            
+            let cargos = [];
+            let match;
+            while ((match = patternAlt.exec(text)) !== null) {
+                let nomRaw = match[1].trim();
+                let dni = match[2].trim();
+                let cargo = match[3].trim();
+                let fecha = match[4].trim();
+                let duracion = match[5].trim();
+                
+                // Bugfix: Netejar "DNI:" del nom de manera exhaustiva per si la regex ha atrapat massa
+                nomRaw = nomRaw.replace(/dni\s*[:]?\s*$/i, '').trim();
+                nomRaw = nomRaw.replace(/d\s*n\s*i\s*[:]?\s*$/i, '').trim();
+                
+                let cognoms = nomRaw;
+                let nom = "";
+                if (nomRaw.includes(',')) {
+                    let parts = nomRaw.split(',');
+                    cognoms = parts[0].trim();
+                    nom = parts[1].trim();
+                }
+                
+                cargos.push({
+                    cognoms: cognoms,
+                    nom: nom,
+                    dni: dni,
+                    cargo: cargo,
+                    fecha: fecha,
+                    duracion: duracion
+                });
+            }
+            
+            // Agrupar
+            let personas = {};
+            cargos.forEach(c => {
+                let key = c.dni ? c.dni : (c.cognoms + c.nom);
+                if (!personas[key]) {
+                    personas[key] = {
+                        cognoms: toTitleCase(c.cognoms),
+                        nom: toTitleCase(c.nom),
+                        dni: c.dni,
+                        dataNomenament: '',
+                        duracio: '',
+                        rol: '',
+                        dataRol: '',
+                        duracioRol: ''
+                    };
+                }
+                
+                let upperCargo = c.cargo.toUpperCase();
+                if (upperCargo === 'CONSEJERO' || upperCargo === 'SUJETO CONSEJERO') {
+                    personas[key].dataNomenament = c.fecha;
+                    personas[key].duracio = c.duracion;
+                } else {
+                    let capCargo = toCapitalize(c.cargo);
+                    if (personas[key].rol) {
+                        personas[key].rol += " ; " + capCargo;
+                        personas[key].dataRol += " ; " + c.fecha;
+                        personas[key].duracioRol += " ; " + c.duracion;
+                    } else {
+                        personas[key].rol = capCargo;
+                        personas[key].dataRol = c.fecha;
+                        personas[key].duracioRol = c.duracion;
+                    }
+                }
+            });
+            
+            extractedData = Object.values(personas).filter(p => p.dataNomenament || p.rol);
+        }
+        
+        function isDateExpired(dateStr) {
+            if (!dateStr) return false;
+            let expired = false;
+            let today = new Date();
+            today.setHours(0,0,0,0);
+            
+            // Check multiple dates if roles are combined
+            const multiple = dateStr.split(' ; ');
+            for(let str of multiple) {
+                let parts = str.trim().split('/');
+                if(parts.length === 3) {
+                    let d = new Date(parts[2], parts[1]-1, parts[0]);
+                    if (d < today) {
+                        expired = true;
+                        break;
+                    }
+                }
+            }
+            return expired;
+        }
+
+        function renderTable() {
+            tableBody.innerHTML = '';
+            
+            if (extractedData.length === 0) {
+                alert("No s'han trobat consellers al document o no coincideix el format de la PICA.");
+                dropZoneText.innerHTML = "Arrossega un PDF aquí<br>o fes clic per seleccionar";
+                dropZone.classList.remove('active');
+                return;
+            }
+            
+            valDenominacion.innerText = extractedDenominacion || "No trobada";
+            valNif.innerText = extractedNif || "No trobat";
+            companyInfo.style.display = 'block';
+            
+            extractedData.forEach(p => {
+                const tr = document.createElement('tr');
+                
+                const expired1 = isDateExpired(p.duracio);
+                const expired2 = isDateExpired(p.duracioRol);
+                const isRowExpired = expired1 || expired2;
+                
+                if (isRowExpired) {
+                    tr.classList.add('expired');
+                }
+                
+                tr.innerHTML = `
+                    <td>${p.dni}</td>
+                    <td>${p.cognoms}</td>
+                    <td>${p.nom}</td>
+                    <td>${p.dataNomenament}</td>
+                    <td>${p.duracio}</td>
+                    <td>${p.rol}</td>
+                    <td>${p.dataRol}</td>
+                    <td>${p.duracioRol}</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+            
+            tableContainer.style.display = 'block';
+            btnExport.style.display = 'block';
+        }
+        
+        // --- Excel Export (ExcelJS) ---
+        btnExport.addEventListener('click', async () => {
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Consell Administració');
+            
+            // Desplaçament perquè comenci a la cel·la B2
+            // Fila 2 i 3
+            worksheet.getCell('B2').value = 'Denominació:';
+            worksheet.getCell('B2').font = { bold: true };
+            worksheet.getCell('C2').value = extractedDenominacion;
+            
+            worksheet.getCell('B3').value = 'NIF:';
+            worksheet.getCell('B3').font = { bold: true };
+            worksheet.getCell('C3').value = extractedNif;
+            
+            // Capçalera a la fila 5
+            const headers = ['', 'DNI', 'Cognoms', 'Nom', 'Nomenament', 'Duració', 'Rol al CA', 'Data rol', 'Duració rol'];
+            const headerRow = worksheet.getRow(5);
+            headerRow.values = headers;
+            headerRow.font = { bold: true };
+            
+            // Dades a partir de la fila 6
+            extractedData.forEach((p, index) => {
+                const row = worksheet.getRow(6 + index);
+                row.values = ['', p.dni, p.cognoms, p.nom, p.dataNomenament, p.duracio, p.rol, p.dataRol, p.duracioRol];
+                
+                const isRowExpired = isDateExpired(p.duracio) || isDateExpired(p.duracioRol);
+                if (isRowExpired) {
+                    row.eachCell((cell) => {
+                        cell.font = { color: { argb: 'FFFF0000' } }; // Vermell
+                    });
+                }
+            });
+            
+            // Auto-width columnes
+            worksheet.columns.forEach(column => {
+                let maxLen = 10;
+                column.eachCell({ includeEmpty: true }, cell => {
+                    const cellVal = cell.value ? cell.value.toString() : '';
+                    if (cellVal.length > maxLen) {
+                        maxLen = cellVal.length;
+                    }
+                });
+                column.width = maxLen + 2;
+            });
+            
+            // Descàrrega
+            const buffer = await workbook.xlsx.writeBuffer();
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            
+            let safeDenom = extractedDenominacion ? extractedDenominacion.replace(/[\\/:*?"<>|]/g, '') : 'Entitat';
+            let datePrefix = extractedExpedida ? `${extractedExpedida} ` : '';
+            a.download = `${datePrefix}${safeDenom} CA RM.xlsx`;
+            
+            a.click();
+            window.URL.revokeObjectURL(url);
+        });
+    </script>
+</body>
+</html>
