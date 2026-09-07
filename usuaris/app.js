@@ -48,29 +48,77 @@ async function clearDirectoryHandle() {
     });
 }
 
+// Persistència de la consulta a la memòria interna del navegador (IndexedDB)
+async function saveCachedResults(results, metadata) {
+    try {
+        const db = await getDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            store.put(results, 'cached_merged_results');
+            store.put(metadata, 'cached_metadata');
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (e) {
+        console.warn("No s'ha pogut desar la consulta a la memòria:", e);
+    }
+}
+
+async function getCachedResults() {
+    try {
+        const db = await getDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readonly');
+            const store = tx.objectStore(STORE_NAME);
+            const reqResults = store.get('cached_merged_results');
+            const reqMeta = store.get('cached_metadata');
+            tx.oncomplete = () => {
+                resolve({
+                    results: reqResults.result || null,
+                    metadata: reqMeta.result || null
+                });
+            };
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (e) {
+        console.warn("No s'ha pogut recuperar la consulta de la memòria:", e);
+        return { results: null, metadata: null };
+    }
+}
+
+async function clearCachedResults() {
+    try {
+        const db = await getDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            store.delete('cached_merged_results');
+            store.delete('cached_metadata');
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (e) {
+        console.warn("Error netejant memòria cau:", e);
+    }
+}
+
 // State variables
 let directoryHandle = null;
 let fileDataCat = null;
 let fileDataUsr = null;
 let dateCatModified = null;
 let dateUsrModified = null;
-const DEFAULT_DEPT_MAPPING = {
-    'ECO': 'ECF',
-    'EXT': 'UEX',
-    'ACC': 'ARP',
-    'DSO': 'DSI'
-};
-let departmentMapping = {};
 let mergedResults = [];
 let filteredResults = [];
 let hasClickedSync = false;
 let currentSortColumn = 'ens';
-let currentSortDirection = 'desc';
+let currentSortDirection = 'asc';
 const columnFilters = {
     codi: '',
     ens: '',
     particip: '',
-    dept: '',
+    origen: '',
     nom: '',
     cognoms: '',
     email: ''
@@ -80,7 +128,7 @@ const columnFilters = {
 let currentPage = 1;
 const rowsPerPage = 50;
 
-// Dom Elements
+// DOM Elements
 const dropZoneCat = document.getElementById('dropZoneCat');
 const fileInputCat = document.getElementById('fileInputCat');
 const fileInfoCat = document.getElementById('fileInfoCat');
@@ -94,15 +142,11 @@ const removeUsr = document.getElementById('removeUsr');
 const sharepointPickerState = document.getElementById('sharepointPickerState');
 const sharepointConnectedState = document.getElementById('sharepointConnectedState');
 
-
 const btnSyncNow = document.getElementById('btnSyncNow');
 const btnChangeFolder = document.getElementById('btnChangeFolder');
-
 const btnConnectFolder = document.getElementById('btnConnectFolder');
 const btnDisconnectFolder = document.getElementById('btnDisconnectFolder');
 const btnShowManualUpload = document.getElementById('btnShowManualUpload');
-const btnShowManualConnected = document.getElementById('btnShowManualConnected');
-
 
 const sharepointStatusBadge = document.getElementById('sharepointStatusBadge');
 const statusDot = document.getElementById('statusDot');
@@ -118,6 +162,8 @@ const btnProcess = document.getElementById('btnProcess');
 const processSection = document.getElementById('processSection');
 const resultsSection = document.getElementById('resultsSection');
 const btnExport = document.getElementById('btnExport');
+const btnCopyEmails = document.getElementById('btnCopyEmails');
+const btnCopyEmailsText = document.getElementById('btnCopyEmailsText');
 const searchInput = document.getElementById('searchInput');
 const recordCount = document.getElementById('recordCount');
 
@@ -129,79 +175,36 @@ const pageIndicator = document.getElementById('pageIndicator');
 
 // Initialize events on load
 window.addEventListener('DOMContentLoaded', async () => {
-    
-    // 4. Setup folder connect/disconnect/sync buttons
+    // 1. Setup folder connect/disconnect/sync buttons
     if (btnConnectFolder) btnConnectFolder.addEventListener('click', connectSharepointFolder);
     if (btnDisconnectFolder) btnDisconnectFolder.addEventListener('click', disconnectSharepointFolder);
     if (btnChangeFolder) btnChangeFolder.addEventListener('click', disconnectSharepointFolder);
     if (btnReauthorize) btnReauthorize.addEventListener('click', reauthorizeFolderAccess);
-    if (btnSyncNow) btnSyncNow.addEventListener('click', () => {
-        showManualUpload();
-    });
-    
-    // Load department mapping
-    loadDepartmentMapping();
-    
-    // Bind mapping modal triggers
-    const mappingTriggers = document.querySelectorAll('.btn-show-mapping-trigger');
-    mappingTriggers.forEach(btn => {
-        btn.addEventListener('click', () => {
-            renderMappingRows();
-            const modal = document.getElementById('mappingModal');
-            if (modal) modal.classList.remove('hidden');
+    if (btnSyncNow) {
+        btnSyncNow.addEventListener('click', () => {
+            showManualUpload();
         });
-    });
-    
-    const btnCloseMapping = document.getElementById('btnCloseMapping');
-    if (btnCloseMapping) {
-        btnCloseMapping.addEventListener('click', closeMappingModal);
     }
-    
-    const btnCancelMapping = document.getElementById('btnCancelMapping');
-    if (btnCancelMapping) {
-        btnCancelMapping.addEventListener('click', closeMappingModal);
-    }
-    
 
-    
-    const btnSaveMapping = document.getElementById('btnSaveMapping');
-    if (btnSaveMapping) {
-        btnSaveMapping.addEventListener('click', saveDepartmentMapping);
-    }
-    
-    const btnCancelManualUpload = document.getElementById('btnCancelManualUpload');
-    if (btnCancelManualUpload) {
-        btnCancelManualUpload.addEventListener('click', async () => {
-            if (manualUploadSection) manualUploadSection.classList.add('hidden');
-            
+    const btnReReadFromFolder = document.getElementById('btnReReadFromFolder');
+    if (btnReReadFromFolder) {
+        btnReReadFromFolder.addEventListener('click', async () => {
             if (directoryHandle) {
-                // Revert in-memory files and table data to SharePoint's state
-                try {
-                    await syncWithDirectorySilent(directoryHandle);
-                } catch (e) {
-                    console.error("Error restoring SharePoint state on cancel", e);
-                }
-            } else {
-                // Offline mode: clear everything
-                fileDataCat = null;
-                fileDataUsr = null;
-                mergedResults = [];
-                filteredResults = [];
-                
-                if (fileInfoCat) fileInfoCat.classList.remove('active');
-                if (fileInputCat) fileInputCat.value = '';
-                if (dropZoneCat) dropZoneCat.style.display = 'block';
-                
-                if (fileInfoUsr) fileInfoUsr.classList.remove('active');
-                if (fileInputUsr) fileInputUsr.value = '';
-                if (dropZoneUsr) dropZoneUsr.style.display = 'block';
-                
-                if (processSection) processSection.classList.add('hidden');
-                if (resultsSection) resultsSection.classList.add('hidden');
+                await syncWithDirectory(directoryHandle, false);
             }
         });
     }
-    
+
+    const btnCancelManualUpload = document.getElementById('btnCancelManualUpload');
+    if (btnCancelManualUpload) {
+        btnCancelManualUpload.addEventListener('click', () => {
+            if (manualUploadSection) manualUploadSection.classList.add('hidden');
+            if (mergedResults && mergedResults.length > 0) {
+                resultsSection.classList.remove('hidden');
+            }
+        });
+    }
+
     const btnUploadToSharepoint = document.getElementById('btnUploadToSharepoint');
     if (btnUploadToSharepoint) {
         btnUploadToSharepoint.addEventListener('click', async () => {
@@ -211,25 +214,14 @@ window.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             
-            // Hide buttons to only show progress tracker
             if (btnUploadToSharepoint) btnUploadToSharepoint.classList.add('hidden');
             if (btnCancelManualUpload) btnCancelManualUpload.classList.add('hidden');
             
-            try {
-                if (directoryHandle) {
-                    // Save files back to SharePoint folder if they were manually uploaded/overridden
-                    await saveFileToDirectory(directoryHandle, fileDataCat, "Cataleg_dens_export.xls");
-                    await saveFileToDirectory(directoryHandle, fileDataUsr, "Export_Usuaris.xls");
-                }
-                btnProcess.click();
-            } catch (e) {
-                console.error("Error durant el desament dels fitxers d'origen, procedint en memòria:", e);
-                btnProcess.click();
-            }
+            btnProcess.click();
         });
     }
-    
-    // 5. Setup Drag & Drop manual zones
+
+    // 2. Setup Drag & Drop manual zones
     setupDropZone(dropZoneCat, fileInputCat, fileInfoCat, (data, lastModified) => {
         fileDataCat = data;
         dateCatModified = lastModified || new Date().getTime();
@@ -243,7 +235,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         updateDateDisplay(dateCatModified, dateUsrModified);
     });
 
-    // 5b. Setup remove cross buttons for manual cards
+    // 3. Setup remove cross buttons for manual cards
     if (removeCat) {
         removeCat.addEventListener('click', () => {
             fileDataCat = null;
@@ -263,7 +255,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // 5c. Setup column filter inputs and sort headers
+    // 4. Setup column filter inputs and sort headers
     const filters = document.querySelectorAll('.column-filter');
     filters.forEach(input => {
         input.addEventListener('input', (e) => {
@@ -278,7 +270,6 @@ window.addEventListener('DOMContentLoaded', async () => {
         th.addEventListener('click', () => {
             const col = th.getAttribute('data-column');
             
-            // Toggle sort direction if same column, else default to asc
             if (currentSortColumn === col) {
                 currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
             } else {
@@ -286,31 +277,53 @@ window.addEventListener('DOMContentLoaded', async () => {
                 currentSortDirection = 'asc';
             }
             
-            // Update sort visual classes on headers
             headers.forEach(h => {
                 h.classList.remove('sorted-asc', 'sorted-desc');
-                h.querySelector('.sort-icon').textContent = '↕';
+                const icon = h.querySelector('.sort-icon');
+                if (icon) icon.textContent = '↕';
             });
             
             if (currentSortDirection === 'asc') {
                 th.classList.add('sorted-asc');
-                th.querySelector('.sort-icon').textContent = '▲';
+                const icon = th.querySelector('.sort-icon');
+                if (icon) icon.textContent = '▲';
             } else {
                 th.classList.add('sorted-desc');
-                th.querySelector('.sort-icon').textContent = '▼';
+                const icon = th.querySelector('.sort-icon');
+                if (icon) icon.textContent = '▼';
             }
             
             applyFiltersAndSort();
         });
     });
 
-    // 6. Try to load saved folder from IndexedDB
+    // 5. Carregar dades de la consulta des de la memòria IndexedDB (si n'hi ha)
+    let hasLoadedCache = false;
+    try {
+        const cached = await getCachedResults();
+        if (cached && cached.results && cached.results.length > 0) {
+            mergedResults = cached.results;
+            filteredResults = [...mergedResults];
+            if (cached.metadata) {
+                dateCatModified = cached.metadata.dateCatModified;
+                dateUsrModified = cached.metadata.dateUsrModified;
+                updateDateDisplay(dateCatModified, dateUsrModified);
+            }
+            resultsSection.classList.remove('hidden');
+            currentPage = 1;
+            applyFiltersAndSort();
+            hasLoadedCache = true;
+        }
+    } catch (e) {
+        console.warn("No s'han pogut carregar dades de la memòria cau:", e);
+    }
+
+    // 6. Comprovar si hi ha una carpeta connectada
     try {
         const savedHandle = await getDirectoryHandle();
         if (savedHandle) {
             directoryHandle = savedHandle;
             
-            // Switch UI to connected state
             sharepointPickerState.classList.add('hidden');
             sharepointConnectedState.classList.remove('hidden');
             const pathLabel = document.getElementById('sharepointPathLabel');
@@ -318,33 +331,44 @@ window.addEventListener('DOMContentLoaded', async () => {
                 pathLabel.textContent = `Ruta: D:\\fakepath\\OneDrive - Generalitat de Catalunya\\Documents (PROVES) - SDG Entitats\\04. Usuaris\\${savedHandle.name}`;
             }
             
-            // Query permission silently (NO prompt, no user gesture yet)
-            const permissionState = await directoryHandle.queryPermission({ mode: 'readwrite' });
-            if (permissionState === 'granted') {
-                await syncWithDirectorySilent(directoryHandle);
+            if (hasLoadedCache) {
+                statusDot.className = 'status-dot green';
+                statusText.textContent = 'Dades Carregades';
+                btnDisconnectFolder.style.display = 'inline-block';
             } else {
-                statusDot.className = 'status-dot yellow';
-                statusText.textContent = 'Requerix Autorització';
-                // Automatically show manual upload fallback as a precaution or let the user click
-                // Let's silently check if they need to authorize
+                const permissionState = await directoryHandle.queryPermission({ mode: 'read' });
+                if (permissionState === 'granted') {
+                    await syncWithDirectorySilent(directoryHandle);
+                } else {
+                    statusDot.className = 'status-dot yellow';
+                    statusText.textContent = 'Requerix Autorització';
+                }
             }
         } else {
-            showInitialState();
+            if (!hasLoadedCache) {
+                showInitialState();
+            }
         }
     } catch (e) {
         console.error("Error loading directory from IndexedDB", e);
-        showInitialState();
+        if (!hasLoadedCache) showInitialState();
     }
 });
-
-
 
 // Show manual drag and drop section
 function showManualUpload() {
     manualUploadSection.classList.remove('hidden');
     if (btnShowManualUpload) btnShowManualUpload.classList.add('hidden');
-    // Scroll and center the section on the screen
+    const reReadFolderContainer = document.getElementById('reReadFolderContainer');
+    if (reReadFolderContainer) {
+        if (directoryHandle) {
+            reReadFolderContainer.classList.remove('hidden');
+        } else {
+            reReadFolderContainer.classList.add('hidden');
+        }
+    }
     manualUploadSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    checkReadyToProcess();
 }
 
 // Show SharePoint initial configuration
@@ -361,7 +385,7 @@ function showInitialState() {
     if (btnShowManualUpload) btnShowManualUpload.classList.remove('hidden');
 }
 
-// Connect new folder using File System Access API
+// Connect new folder using File System Access API (Només Lectura)
 async function connectSharepointFolder() {
     try {
         if (!window.showDirectoryPicker) {
@@ -369,17 +393,14 @@ async function connectSharepointFolder() {
             return;
         }
         
-
-        
         const handle = await window.showDirectoryPicker({
             id: 'gpg-merge-sharepoint',
-            mode: 'readwrite'
+            mode: 'read'
         });
         
         directoryHandle = handle;
         await saveDirectoryHandle(handle);
         
-        // Switch UI to connected state
         sharepointPickerState.classList.add('hidden');
         sharepointConnectedState.classList.remove('hidden');
         const pathLabel = document.getElementById('sharepointPathLabel');
@@ -393,11 +414,11 @@ async function connectSharepointFolder() {
     }
 }
 
-// Re-authorize access to already saved handle
+// Re-authorize access to already saved handle (Només Lectura)
 async function reauthorizeFolderAccess() {
     if (!directoryHandle) return;
     try {
-        const options = { mode: 'readwrite' };
+        const options = { mode: 'read' };
         const permission = await directoryHandle.requestPermission(options);
         if (permission === 'granted') {
             await syncWithDirectory(directoryHandle);
@@ -411,6 +432,7 @@ async function reauthorizeFolderAccess() {
 async function disconnectSharepointFolder() {
     try {
         await clearDirectoryHandle();
+        await clearCachedResults();
         directoryHandle = null;
         fileDataCat = null;
         fileDataUsr = null;
@@ -427,7 +449,6 @@ async function disconnectSharepointFolder() {
             infoUpdateDate.classList.add('hidden');
         }
         
-        // Clear UI states
         fileInfoCat.classList.remove('active');
         dropZoneCat.style.display = 'block';
         fileInfoUsr.classList.remove('active');
@@ -448,80 +469,11 @@ async function syncWithDirectorySilent(handle) {
     statusText.textContent = 'Comprovant fitxers...';
     
     try {
-        const { fileCat, fileUsr, fileOut } = await loadFilesFromDirectory(handle);
-        
-        // 1. Si ja disposem de la fusió pre-calculada, la carreguem directament sense recalcular
-        if (fileOut) {
-            statusText.textContent = 'Carregant dades desades...';
-            const arrayBuffer = await fileOut.arrayBuffer();
-            const wb = XLSX.read(new Uint8Array(arrayBuffer), {type: 'array'});
-            
-            // Extract original dates from comments to avoid reading heavy source files
-            if (wb.Props && wb.Props.Comments) {
-                const comments = wb.Props.Comments;
-                const match = comments.match(/CatDate:(\d+)\|UsrDate:(\d+)/);
-                if (match) {
-                    dateCatModified = parseInt(match[1]) || null;
-                    dateUsrModified = parseInt(match[2]) || null;
-                }
-            }
-            if (!dateCatModified && !dateUsrModified) {
-                dateCatModified = fileOut.lastModified;
-                dateUsrModified = fileOut.lastModified;
-            }
-            updateDateDisplay(dateCatModified, dateUsrModified);
-
-            const sheet = wb.Sheets[wb.SheetNames[0]];
-            const rows = XLSX.utils.sheet_to_json(sheet);
-            
-            mergedResults = rows.map(r => {
-                // Read exact columns from sheet
-                return {
-                    'Detall de partícips.Codi Catàleg': r['Detall de partícips.Codi Catàleg'] !== undefined ? r['Detall de partícips.Codi Catàleg'] : null,
-                    'Detall de partícips.Denominació': r['Detall de partícips.Denominació'] !== undefined ? r['Detall de partícips.Denominació'] : null,
-                    'Desc. Departament': r['Desc. Departament'] !== undefined ? r['Desc. Departament'] : null,
-                    'Nom': r['Nom'] !== undefined ? r['Nom'] : null,
-                    'Cognoms': r['Cognoms'] !== undefined ? r['Cognoms'] : null,
-                    'Email': r['Email'] !== undefined ? r['Email'] : null,
-                    'Detall de partícips.Denominació partícip (agregat)': r['Detall de partícips.Denominació partícip (agregat)'] !== undefined ? r['Detall de partícips.Denominació partícip (agregat)'] : null
-                };
-            });
-            filteredResults = [...mergedResults];
-            
-            statusDot.className = 'status-dot green';
-            statusText.textContent = 'Dades Carregades';
-            btnDisconnectFolder.style.display = 'inline-block';
-            
-            // Mostrar resultats directament a la taula
-            resultsSection.classList.remove('hidden');
-            currentPage = 1;
-            applyFiltersAndSort();
-            
-            // Pre-omplir en segon pla les targetes de càrrega manual
-            fileInfoCat.classList.remove('active');
-            dropZoneCat.style.display = 'block';
-            fileInfoUsr.classList.remove('active');
-            dropZoneUsr.style.display = 'block';
-            
-            if (fileCat) {
-                fileDataCat = new Uint8Array(await fileCat.arrayBuffer());
-                fileInfoCat.querySelector('.file-name').textContent = `${fileCat.name} (SharePoint)`;
-                fileInfoCat.classList.add('active');
-                dropZoneCat.style.display = 'none';
-            }
-            if (fileUsr) {
-                fileDataUsr = new Uint8Array(await fileUsr.arrayBuffer());
-                fileInfoUsr.querySelector('.file-name').textContent = `${fileUsr.name} (SharePoint)`;
-                fileInfoUsr.classList.add('active');
-                dropZoneUsr.style.display = 'none';
-            }
-            return; // Sortida ràpida
-        }
+        const { fileCat, fileUsr } = await loadFilesFromDirectory(handle);
 
         await extractMetadataDatesFromFiles(fileCat, fileUsr);
         updateDateDisplay(dateCatModified, dateUsrModified);
         
-        // Reset manual upload card visual states before populating
         fileInfoCat.classList.remove('active');
         dropZoneCat.style.display = 'block';
         fileInfoUsr.classList.remove('active');
@@ -550,7 +502,6 @@ async function syncWithDirectorySilent(handle) {
             statusText.textContent = 'SharePoint Connectat';
             btnDisconnectFolder.style.display = 'inline-block';
             
-            // Automatically launch ETL
             btnProcess.removeAttribute('disabled');
             processSection.classList.remove('hidden');
             if (manualUploadSection) manualUploadSection.classList.add('hidden');
@@ -558,10 +509,8 @@ async function syncWithDirectorySilent(handle) {
         } else {
             statusDot.className = 'status-dot yellow';
             statusText.textContent = 'Fitxers incomplets';
-            
-            // Automatically show manual upload fallback with the missing one empty
             showManualUpload();
-            checkReadyToProcess(); // Update buttons visibility
+            checkReadyToProcess();
         }
     } catch (e) {
         console.error("Silent sync failed", e);
@@ -571,20 +520,17 @@ async function syncWithDirectorySilent(handle) {
 
 // Query handle permission and load files
 async function syncWithDirectory(handle, forceRecalculate = false) {
-    // Show spinner in connected state or loading progress
     btnSyncNow.setAttribute('disabled', 'true');
     statusDot.className = 'status-dot yellow';
     statusText.textContent = 'Actualitzant...';
     
     try {
-        // Query permission
-        const permissionState = await handle.queryPermission({ mode: 'readwrite' });
+        const permissionState = await handle.queryPermission({ mode: 'read' });
         
         if (permissionState === 'prompt') {
-            // Need user prompt
             statusDot.className = 'status-dot yellow';
             statusText.textContent = 'Requerix Permís';
-            const permission = await handle.requestPermission({ mode: 'readwrite' });
+            const permission = await handle.requestPermission({ mode: 'read' });
             if (permission !== 'granted') {
                 btnSyncNow.removeAttribute('disabled');
                 statusDot.className = 'status-dot yellow';
@@ -596,17 +542,15 @@ async function syncWithDirectory(handle, forceRecalculate = false) {
             return;
         }
         
-        // Permission is granted, scan files
         statusDot.className = 'status-dot green';
         statusText.textContent = 'SharePoint Connectat';
         btnDisconnectFolder.style.display = 'inline-block';
         
-        const { fileCat, fileUsr, fileOut } = await loadFilesFromDirectory(handle);
+        const { fileCat, fileUsr } = await loadFilesFromDirectory(handle);
         
         await extractMetadataDatesFromFiles(fileCat, fileUsr);
         updateDateDisplay(dateCatModified, dateUsrModified);
         
-        // Reset manual upload card visual states before populating
         fileInfoCat.classList.remove('active');
         dropZoneCat.style.display = 'block';
         fileInfoUsr.classList.remove('active');
@@ -631,20 +575,16 @@ async function syncWithDirectory(handle, forceRecalculate = false) {
         }
         
         if (fileCat && fileUsr) {
-            // Automatically launch ETL
             btnProcess.removeAttribute('disabled');
             processSection.classList.remove('hidden');
-            
-            // Trigger process
             btnProcess.click();
             
-            // If the user clicked the sync button manually, show the drag section. Otherwise, keep it hidden.
             if (forceRecalculate) {
                 showManualUpload();
             } else {
                 if (manualUploadSection) manualUploadSection.classList.add('hidden');
             }
-            checkReadyToProcess(); // Update buttons visibility
+            checkReadyToProcess();
         } else {
             statusDot.className = 'status-dot yellow';
             statusText.textContent = 'Fitxers incomplets';
@@ -652,10 +592,8 @@ async function syncWithDirectory(handle, forceRecalculate = false) {
             if (!fileCat) missingMsg += "\n- Falta el fitxer exactament anomenat 'Cataleg_dens_export.xls' (o .xlsx).";
             if (!fileUsr) missingMsg += "\n- Falta el fitxer exactament anomenat 'Export_Usuaris.xls' (o .xlsx).";
             alert(missingMsg);
-            
-            // Show manual upload fallback
             showManualUpload();
-            checkReadyToProcess(); // Update buttons visibility
+            checkReadyToProcess();
         }
     } catch (e) {
         console.error("Error during synchronization", e);
@@ -666,27 +604,22 @@ async function syncWithDirectory(handle, forceRecalculate = false) {
     }
 }
 
-// Scan directory and return exact matches for Cataleg_dens_export.xls, Export_Usuaris.xls, and Consulta usuaris final + depts.xlsx
+// Scan directory and return exact matches for Cataleg_dens_export.xls and Export_Usuaris.xls
 async function loadFilesFromDirectory(dirHandle) {
     let fileCat = null;
     let fileUsr = null;
-    let fileOut = null;
     
     for await (const entry of dirHandle.values()) {
         if (entry.kind === 'file') {
             const name = entry.name.toLowerCase();
-            
-            // Check exact simplified names (allowing .xls or .xlsx)
             if (name === 'cataleg_dens_export.xls' || name === 'cataleg_dens_export.xlsx') {
                 fileCat = await entry.getFile();
             } else if (name === 'export_usuaris.xls' || name === 'export_usuaris.xlsx') {
                 fileUsr = await entry.getFile();
-            } else if (name === 'consulta usuaris final + depts.xlsx') {
-                fileOut = await entry.getFile();
             }
         }
     }
-    return { fileCat, fileUsr, fileOut };
+    return { fileCat, fileUsr };
 }
 
 // Drag and drop setup for manual upload
@@ -722,10 +655,10 @@ function handleFileSelection(file, fileInput, fileInfo, callback) {
         const data = new Uint8Array(e.target.result);
         fileInfo.querySelector('.file-name').textContent = file.name;
         fileInfo.classList.add('active');
-        dropZone.style.display = 'none';
+        const dropZone = fileInput.parentElement;
+        if (dropZone) dropZone.style.display = 'none';
         callback(data, file.lastModified);
     };
-    const dropZone = fileInput.parentElement;
     reader.readAsArrayBuffer(file);
 }
 
@@ -734,35 +667,33 @@ function checkReadyToProcess() {
     const btnUploadToSharepoint = document.getElementById('btnUploadToSharepoint');
     if (fileDataCat && fileDataUsr) {
         btnProcess.removeAttribute('disabled');
-        processSection.classList.remove('hidden');
         resetSteps();
         
         if (btnUploadToSharepoint) {
             btnUploadToSharepoint.classList.remove('hidden');
-            if (directoryHandle) {
-                btnUploadToSharepoint.textContent = '📤 Carregar i sincronitzar';
-            } else {
-                btnUploadToSharepoint.textContent = '⚡ Processar Dades';
-            }
+            btnUploadToSharepoint.textContent = '⚡ Processar nous Excels';
         }
     } else {
         btnProcess.setAttribute('disabled', 'true');
         processSection.classList.add('hidden');
-        resultsSection.classList.add('hidden');
+        if (!mergedResults || mergedResults.length === 0) {
+            resultsSection.classList.add('hidden');
+        }
         if (btnUploadToSharepoint) btnUploadToSharepoint.classList.add('hidden');
     }
 }
 
 function resetSteps() {
-    const steps = ['stepRead', 'stepParticips', 'stepJoins', 'stepDepts'];
+    const steps = ['stepRead', 'stepParticips', 'stepHierarchy', 'stepOutput'];
     steps.forEach(id => {
         const el = document.getElementById(id);
-        el.classList.remove('active', 'completed');
+        if (el) el.classList.remove('active', 'completed');
     });
 }
 
 function updateStepStatus(id, status) {
     const el = document.getElementById(id);
+    if (!el) return;
     if (status === 'active') {
         el.classList.add('active');
         el.classList.remove('completed');
@@ -772,13 +703,34 @@ function updateStepStatus(id, status) {
     }
 }
 
+// Helper to normalize string for comparison
+function normalizeCode(val) {
+    if (val === null || val === undefined) return null;
+    const str = String(val).trim();
+    return str.length > 0 ? str : null;
+}
+
+// Helper to normalize search text (ignore accents and punctuation)
+function normalizeText(str) {
+    if (str === undefined || str === null) return '';
+    return String(str)
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"'’]/g, "")
+        .trim();
+}
+
 // ETL Process Trigger
 btnProcess.addEventListener('click', async () => {
     btnProcess.setAttribute('disabled', 'true');
     resetSteps();
+    processSection.classList.remove('hidden');
+    if (manualUploadSection) manualUploadSection.classList.add('hidden');
+    resultsSection.classList.add('hidden');
+    processSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
     
     try {
-        // Comprovar que disposem de les dades binaris dels fitxers
         if (!fileDataCat || fileDataCat.length === 0) {
             throw new Error("El fitxer de Catàleg és buit o invàlid.");
         }
@@ -788,7 +740,7 @@ btnProcess.addEventListener('click', async () => {
 
         // Step 1: Read Files
         updateStepStatus('stepRead', 'active');
-        await delay(600);
+        await delay(500);
         
         let wbCat, wbUsr;
         try {
@@ -797,7 +749,7 @@ btnProcess.addEventListener('click', async () => {
             if (d) dateCatModified = d.getTime();
         } catch (catErr) {
             console.error(catErr);
-            throw new Error("El fitxer del Catàleg de Partícips ('Cataleg_dens_export.xls') és invàlid, està corrupte o està bloquejat per Excel.");
+            throw new Error("El fitxer del Catàleg de Partícips ('Cataleg_dens_export.xls') és invàlid o està corrupte.");
         }
 
         try {
@@ -806,346 +758,278 @@ btnProcess.addEventListener('click', async () => {
             if (d) dateUsrModified = d.getTime();
         } catch (usrErr) {
             console.error(usrErr);
-            throw new Error("El fitxer d'Exportació d'Usuaris ('Export_Usuaris.xls') és invàlid, està corrupte o està bloquejat per Excel.");
+            throw new Error("El fitxer d'Exportació d'Usuaris ('Export_Usuaris.xls') és invàlid o està corrupte.");
         }
         updateStepStatus('stepRead', 'completed');
-        
-        // Update date display with extracted metadata dates
         updateDateDisplay(dateCatModified, dateUsrModified);
 
-        // Step 2: Detall de partícips ETL
+        // Step 2: Lectura i processament d'entitats del Catàleg
         updateStepStatus('stepParticips', 'active');
-        await delay(800);
+        await delay(600);
         
-        const sheetParticipsRaw = wbCat.Sheets['Detall de partícips'];
-        if (!sheetParticipsRaw) throw new Error("No s'ha trobat la fulla 'Detall de partícips' a Cataleg_dens_export");
+        const sheetParticipsRaw = wbCat.Sheets['Detall de partícips'] || wbCat.Sheets['Detall de partÃ­cips'];
+        if (!sheetParticipsRaw) throw new Error("No s'ha trobat la fulla 'Detall de partícips' a Cataleg_dens_export.xls");
         
         const rowsParticips = xlsxToObjectsWithDuplicateHeaders(sheetParticipsRaw);
         
-        const detallParticips = rowsParticips
-            .filter(r => r['Vincle primari'] === 'Si')
-            .map(r => ({
-                'Codi Catàleg': r['Codi Catàleg'],
-                'Denominació': r['Denominació'],
-                'Denominació partícip (agregat)': r['Denominació partícip (agregat)'],
-                'Codi Catàleg_1': r['Codi Catàleg_1'],
-                'Vincle primari': r['Vincle primari']
-            }));
+        // Mapa per agrupar totes les entitats úniques i identificar el seu vincle primari
+        const entitatsMap = new Map();
+
+        rowsParticips.forEach(r => {
+            const codi = normalizeCode(r['Codi Catàleg'] || r['CODI'] || r['Codi'] || r['Codi catàleg']);
+            if (!codi) return;
+            const denominacio = r['Denominació'] || r['Nom ens'] || r['Denominacio'] || '';
             
+            const vincleStr = String(r['Vincle primari'] || r['Vincle_primari'] || '').trim().toLowerCase();
+            const isVinclePrimari = vincleStr === 'si' || vincleStr === 'sí';
+            
+            if (!entitatsMap.has(codi)) {
+                entitatsMap.set(codi, {
+                    codi: codi,
+                    denominacio: denominacio,
+                    codiVincle: null,
+                    nomVincle: null
+                });
+            } else if (denominacio && !entitatsMap.get(codi).denominacio) {
+                entitatsMap.get(codi).denominacio = denominacio;
+            }
+
+            if (isVinclePrimari) {
+                const codiVincle = normalizeCode(r['Codi Catàleg_1'] || r['CODI_1'] || r['Codi_1'] || r['Codi catàleg_1']);
+                const nomVincle = r['Denominació partícip (agregat)'] || r['Partícip agregat'] || r['Denominacio particip (agregat)'] || '';
+                
+                const ent = entitatsMap.get(codi);
+                ent.codiVincle = codiVincle;
+                ent.nomVincle = nomVincle;
+            }
+        });
+
+        // Comprovar també 'Dades entitat' si existeix per capturar entitats addicionals
+        const sheetDadesEntitatRaw = wbCat.Sheets['Dades entitat'];
+        if (sheetDadesEntitatRaw) {
+            try {
+                const rowsDadesEntitat = xlsxToObjectsWithDuplicateHeaders(sheetDadesEntitatRaw);
+                rowsDadesEntitat.forEach(r => {
+                    let codi = null;
+                    let denom = null;
+                    for (const key of Object.keys(r)) {
+                        const normKey = normalizeText(key);
+                        if (normKey === 'codi cataleg' || normKey === 'codi' || normKey === 'codi cat') {
+                            codi = normalizeCode(r[key]);
+                        }
+                        if (normKey === 'denominacio' || normKey === 'nom ens') {
+                            denom = r[key];
+                        }
+                    }
+                    if (codi && !entitatsMap.has(codi)) {
+                        entitatsMap.set(codi, {
+                            codi: codi,
+                            denominacio: denom || '',
+                            codiVincle: null,
+                            nomVincle: null
+                        });
+                    }
+                });
+            } catch (e) {
+                console.warn("No s'han pogut processar files de 'Dades entitat':", e);
+            }
+        }
+
+        // Si una entitat no té assignat cap vincle primari, la mateixa entitat actua com a vincle primari
+        entitatsMap.forEach(ent => {
+            if (!ent.codiVincle) {
+                ent.codiVincle = ent.codi;
+                ent.nomVincle = ent.denominacio || ent.codi;
+            }
+        });
+
+        const detallParticips = Array.from(entitatsMap.values());
+
+        if (detallParticips.length === 0) {
+            console.warn("Avís: No s'ha trobat cap entitat a Cataleg_dens_export.xls.");
+        }
         updateStepStatus('stepParticips', 'completed');
 
-        // Step 3: Joins & Direct Authorizations
-        updateStepStatus('stepJoins', 'active');
-        await delay(1000);
+        // Step 3: Cerca Jeràrquica d'usuaris
+        updateStepStatus('stepHierarchy', 'active');
+        await delay(800);
 
-        const sheetDirectaRaw = wbUsr.Sheets['Autorització directa a ens'];
-        if (!sheetDirectaRaw) throw new Error("No s'ha trobat la fulla 'Autorització directa a ens' a Export_Usuaris");
-        
+        // Read "Autorització directa a ens"
+        const sheetDirectaRaw = wbUsr.Sheets['Autorització directa a ens'] || wbUsr.Sheets['Autoritzacio directa a ens'];
+        if (!sheetDirectaRaw) throw new Error("No s'ha trobat la fulla 'Autorització directa a ens' a Export_Usuaris.xls");
         const rowsDirecta = XLSX.utils.sheet_to_json(sheetDirectaRaw, {defval: null});
 
-        // Step 3a: Consulta usuaris (Full Outer Join on Ens <=> Codi Catàleg_1)
-        const consultaUsuaris = [];
-        const matchedParticips = new Set();
-        
+        // Read "Autorització a ens (resum)"
+        const sheetResumRaw = wbUsr.Sheets['Autorització a ens (resum)'] || 
+                              wbUsr.Sheets['Autoritzacio a ens (resum)'] || 
+                              wbUsr.Sheets['Autoritzacio a ens'] ||
+                              wbUsr.Sheets['Autorització a ens'];
+        if (!sheetResumRaw) throw new Error("No s'ha trobat la fulla 'Autorització a ens (resum)' a Export_Usuaris.xls");
+        const rowsResum = XLSX.utils.sheet_to_json(sheetResumRaw, {defval: null});
+
+        // Helper per filtrar només usuaris amb Perfil = 'Resta'
+        const isPerfilResta = (r) => {
+            let p = r['Perfil'] || r['PERFIL'] || r['perfil'];
+            if (p === undefined || p === null) {
+                const matchedKey = Object.keys(r).find(k => normalizeText(k) === 'perfil');
+                if (matchedKey) p = r[matchedKey];
+            }
+            return p !== undefined && p !== null && String(p).trim().toLowerCase() === 'resta';
+        };
+
+        // Helper per filtrar només usuaris amb Pot modificar = 'X'
+        const isPotModificar = (r) => {
+            let m = r['Pot modificar'] || r['Pot Modificar'] || r['POT MODIFICAR'] || r['Pot_modificar'];
+            if (m === undefined || m === null) {
+                const matchedKey = Object.keys(r).find(k => normalizeText(k).includes('modificar'));
+                if (matchedKey) m = r[matchedKey];
+            }
+            return m !== undefined && m !== null && String(m).trim().toUpperCase() === 'X';
+        };
+
+        // Detectar si les taules contenen la columna Pot modificar
+        const hasPotModificarDirecta = rowsDirecta.some(r => Object.keys(r).some(k => normalizeText(k).includes('modificar')));
+        const hasPotModificarResum = rowsResum.some(r => Object.keys(r).some(k => normalizeText(k).includes('modificar')));
+
+        // Validació d'usuaris (Perfil = 'Resta' i, si existeix la columna, Pot modificar = 'X')
+        const isValidUserDirecta = (r) => isPerfilResta(r) && (!hasPotModificarDirecta || isPotModificar(r));
+        const isValidUserResum = (r) => isPerfilResta(r) && (!hasPotModificarResum || isPotModificar(r));
+
+        // Indexar usuaris per 'Ens' a la pestanya directa (Perfil = 'Resta' i Pot modificar = 'X')
+        const indexDirecta = new Map();
         rowsDirecta.forEach(usr => {
-            const ensKey = usr['Ens'] ? String(usr['Ens']).trim() : null;
-            let foundMatch = false;
-            
-            detallParticips.forEach(part => {
-                const partKey = part['Codi Catàleg_1'] ? String(part['Codi Catàleg_1']).trim() : null;
-                if (ensKey !== null && partKey !== null && ensKey === partKey) {
-                    foundMatch = true;
-                    matchedParticips.add(part);
-                    consultaUsuaris.push({
-                        'Nom': usr['Nom'],
-                        'Cognoms': usr['Cognoms'],
-                        'Email': usr['Email'],
-                        'Detall de partícips.Codi Catàleg': part['Codi Catàleg'],
-                        'Detall de partícips.Denominació': part['Denominació'],
-                        'Detall de partícips.Denominació partícip (agregat)': part['Denominació partícip (agregat)']
+            if (!isValidUserDirecta(usr)) return;
+            const rawEns = usr['Ens'] || usr['CODI'] || usr['Codi'] || usr['Codi ens'];
+            const ensKey = normalizeCode(rawEns);
+            if (ensKey) {
+                if (!indexDirecta.has(ensKey)) {
+                    indexDirecta.set(ensKey, []);
+                }
+                indexDirecta.get(ensKey).push({
+                    nom: usr['Nom'] ? String(usr['Nom']).trim() : '',
+                    cognoms: usr['Cognoms'] ? String(usr['Cognoms']).trim() : '',
+                    email: usr['Email'] ? String(usr['Email']).trim() : ''
+                });
+            }
+        });
+
+        // Indexar usuaris per 'Ens' a la pestanya resum (Perfil = 'Resta' i Pot modificar = 'X')
+        const indexResum = new Map();
+        rowsResum.forEach(usr => {
+            if (!isValidUserResum(usr)) return;
+            const rawEns = usr['Ens'] || usr['CODI'] || usr['Codi'] || usr['Codi ens'];
+            const ensKey = normalizeCode(rawEns);
+            if (ensKey) {
+                if (!indexResum.has(ensKey)) {
+                    indexResum.set(ensKey, []);
+                }
+                indexResum.get(ensKey).push({
+                    nom: usr['Nom'] ? String(usr['Nom']).trim() : '',
+                    cognoms: usr['Cognoms'] ? String(usr['Cognoms']).trim() : '',
+                    email: usr['Email'] ? String(usr['Email']).trim() : ''
+                });
+            }
+        });
+
+        // Executar cerca en cascada per cada entitat
+        mergedResults = [];
+
+        detallParticips.forEach(entitat => {
+            const codiEntitat = normalizeCode(entitat.codi);
+            const codiVincle = normalizeCode(entitat.codiVincle);
+
+            let usuarisTrobats = [];
+            let via = '';
+
+            // Pas 1: Cercar a "Autorització directa a ens" pel codi de l'entitat
+            if (codiEntitat && indexDirecta.has(codiEntitat) && indexDirecta.get(codiEntitat).length > 0) {
+                usuarisTrobats = indexDirecta.get(codiEntitat);
+                via = 'Directa';
+            }
+            // Pas 2: Si no hi ha resultats, cercar usuaris del seu vincle primari a "Autorització directa a ens"
+            else if (codiVincle && indexDirecta.has(codiVincle) && indexDirecta.get(codiVincle).length > 0) {
+                usuarisTrobats = indexDirecta.get(codiVincle);
+                via = 'Vincle primari';
+            }
+            // Pas 3: Si tampoc no s'ha trobat cap usuari, cercar usuaris a "Autorització a ens (resum)" pel codi de l'entitat
+            else if (codiEntitat && indexResum.has(codiEntitat) && indexResum.get(codiEntitat).length > 0) {
+                usuarisTrobats = indexResum.get(codiEntitat);
+                via = 'Directa (resum)';
+            }
+            // Pas 4: Si no es troben resultats, cercar usuaris del seu vincle primari a "Autorització a ens (resum)"
+            else if (codiVincle && indexResum.has(codiVincle) && indexResum.get(codiVincle).length > 0) {
+                usuarisTrobats = indexResum.get(codiVincle);
+                via = 'Vincle primari (resum)';
+            }
+
+            // Pas 4: Processar resultats
+            if (usuarisTrobats.length > 0) {
+                usuarisTrobats.forEach(u => {
+                    mergedResults.push({
+                        'Detall de partícips.Codi Catàleg': entitat.codi,
+                        'Detall de partícips.Denominació': entitat.denominacio,
+                        'Detall de partícips.Denominació partícip (agregat)': entitat.nomVincle,
+                        'Origen': via,
+                        'Nom': u.nom,
+                        'Cognoms': u.cognoms,
+                        'Email': u.email
                     });
-                }
-            });
-            
-            if (!foundMatch) {
-                consultaUsuaris.push({
-                    'Nom': usr['Nom'],
-                    'Cognoms': usr['Cognoms'],
-                    'Email': usr['Email'],
-                    'Detall de partícips.Codi Catàleg': null,
-                    'Detall de partícips.Denominació': null,
-                    'Detall de partícips.Denominació partícip (agregat)': null
+                });
+            } else {
+                mergedResults.push({
+                    'Detall de partícips.Codi Catàleg': entitat.codi,
+                    'Detall de partícips.Denominació': entitat.denominacio,
+                    'Detall de partícips.Denominació partícip (agregat)': entitat.nomVincle,
+                    'Origen': 'Sense usuaris',
+                    'Nom': "No s'han trobat usuaris",
+                    'Cognoms': '',
+                    'Email': ''
                 });
             }
         });
 
-        detallParticips.forEach(part => {
-            if (!matchedParticips.has(part)) {
-                consultaUsuaris.push({
-                    'Nom': null,
-                    'Cognoms': null,
-                    'Email': null,
-                    'Detall de partícips.Codi Catàleg': part['Codi Catàleg'],
-                    'Detall de partícips.Denominació': part['Denominació'],
-                    'Detall de partícips.Denominació partícip (agregat)': part['Denominació partícip (agregat)']
-                });
-            }
-        });
+        updateStepStatus('stepHierarchy', 'completed');
 
-        const consultaUsuarisFiltrada = consultaUsuaris.filter(r => r['Detall de partícips.Codi Catàleg'] !== null && r['Detall de partícips.Codi Catàleg'] !== undefined);
+        // Step 4: Generació de resultats i desament
+        updateStepStatus('stepOutput', 'active');
+        await delay(500);
 
-        // Step 3b: Administració de la Generalitat (Right Outer Join on Denominació <=> Nom ens - CASE-SENSITIVE)
-        const administracioGeneralitat = [];
-        rowsDirecta.forEach(usr => {
-            const nomEnsKey = usr['Nom ens'] ? String(usr['Nom ens']).trim() : null;
-            let foundMatch = false;
-            
-            detallParticips.forEach(part => {
-                const denomKey = part['Denominació'] ? String(part['Denominació']).trim() : null;
-                if (nomEnsKey !== null && denomKey !== null && nomEnsKey === denomKey) {
-                    foundMatch = true;
-                    if (part['Denominació partícip (agregat)'] === 'Administració de la Generalitat de Catalunya') {
-                        administracioGeneralitat.push({
-                            'Nom': usr['Nom'],
-                            'Cognoms': usr['Cognoms'],
-                            'Email': usr['Email'],
-                            'Detall de partícips.Codi Catàleg': part['Codi Catàleg'],
-                            'Detall de partícips.Denominació': part['Denominació'],
-                            'Detall de partícips.Denominació partícip (agregat)': part['Denominació partícip (agregat)']
-                        });
-                    }
-                }
-            });
-        });
-
-        // Step 3c: Combine the two (Union) to form "Consulta usuaris final"
-        const consultaUsuarisFinal = [...consultaUsuarisFiltrada, ...administracioGeneralitat];
-        updateStepStatus('stepJoins', 'completed');
-
-        // Step 4: Autorització a departaments & Final Combined + depts
-        updateStepStatus('stepDepts', 'active');
-        await delay(1000);
-
-        const sheetDeptsRaw = wbUsr.Sheets['Autoritzacio a departaments'];
-        if (!sheetDeptsRaw) throw new Error("No s'ha trobat la fulla 'Autoritzacio a departaments' a Export_Usuaris");
-        
-        const rowsDepts = XLSX.utils.sheet_to_json(sheetDeptsRaw, {defval: null});
-
-        // Populate unique user departments
-        const rawUserDepts = rowsDepts.map(r => r['Desc. Departament']).filter(Boolean);
-        userDepartments = Array.from(new Set(rawUserDepts)).sort();
-
-        const autoritzacioDepts = rowsDepts
-            .filter(r => r['Perfil'] !== 'Intervenció')
-            .map(r => ({
-                'Nom': r['Nom'],
-                'Cognoms': r['Cognoms'],
-                'Email': r['Email'],
-                'Desc. Departament': r['Desc. Departament'],
-                'Detall de partícips.Codi Catàleg': null,
-                'Detall de partícips.Denominació': null,
-                'Detall de partícips.Denominació partícip (agregat)': null
-            }));
-
-        // Parse 'Dades entitat' and filter for Generalitat de Catalunya entities
-        const sheetDadesEntitatRaw = wbCat.Sheets['Dades entitat'];
-        const generalitatDeptUsuaris = [];
-        if (sheetDadesEntitatRaw) {
-            // Read starting from header line 2 (index 1)
-            const rowsDadesEntitat = xlsxToObjectsWithDuplicateHeaders(sheetDadesEntitatRaw);
-
-            // Populate unique catalog departments
-            const rawCatDepts = rowsDadesEntitat.map(r => r["Departament d'adscripció"] || r["Departament d'adscripció_1"]).filter(Boolean);
-            catalogDepartments = Array.from(new Set(rawCatDepts)).sort();
-
-            // Create helper function to dynamically search properties
-            const getProp = (obj, partialName) => {
-                const normPartial = normalizeText(partialName);
-                const matchedKey = Object.keys(obj).find(k => normalizeText(k).includes(normPartial));
-                return matchedKey ? obj[matchedKey] : null;
-            };
-
-            // Build a dictionary lookup for Departament d'adscripció, Grau de participació, and Via de participació by Codi Catàleg
-            const entitatDepts = {};
-            const entitatGraus = {};
-            const entitatVies = {};
-
-            rowsDadesEntitat.forEach(entitat => {
-                let codi = null;
-                let deptAdscripcio = null;
-                let grau = null;
-                let via = null;
-
-                for (const key of Object.keys(entitat)) {
-                    const normKey = normalizeText(key);
-                    if (normKey === 'codi cataleg' || normKey === 'codi cataleg_1' || normKey === 'codi') {
-                        codi = entitat[key];
-                    }
-                    if (normKey === 'departament dadscripcio' || normKey === 'departament dadscripcio_1' || normKey === 'departament dadscripcio_2') {
-                        deptAdscripcio = entitat[key];
-                    }
-                    if (normKey === 'grau de participacio' || normKey === 'grau de participacio_1' || normKey === 'grau') {
-                        grau = entitat[key];
-                    }
-                    if (normKey === 'via de participacio' || normKey === 'via de participacio_1' || normKey === 'via') {
-                        via = entitat[key];
-                    }
-                }
-
-                // Fallback to contains search if not matched exactly
-                if (codi === null || codi === undefined) {
-                    const matchedCodiKey = Object.keys(entitat).find(k => normalizeText(k).includes('codi cataleg') || normalizeText(k).includes('codi'));
-                    if (matchedCodiKey) codi = entitat[matchedCodiKey];
-                }
-                if (deptAdscripcio === null || deptAdscripcio === undefined) {
-                    const matchedDeptKey = Object.keys(entitat).find(k => normalizeText(k).includes('adscripcio') || normalizeText(k).includes('departament'));
-                    if (matchedDeptKey) deptAdscripcio = entitat[matchedDeptKey];
-                }
-                if (grau === null || grau === undefined) {
-                    const matchedGrauKey = Object.keys(entitat).find(k => normalizeText(k).includes('grau'));
-                    if (matchedGrauKey) grau = entitat[matchedGrauKey];
-                }
-                if (via === null || via === undefined) {
-                    const matchedViaKey = Object.keys(entitat).find(k => normalizeText(k).includes('via'));
-                    if (matchedViaKey) via = entitat[matchedViaKey];
-                }
-
-                if (codi !== null && codi !== undefined) {
-                    const codiStr = String(codi).trim();
-                    if (deptAdscripcio !== null && deptAdscripcio !== undefined) {
-                        entitatDepts[codiStr] = deptAdscripcio;
-                    }
-                    if (grau !== null && grau !== undefined) {
-                        entitatGraus[codiStr] = grau;
-                    }
-                    if (via !== null && via !== undefined) {
-                        entitatVies[codiStr] = via;
-                    }
-                }
-            });
-
-            // Find all entities with Partícip agregat === "Administració de la Generalitat de Catalunya" from Detall de partícips
-            // AND whose Grau === "Minoritària" and Via === "Directa" in Dades entitat
-            const targetEntitats = detallParticips.filter(part => {
-                const codiStr = String(part['Codi Catàleg']).trim();
-                const isGeneralitat = part['Denominació partícip (agregat)'] === 'Administració de la Generalitat de Catalunya';
-                const grau = normalizeText(entitatGraus[codiStr] || '');
-                const via = normalizeText(entitatVies[codiStr] || '');
-                return isGeneralitat && grau === 'minoritaria' && via === 'directa';
-            });
-
-            targetEntitats.forEach(entitat => {
-                const codi = entitat['Codi Catàleg'];
-                const nom = entitat['Denominació'];
-                const deptAdscripcio = entitatDepts[String(codi).trim()];
-
-                if (codi && deptAdscripcio) {
-                    // Extract leading letters prefix, e.g. "SLT - Departament de Salut" -> "SLT"
-                    const prefixRaw = String(deptAdscripcio).match(/^[A-Z]+/i)?.[0].toUpperCase();
-                    if (prefixRaw) {
-                        // Resolve mapping, e.g. "ECO" -> "ECF"
-                        const mappedPrefix = departmentMapping[prefixRaw] || prefixRaw;
-
-                        // Find users in Autoritzacio a departaments whose department starts with mappedPrefix
-                        rowsDepts.forEach(usr => {
-                            const usrDept = usr['Desc. Departament'] || '';
-                            const usrDeptPrefix = usrDept.match(/^[A-Z]+/i)?.[0].toUpperCase();
-                            
-                            if (usrDeptPrefix === mappedPrefix && usr['Perfil'] !== 'Intervenció') {
-                                generalitatDeptUsuaris.push({
-                                    'Nom': usr['Nom'],
-                                    'Cognoms': usr['Cognoms'],
-                                    'Email': usr['Email'],
-                                    'Desc. Departament': deptAdscripcio, // Show it in the Departament column
-                                    'Detall de partícips.Codi Catàleg': codi,
-                                    'Detall de partícips.Denominació': nom,
-                                    'Detall de partícips.Denominació partícip (agregat)': deptAdscripcio // Set to the department's name as the participant
-                                });
-                            }
-                        });
-                    }
-                }
-            });
-        }
-
-        const consultaUsuarisFinalFormatted = consultaUsuarisFinal.map(r => ({
-            ...r,
-            'Desc. Departament': null
-        }));
-
-        // Final Combine (Union)
-        mergedResults = [...consultaUsuarisFinalFormatted, ...autoritzacioDepts, ...generalitatDeptUsuaris];
         filteredResults = [...mergedResults];
-        
-        updateStepStatus('stepDepts', 'completed');
-        
-        // Hide process tracker on success
+        updateStepStatus('stepOutput', 'completed');
+        await delay(500);
+
+        // Ocultar tracker i manualUploadSection, i mostrar taula de resultats
         processSection.classList.add('hidden');
+        if (manualUploadSection) manualUploadSection.classList.add('hidden');
+        const btnUploadToSharepoint = document.getElementById('btnUploadToSharepoint');
+        const btnCancelManualUpload = document.getElementById('btnCancelManualUpload');
+        if (btnUploadToSharepoint) btnUploadToSharepoint.classList.remove('hidden');
+        if (btnCancelManualUpload) btnCancelManualUpload.classList.remove('hidden');
+        hasClickedSync = false;
         
-        // Hide manual upload section on success only if a synchronization action was initiated
-        if (hasClickedSync && manualUploadSection) {
-            manualUploadSection.classList.add('hidden');
-            hasClickedSync = false;
-        }
-        
-        // Show table & set page 1
         resultsSection.classList.remove('hidden');
         currentPage = 1;
         applyFiltersAndSort();
-        
-        // --- AUTOMATIC FILE WRITING TO SHAREPOINT ---
-        if (directoryHandle) {
-            // 1. Generate output Excel binary data using SheetJS
-            const exportData = mergedResults.map(r => ({
-                'Detall de partícips.Codi Catàleg': r['Detall de partícips.Codi Catàleg'],
-                'Detall de partícips.Denominació': r['Detall de partícips.Denominació'],
-                'Detall de partícips.Denominació partícip (agregat)': r['Detall de partícips.Denominació partícip (agregat)'],
-                'Desc. Departament': r['Desc. Departament'],
-                'Nom': r['Nom'],
-                'Cognoms': r['Cognoms'],
-                'Email': r['Email']
-            }));
-            const wbOut = XLSX.utils.book_new();
-            const wsOut = XLSX.utils.json_to_sheet(exportData);
-            
-            // Auto-fit columns to text length
-            const colWidthsOut = Object.keys(exportData[0] || {}).map(key => {
-                let maxLen = key.length;
-                exportData.forEach(r => {
-                    const val = r[key];
-                    if (val !== undefined && val !== null) {
-                        const len = String(val).length;
-                        if (len > maxLen) maxLen = len;
-                    }
-                });
-                return { wch: maxLen + 3 };
+        resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        // Persistir la consulta a la memòria interna del navegador (IndexedDB) per a consultes instantànies posteriors
+        try {
+            await saveCachedResults(mergedResults, {
+                dateCatModified,
+                dateUsrModified,
+                updatedAt: new Date().getTime()
             });
-            wsOut['!cols'] = colWidthsOut;
-
-            XLSX.utils.book_append_sheet(wbOut, wsOut, "Dades Fusionades");
-            
-            // Embed original dates in the workbook comments metadata
-            wbOut.Props = {
-                Comments: `CatDate:${dateCatModified || 0}|UsrDate:${dateUsrModified || 0}`
-            };
-            
-            const wbBinary = XLSX.write(wbOut, {bookType: 'xlsx', type: 'array'});
-            
-
-            
-            // Save the output merged excel directly
-            await saveFileToDirectory(directoryHandle, new Uint8Array(wbBinary), "Consulta usuaris final + depts.xlsx");
-
-            // Also save as CSV for easy direct consumption by other applications
-            const csvString = XLSX.utils.sheet_to_csv(wsOut);
-            await saveFileToDirectory(directoryHandle, new TextEncoder().encode(csvString), "Consulta usuaris final + depts.csv");
+        } catch (e) {
+            console.warn("No s'ha pogut desar a memòria cau:", e);
         }
-        
+
+        // L'aplicació és exclusivament de consulta: no es desa ni es modifica cap fitxer de la carpeta.
+        // L'usuari pot descarregar els resultats quan vulgui mitjançant el botó 'Exportar a Excel (.xlsx)'.
+
     } catch (err) {
         alert("S'ha produït un error en processar els fitxers: " + err.message);
         console.error(err);
         
-        // Restore buttons visibility on process error so user can retry or cancel
         const btnUploadToSharepoint = document.getElementById('btnUploadToSharepoint');
         const btnCancelManualUpload = document.getElementById('btnCancelManualUpload');
         if (btnUploadToSharepoint) btnUploadToSharepoint.classList.remove('hidden');
@@ -1154,28 +1038,6 @@ btnProcess.addEventListener('click', async () => {
         btnProcess.removeAttribute('disabled');
     }
 });
-
-// Helper to write files directly to directory handles (File System Access API)
-async function saveFileToDirectory(dirHandle, fileData, fileName) {
-    try {
-        // To avoid InvalidStateError (browser stale file handle cache), try removing the entry first
-        try {
-            await dirHandle.removeEntry(fileName);
-        } catch (removeErr) {
-            // Ignore if file doesn't exist or can't be removed
-        }
-        
-        const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
-        const writable = await fileHandle.createWritable();
-        await writable.write(fileData);
-        await writable.close();
-        console.log(`Saved ${fileName} directly to local SharePoint directory`);
-        return true;
-    } catch (e) {
-        console.warn(`[OneDrive Sync Warning] No s'ha pogut desar ${fileName} al directori local (fitxer bloquejat per sincronització de Windows/OneDrive):`, e);
-        return false;
-    }
-}
 
 function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -1186,7 +1048,6 @@ function xlsxToObjectsWithDuplicateHeaders(sheet) {
     const rows = [];
     const headers = [];
     
-    // Robust header row detection by searching for 'Codi Catàleg' or 'Denominació' in the first few rows
     let headerRowIndex = range.s.r;
     for (let r = range.s.r; r <= Math.min(range.s.r + 5, range.e.r); r++) {
         let isHeaderRow = false;
@@ -1194,7 +1055,7 @@ function xlsxToObjectsWithDuplicateHeaders(sheet) {
             const cell = sheet[XLSX.utils.encode_cell({r: r, c: col})];
             if (cell && cell.v) {
                 const normVal = normalizeText(String(cell.v));
-                if (normVal.includes('codi cataleg') || normVal.includes('codi cat') || normVal.includes('denominacio')) {
+                if (normVal.includes('codi cataleg') || normVal.includes('codi cat') || normVal.includes('denominacio') || normVal === 'codi') {
                     isHeaderRow = true;
                     break;
                 }
@@ -1210,14 +1071,12 @@ function xlsxToObjectsWithDuplicateHeaders(sheet) {
         const cell = sheet[XLSX.utils.encode_cell({r: headerRowIndex, c: col})];
         let val = cell ? String(cell.v).trim() : `Column${col + 1}`;
         
-        // Normalize column header character replacements (e.g.  or other encoding glitches -> standard Catalan characters)
         val = val.replace(/[\uFFFD\u00A0\u00AD\u0080-\u00FF]/g, (match, offset, string) => {
             const prevChar = string.slice(0, offset).toLowerCase();
             if (prevChar.endsWith('cat')) return 'à';
-            if (prevChar.endsWith('denominaci') || prevChar.endsWith('participaci') || prevChar.endsWith('adscripci')) return 'ó';
-            if (prevChar.endsWith('presid') || prevChar.endsWith('just')) return 'è';
+            if (prevChar.endsWith('denominaci') || prevChar.endsWith('participaci')) return 'ó';
             if (prevChar.endsWith('part') && string.slice(offset + 1).startsWith('cip')) return 'í';
-            return 'ó'; // Default fallback for Catalan XLS headers commonly carrying 'ó' (e.g. Denominació, adscripció, participació)
+            return 'ó';
         });
         
         let finalVal = val;
@@ -1246,6 +1105,7 @@ function xlsxToObjectsWithDuplicateHeaders(sheet) {
     return rows;
 }
 
+// Render Table
 function renderTable() {
     tableBody.innerHTML = '';
     const startIndex = (currentPage - 1) * rowsPerPage;
@@ -1254,8 +1114,8 @@ function renderTable() {
     const pageItems = filteredResults.slice(startIndex, endIndex);
     
     if (pageItems.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 2rem; color: var(--text-muted);">Cap resultat que coincideixi amb la cerca</td></tr>`;
-        recordCount.textContent = `0 registres`;
+        tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 2rem; color: var(--text-muted);">Cap resultat que coincideixi amb la cerca</td></tr>`;
+        recordCount.textContent = `0 registres trobats`;
         btnPrev.setAttribute('disabled', 'true');
         btnNext.setAttribute('disabled', 'true');
         pageIndicator.textContent = 'Pàgina 1 de 1';
@@ -1267,23 +1127,38 @@ function renderTable() {
         
         const codi = row['Detall de partícips.Codi Catàleg'] || '-';
         const ens = row['Detall de partícips.Denominació'] || '-';
-        let particip = row['Detall de partícips.Denominació partícip (agregat)'] || '-';
-        let dept = row['Desc. Departament'] || '-';
-        const nom = row['Nom'] || '-';
+        const particip = row['Detall de partícips.Denominació partícip (agregat)'] || '-';
+        const origen = row['Origen'] || '-';
+        let nom = row['Nom'] || '-';
         const cognoms = row['Cognoms'] || '-';
         const email = row['Email'] || '-';
         
-        // Visual badge for departments
-        if (row['Desc. Departament'] && !row['Detall de partícips.Codi Catàleg']) {
-            dept = `<span style="color:var(--accent-violet); font-size:0.8rem; font-weight:600; background:rgba(139,92,246,0.1); padding:2px 8px; border-radius:4px;">${row['Desc. Departament']}</span>`;
-            particip = `<span style="color:var(--text-muted); font-size:0.8rem;">DEPARTAMENT</span>`;
+        // Format Origen Badge
+        let badgeHtml = '';
+        if (origen === 'Directa') {
+            badgeHtml = `<span style="color:#34d399; font-size:0.78rem; font-weight:600; background:rgba(16,185,129,0.12); padding:3px 8px; border-radius:6px; border:1px solid rgba(16,185,129,0.25);">Directa</span>`;
+        } else if (origen === 'Vincle primari') {
+            badgeHtml = `<span style="color:#60a5fa; font-size:0.78rem; font-weight:600; background:rgba(59,130,246,0.12); padding:3px 8px; border-radius:6px; border:1px solid rgba(59,130,246,0.25);">Vincle primari</span>`;
+        } else if (origen === 'Directa (resum)' || origen === 'Resum') {
+            badgeHtml = `<span style="color:#38bdf8; font-size:0.78rem; font-weight:600; background:rgba(56,189,248,0.12); padding:3px 8px; border-radius:6px; border:1px solid rgba(56,189,248,0.25);">${origen}</span>`;
+        } else if (origen === 'Vincle primari (resum)') {
+            badgeHtml = `<span style="color:#c084fc; font-size:0.78rem; font-weight:600; background:rgba(168,85,247,0.12); padding:3px 8px; border-radius:6px; border:1px solid rgba(168,85,247,0.25);">Vincle primari (resum)</span>`;
+        } else if (origen === 'Sense usuaris') {
+            badgeHtml = `<span style="color:#fbbf24; font-size:0.78rem; font-weight:600; background:rgba(245,158,11,0.12); padding:3px 8px; border-radius:6px; border:1px solid rgba(245,158,11,0.25);">Sense usuaris</span>`;
+        } else {
+            badgeHtml = origen;
+        }
+
+        // Highlight "No s'han trobat usuaris"
+        if (nom === "No s'han trobat usuaris" || nom === "No s'ha trobat usuaris") {
+            nom = `<span style="color: #fbbf24; font-style: italic;">No s'han trobat usuaris</span>`;
         }
 
         tr.innerHTML = `
             <td><strong>${codi}</strong></td>
             <td>${ens}</td>
             <td>${particip}</td>
-            <td>${dept}</td>
+            <td>${badgeHtml}</td>
             <td>${nom}</td>
             <td>${cognoms}</td>
             <td>${email}</td>
@@ -1329,15 +1204,82 @@ if (searchInput) {
     });
 }
 
+// Copiar adreces de correu al portapapers per a destinataris de correu
+if (btnCopyEmails) {
+    btnCopyEmails.addEventListener('click', async () => {
+        if (!filteredResults || filteredResults.length === 0) {
+            alert("No hi ha resultats disponibles per copiar.");
+            return;
+        }
+
+        // Extreure correus únics i vàlids dels resultats filtrats actualment
+        const emailSet = new Set();
+        filteredResults.forEach(r => {
+            const rawEmail = r['Email'];
+            if (rawEmail && typeof rawEmail === 'string') {
+                const clean = rawEmail.trim();
+                // Validar que sembli un correu electrònic vàlid
+                if (clean.includes('@') && clean.length >= 5) {
+                    emailSet.add(clean);
+                }
+            }
+        });
+
+        const emails = Array.from(emailSet);
+
+        if (emails.length === 0) {
+            alert("No s'ha trobat cap adreça de correu electrònic vàlida entre els resultats filtrats.");
+            return;
+        }
+
+        // Format separat per punt i coma i espai (estàndard Outlook / Exchange / Thunderbird / Webmail)
+        const textToCopy = emails.join('; ');
+
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(textToCopy);
+            } else {
+                // Fallback tradicional
+                const textarea = document.createElement('textarea');
+                textarea.value = textToCopy;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+            }
+
+            // Feedback visual i temporal al botó
+            if (btnCopyEmailsText) {
+                const originalText = btnCopyEmailsText.textContent;
+                btnCopyEmails.style.borderColor = 'rgba(16, 185, 129, 0.6)';
+                btnCopyEmails.style.color = '#34d399';
+                btnCopyEmailsText.textContent = `✓ ${emails.length} correus copiats`;
+
+                setTimeout(() => {
+                    btnCopyEmails.style.borderColor = '';
+                    btnCopyEmails.style.color = '';
+                    btnCopyEmailsText.textContent = originalText;
+                }, 2500);
+            }
+        } catch (err) {
+            console.error("Error al copiar al portapapers:", err);
+            prompt("No s'ha pogut copiar automàticament. Pots copiar les adreces manualment des d'aquí:", textToCopy);
+        }
+    });
+}
+
+// Excel Export
 btnExport.addEventListener('click', () => {
     if (!filteredResults.length) return;
     
     const wb = XLSX.utils.book_new();
     const exportData = filteredResults.map(r => ({
-        'Detall de partícips.Codi Catàleg': r['Detall de partícips.Codi Catàleg'],
-        'Detall de partícips.Denominació': r['Detall de partícips.Denominació'],
-        'Detall de partícips.Denominació partícip (agregat)': r['Detall de partícips.Denominació partícip (agregat)'],
-        'Desc. Departament': r['Desc. Departament'],
+        'Codi Catàleg': r['Detall de partícips.Codi Catàleg'],
+        'Denominació Ens': r['Detall de partícips.Denominació'],
+        'Partícip Agregat': r['Detall de partícips.Denominació partícip (agregat)'],
+        'Origen / Via': r['Origen'],
         'Nom': r['Nom'],
         'Cognoms': r['Cognoms'],
         'Email': r['Email']
@@ -1345,7 +1287,6 @@ btnExport.addEventListener('click', () => {
 
     const ws = XLSX.utils.json_to_sheet(exportData);
     
-    // Auto-fit columns to text length
     const colWidths = Object.keys(exportData[0] || {}).map(key => {
         let maxLen = key.length;
         exportData.forEach(r => {
@@ -1359,20 +1300,9 @@ btnExport.addEventListener('click', () => {
     });
     ws['!cols'] = colWidths;
 
-    XLSX.utils.book_append_sheet(wb, ws, "Dades Fusionades");
-    XLSX.writeFile(wb, "Consulta usuaris final + depts.xlsx");
+    XLSX.utils.book_append_sheet(wb, ws, "Usuaris per Entitat");
+    XLSX.writeFile(wb, "Consulta usuaris final.xlsx");
 });
-
-// Helper to normalize text (ignore accents and common punctuation)
-function normalizeText(str) {
-    if (str === undefined || str === null) return '';
-    return String(str)
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "") // removes accents
-        .toLowerCase()
-        .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"'’]/g, "") // removes punctuation
-        .trim();
-}
 
 // Unified Filtering and Sorting Engine
 function applyFiltersAndSort() {
@@ -1381,7 +1311,7 @@ function applyFiltersAndSort() {
     const filterCodi = normalizeText(columnFilters.codi);
     const filterEns = normalizeText(columnFilters.ens);
     const filterParticip = normalizeText(columnFilters.particip);
-    const filterDept = normalizeText(columnFilters.dept);
+    const filterOrigen = normalizeText(columnFilters.origen);
     const filterNom = normalizeText(columnFilters.nom);
     const filterCognoms = normalizeText(columnFilters.cognoms);
     const filterEmail = normalizeText(columnFilters.email);
@@ -1390,7 +1320,7 @@ function applyFiltersAndSort() {
         const codiStr = normalizeText(row['Detall de partícips.Codi Catàleg']);
         const ensStr = normalizeText(row['Detall de partícips.Denominació']);
         const participStr = normalizeText(row['Detall de partícips.Denominació partícip (agregat)']);
-        const deptStr = normalizeText(row['Desc. Departament']);
+        const origenStr = normalizeText(row['Origen']);
         const nomStr = normalizeText(row['Nom']);
         const cognomsStr = normalizeText(row['Cognoms']);
         const emailStr = normalizeText(row['Email']);
@@ -1400,7 +1330,7 @@ function applyFiltersAndSort() {
             const matchQuery = codiStr.includes(query) || 
                                ensStr.includes(query) || 
                                participStr.includes(query) ||
-                               deptStr.includes(query) ||
+                               origenStr.includes(query) ||
                                nomStr.includes(query) || 
                                cognomsStr.includes(query) || 
                                emailStr.includes(query);
@@ -1411,7 +1341,7 @@ function applyFiltersAndSort() {
         if (filterCodi && !codiStr.includes(filterCodi)) return false;
         if (filterEns && !ensStr.includes(filterEns)) return false;
         if (filterParticip && !participStr.includes(filterParticip)) return false;
-        if (filterDept && !deptStr.includes(filterDept)) return false;
+        if (filterOrigen && !origenStr.includes(filterOrigen)) return false;
         if (filterNom && !nomStr.includes(filterNom)) return false;
         if (filterCognoms && !cognomsStr.includes(filterCognoms)) return false;
         if (filterEmail && !emailStr.includes(filterEmail)) return false;
@@ -1433,9 +1363,9 @@ function applyFiltersAndSort() {
             } else if (currentSortColumn === 'particip') {
                 valA = a['Detall de partícips.Denominació partícip (agregat)'] || '';
                 valB = b['Detall de partícips.Denominació partícip (agregat)'] || '';
-            } else if (currentSortColumn === 'dept') {
-                valA = a['Desc. Departament'] || '';
-                valB = b['Desc. Departament'] || '';
+            } else if (currentSortColumn === 'origen') {
+                valA = a['Origen'] || '';
+                valB = b['Origen'] || '';
             } else if (currentSortColumn === 'nom') {
                 valA = a['Nom'] || '';
                 valB = b['Nom'] || '';
@@ -1480,7 +1410,6 @@ function updateDateDisplay(timestampCat, timestampUsr) {
     
     const strCat = formatDate(tsCat);
     const strUsr = formatDate(tsUsr);
-    
     const formattedText = `Actualitzacions: Usuaris: ${strUsr} / Entitats: ${strCat}`;
     
     const sharepointDateLabel = document.getElementById('sharepointDateLabel');
@@ -1529,196 +1458,3 @@ async function extractMetadataDatesFromFiles(fileCat, fileUsr) {
         }
     }
 }
-
-// State variables for departments extracted from excels
-let catalogDepartments = []; // Extracted from Cataleg_dens_export (Dades entitat -> Departament d'adscripció)
-let userDepartments = [];    // Extracted from Export_Usuaris (Autoritzacio a departaments -> Desc. Departament)
-
-// --- DEPARTMENT MAPPING ENGINE & MODAL FUNCTIONS ---
-function loadDepartmentMapping() {
-    try {
-        const stored = localStorage.getItem('gpg_department_mapping');
-        if (stored) {
-            departmentMapping = JSON.parse(stored);
-        } else {
-            departmentMapping = { ...DEFAULT_DEPT_MAPPING };
-        }
-    } catch (e) {
-        console.error("Error loading department mapping, fallback to default", e);
-        departmentMapping = { ...DEFAULT_DEPT_MAPPING };
-    }
-}
-
-function saveDepartmentMapping() {
-    const container = document.getElementById('mappingListContainer');
-    if (!container) return;
-    
-    const rows = container.querySelectorAll('.mapping-row');
-    const newMapping = {};
-    
-    rows.forEach(row => {
-        const selects = row.querySelectorAll('select');
-        if (selects.length === 2) {
-            const key = selects[0].value.trim().toUpperCase();
-            const val = selects[1].value.trim().toUpperCase();
-            
-            if (key && val) {
-                newMapping[key] = val;
-            }
-        }
-    });
-    
-    departmentMapping = newMapping;
-    try {
-        localStorage.setItem('gpg_department_mapping', JSON.stringify(departmentMapping));
-    } catch (e) {
-        console.error("Could not write to localStorage", e);
-    }
-    
-    closeMappingModal();
-    
-    // If we already have data loaded, trigger reprocessing to apply the new mapping rules
-    if (fileDataCat && fileDataUsr) {
-        btnProcess.click();
-    }
-}
-
-function renderMappingRows() {
-    const container = document.getElementById('mappingListContainer');
-    if (!container) return;
-    
-    container.innerHTML = '';
-    
-    // Determine the list of keys to display: either current mapping keys or any catalog prefix we extracted
-    const currentKeys = new Set(Object.keys(departmentMapping));
-    catalogDepartments.forEach(dept => {
-        const prefix = dept.split(/[\s\-]/)[0].trim().toUpperCase();
-        if (prefix) currentKeys.add(prefix);
-    });
-    
-    // If we don't have files loaded yet, use DEFAULT_DEPT_MAPPING keys
-    if (currentKeys.size === 0) {
-        Object.keys(DEFAULT_DEPT_MAPPING).forEach(k => currentKeys.add(k));
-    }
-
-    Array.from(currentKeys).sort().forEach(key => {
-        const value = departmentMapping[key] || '';
-        const row = createMappingRowElement(key, value);
-        container.appendChild(row);
-    });
-}
-
-function createMappingRowElement(key, value) {
-    const div = document.createElement('div');
-    div.className = 'mapping-row';
-    div.style.display = 'flex';
-    div.style.alignItems = 'center';
-    div.style.gap = '10px';
-    
-    // Dropdown for catalog prefix (fixed to the extracted/mapped key)
-    const selectKey = document.createElement('select');
-    selectKey.className = 'mapping-input';
-    selectKey.style.flex = '1';
-    selectKey.style.background = '#1e1b4b';
-    selectKey.style.color = '#e5e7eb';
-    selectKey.style.border = '1px solid var(--glass-border)';
-    selectKey.style.padding = '0.5rem';
-    selectKey.style.borderRadius = '6px';
-    
-    // Populate selectKey with catalog departments or fallback
-    let catOptions = catalogDepartments.map(d => {
-        const prefix = d.split(/[\s\-]/)[0].trim().toUpperCase();
-        return { prefix, label: d };
-    });
-    // Remove duplicates
-    catOptions = catOptions.filter((v, i, a) => a.findIndex(t => t.prefix === v.prefix) === i);
-    
-    if (catOptions.length === 0) {
-        // Fallback options
-        const fallbacks = ['ECO', 'EXT', 'ACC', 'DSO', 'CLT', 'REU', 'SLT', 'PRE', 'EMT', 'TER', 'JUS'];
-        fallbacks.forEach(f => {
-            const opt = document.createElement('option');
-            opt.value = f;
-            opt.textContent = f;
-            if (f === key) opt.selected = true;
-            selectKey.appendChild(opt);
-        });
-    } else {
-        catOptions.forEach(optData => {
-            const opt = document.createElement('option');
-            opt.value = optData.prefix;
-            opt.textContent = optData.label;
-            if (optData.prefix === key) opt.selected = true;
-            selectKey.appendChild(opt);
-        });
-    }
-    
-    const arrow = document.createElement('span');
-    arrow.textContent = '➔';
-    arrow.style.color = 'var(--text-muted)';
-    arrow.style.width = '30px';
-    arrow.style.textAlign = 'center';
-    
-    // Dropdown for target user departments
-    const selectValue = document.createElement('select');
-    selectValue.className = 'mapping-input';
-    selectValue.style.flex = '1';
-    selectValue.style.background = '#1e1b4b';
-    selectValue.style.color = '#e5e7eb';
-    selectValue.style.border = '1px solid var(--glass-border)';
-    selectValue.style.padding = '0.5rem';
-    selectValue.style.borderRadius = '6px';
-    
-    // Populate selectValue with user departments or fallback
-    let usrOptions = userDepartments.map(d => {
-        const prefix = d.split(/[\s\-]/)[0].trim().toUpperCase();
-        return { prefix, label: d };
-    });
-    // Remove duplicates
-    usrOptions = usrOptions.filter((v, i, a) => a.findIndex(t => t.prefix === v.prefix) === i);
-    
-    // Add default empty/identity option
-    const optDefault = document.createElement('option');
-    optDefault.value = key; // If not explicitly mapped, default is matching itself
-    optDefault.textContent = `Sense equivalència (${key})`;
-    selectValue.appendChild(optDefault);
-
-    if (usrOptions.length === 0) {
-        // Fallback options
-        const fallbacks = ['ECF', 'UEX', 'ARP', 'DSI', 'CLT', 'REU', 'SLT', 'PRE', 'EMT', 'TER', 'JUS'];
-        fallbacks.forEach(f => {
-            if (f === key) return; // Already covered by default option
-            const opt = document.createElement('option');
-            opt.value = f;
-            opt.textContent = f;
-            if (f === value) opt.selected = true;
-            selectValue.appendChild(opt);
-        });
-    } else {
-        usrOptions.forEach(optData => {
-            if (optData.prefix === key) {
-                // Update default option text to full label if match
-                optDefault.textContent = optData.label;
-                return;
-            }
-            const opt = document.createElement('option');
-            opt.value = optData.prefix;
-            opt.textContent = optData.label;
-            if (optData.prefix === value) opt.selected = true;
-            selectValue.appendChild(opt);
-        });
-    }
-    
-    div.appendChild(selectKey);
-    div.appendChild(arrow);
-    div.appendChild(selectValue);
-    
-    return div;
-}
-
-function closeMappingModal() {
-    const modal = document.getElementById('mappingModal');
-    if (modal) modal.classList.add('hidden');
-}
-
-

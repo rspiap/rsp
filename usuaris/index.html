@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
     <!-- CSS Estils -->
-    <link rel="stylesheet" href="index.css?v=20260608_1">
+    <link rel="stylesheet" href="index.css?v=20260907_1">
     <!-- SheetJS (XLSX Parsing & Writing) -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
@@ -35,7 +35,6 @@
                         <span id="statusText" style="font-size: 0.8rem;">SharePoint no connectat</span>
                     </div>
                     <div class="bar-actions" id="assistantActions">
-                        <button class="btn btn-outline-sm btn-show-mapping-trigger" style="border-color: rgba(255,255,255,0.15) !important; color: #a5b4fc !important; margin-right: 2px;">⚙️ Mapeigs</button>
                         <button class="btn btn-primary-sm" id="btnConnectFolder">📂 Connectar carpeta</button>
                         <div class="auto-sync-status hidden" id="autoSyncStatus" style="display:inline-flex; align-items:center; gap:8px;">
                             <span style="font-size:0.85rem;" id="syncProgressText">Cercant...</span>
@@ -54,7 +53,6 @@
                         </div>
                     </div>
                     <div class="bar-actions">
-                        <button class="btn btn-outline-sm btn-show-mapping-trigger" id="btnShowMapping" style="border-color: rgba(255,255,255,0.15) !important; color: #a5b4fc !important; margin-right: 2px;">⚙️ Mapeigs</button>
                         <button class="btn btn-primary-sm" id="btnSyncNow">🔄 Actualitzar</button>
                         <button class="btn btn-outline-sm" id="btnDisconnectFolder">Desconnectar</button>
                     </div>
@@ -67,6 +65,15 @@
 
         <!-- Dropzones Section (Hidden if folder connected, unless user chooses to upload manually) -->
         <section class="hidden" id="manualUploadSection" style="display: flex; flex-direction: column; gap: 1.5rem; width: 100%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.75rem;">
+                <div>
+                    <h2 style="font-size: 1.25rem; margin: 0; font-weight: 700;">Carregar nous fitxers Excel</h2>
+                    <p style="font-size: 0.82rem; color: var(--text-muted); margin: 4px 0 0 0;">Arrossega o fes clic a cada targeta per carregar els nous Excels.</p>
+                </div>
+                <div id="reReadFolderContainer" class="hidden">
+                    <button class="btn btn-outline-sm" id="btnReReadFromFolder" type="button">📂 Re-llegir de la carpeta connectada</button>
+                </div>
+            </div>
             <div class="upload-grid">
                 <!-- File 1: Catàleg Dens -->
                 <div class="upload-card" id="cardCat">
@@ -128,9 +135,9 @@
 
         <!-- Process Progress Tracker -->
         <section class="process-section hidden" id="processSection">
-            <div class="glass-panel" style="padding: 1.25rem;">
-                <div class="panel-header" style="margin-bottom: 1rem; padding-bottom: 0.75rem;">
-                    <h2 style="font-size: 1.2rem;">Estat del Processament</h2>
+            <div class="glass-panel" style="padding: 1.1rem 1.5rem;">
+                <div class="panel-header" style="margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--glass-border);">
+                    <h2 style="font-size: 1.15rem; margin: 0;">Estat del Processament</h2>
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <button class="btn btn-primary" id="btnProcess" disabled style="display: none;">Processar Dades</button>
                     </div>
@@ -138,19 +145,19 @@
                 <div class="steps-container-slim">
                     <div class="step-item-slim" id="stepRead">
                         <span class="step-dot-slim"></span>
-                        <span class="step-title-slim">Lectura fitxers</span>
+                        <span class="step-title-slim">1. Lectura fitxers</span>
                     </div>
                     <div class="step-item-slim" id="stepParticips">
                         <span class="step-dot-slim"></span>
-                        <span class="step-title-slim">Filtre partícips</span>
+                        <span class="step-title-slim">2. Filtre partícips</span>
                     </div>
-                    <div class="step-item-slim" id="stepJoins">
+                    <div class="step-item-slim" id="stepHierarchy">
                         <span class="step-dot-slim"></span>
-                        <span class="step-title-slim">Fusió creuada (Joins)</span>
+                        <span class="step-title-slim">3. Cerca jeràrquica</span>
                     </div>
-                    <div class="step-item-slim" id="stepDepts">
+                    <div class="step-item-slim" id="stepOutput">
                         <span class="step-dot-slim"></span>
-                        <span class="step-title-slim">Integració departaments</span>
+                        <span class="step-title-slim">4. Resultats finals</span>
                     </div>
                 </div>
             </div>
@@ -160,14 +167,15 @@
         <section class="results-section hidden" id="resultsSection">
             <div class="glass-panel">
                 <div class="panel-header table-actions">
-                    <div class="left-actions" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">
-                        <h2>Taula de Resultats</h2>
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span class="record-count" id="recordCount">0 registres trobats</span>
-                            <span id="infoUpdateDate" class="hidden" style="font-size: 0.82rem; color: var(--text-secondary); background: rgba(59, 130, 246, 0.1); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(59, 130, 246, 0.2); font-weight: 500;">📅 Data d'actualització: -</span>
-                        </div>
+                    <div class="left-actions" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                        <span class="record-count" id="recordCount">0 registres trobats</span>
+                        <span id="infoUpdateDate" class="hidden" style="font-size: 0.82rem; color: var(--text-secondary); background: rgba(59, 130, 246, 0.1); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(59, 130, 246, 0.2); font-weight: 500;">📅 Data d'actualització: -</span>
                     </div>
-                    <div class="right-actions">
+                    <div class="right-actions" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <button class="btn btn-outline" id="btnCopyEmails" title="Copia totes les adreces de correu filtrades separades per punt i coma per enganxar-les a l'Outlook o client de correu">
+                            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                            <span id="btnCopyEmailsText">Copiar correus</span>
+                        </button>
                         <button class="btn btn-success" id="btnExport">
                             <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                             Exportar a Excel (.xlsx)
@@ -200,12 +208,12 @@
                                     </div>
                                     <input type="text" class="column-filter" data-col="particip" placeholder="Filtra partícip..." onclick="event.stopPropagation();">
                                 </th>
-                                <th data-column="dept" class="sortable">
+                                <th data-column="origen" class="sortable">
                                     <div class="header-cell-content">
-                                        <span class="header-title">Departament</span>
+                                        <span class="header-title">Origen / Via</span>
                                         <span class="sort-icon">↕</span>
                                     </div>
-                                    <input type="text" class="column-filter" data-col="dept" placeholder="Filtra dept..." onclick="event.stopPropagation();">
+                                    <input type="text" class="column-filter" data-col="origen" placeholder="Filtra via..." onclick="event.stopPropagation();">
                                 </th>
                                 <th data-column="nom" class="sortable">
                                     <div class="header-cell-content">
@@ -245,41 +253,11 @@
         </section>
     </main>
 
-    <!-- Modal per editar equivalències de departaments -->
-    <div id="mappingModal" class="modal-overlay hidden">
-        <div class="modal-content glass-panel" style="max-width: 550px; width: 90%; margin: 10% auto; padding: 2rem; position: relative; max-height: 80vh; overflow-y: auto;">
-            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 1rem; margin-bottom: 1.5rem;">
-                <h3 style="margin: 0; font-size: 1.3rem;">⚙️ Mapeig de Departaments</h3>
-                <span class="close-modal" id="btnCloseMapping" style="cursor: pointer; font-size: 1.8rem; font-weight: bold; color: var(--text-muted); line-height: 1;">&times;</span>
-            </div>
-            <div class="modal-body">
-                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1.5rem; line-height: 1.4;">
-                    Configureu les correspondències entre els acrònims dels departaments quan no coincideixen exactament entre el Catàleg i la llista d'usuaris (exemple: ECO ➔ ECF).
-                </p>
-                
-                <div style="display: flex; font-size: 0.75rem; font-weight: 700; color: var(--accent-indigo); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; padding-bottom: 0.25rem; border-bottom: 1px dashed rgba(255,255,255,0.06);">
-                    <div style="flex: 1; padding-left: 5px;">Acrònim Catàleg</div>
-                    <div style="width: 40px; text-align: center;">➔</div>
-                    <div style="flex: 1; padding-left: 5px;">Acrònim Usuaris</div>
-                    <div style="width: 40px;"></div>
-                </div>
-
-                <div class="mapping-list" id="mappingListContainer" style="display: flex; flex-direction: column; gap: 0.75rem;">
-                    <!-- Es renderitzarà dinàmicament des de JS -->
-                </div>
-            </div>
-            <div class="modal-footer" style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 1.75rem; padding-top: 1rem; border-top: 1px solid var(--glass-border);">
-                <button class="btn btn-outline" id="btnCancelMapping" style="padding: 0.5rem 1.25rem; font-size: 0.85rem;">Cancel·lar</button>
-                <button class="btn btn-primary" id="btnSaveMapping" style="padding: 0.5rem 1.5rem; font-size: 0.85rem;">Desar configuració</button>
-            </div>
-        </div>
-    </div>
-
     <footer>
         <p>&copy; 2026 Subdirecció General d'Entitats i Participacions de la Generalitat</p>
     </footer>
 
     <!-- App Script -->
-    <script src="app.js?v=20260608_1"></script>
+    <script src="app.js?v=20260907_8"></script>
 </body>
 </html>
