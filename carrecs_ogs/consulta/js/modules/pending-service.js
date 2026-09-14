@@ -19,46 +19,12 @@ export const PendingService = {
     loaded: false,
 
     /**
-     * Carrega les dades de canvis pendents des del fitxer o la memòria cau
+     * Carrega les dades de canvis pendents (desactivat temporalment fins a la sincronització amb l'API)
      */
     async loadPendingData() {
-        if (this.loaded && this.pendingData.length > 0) return this.pendingData;
-
-        try {
-            const filenames = [
-                'anonimitzat_canvis_pendents_creuats_2026-07-21.json',
-                'canvis_pendents_creuats_2026-07-21.json',
-                'canvis_pendents_creuats.json',
-                'canvis_pendents_catens.json'
-            ];
-
-            let data = null;
-            for (const fn of filenames) {
-                try {
-                    const resp = await fetch(fn + '?v=' + Date.now());
-                    if (resp.ok) {
-                        data = await resp.json();
-                        console.log(`[PendingService] Dades pendents carregades des de ${fn} (${data.length} entrades)`);
-                        break;
-                    }
-                } catch (e) {}
-            }
-
-            if (!data) {
-                console.log('[PendingService] No s\'ha trobat fitxer local de canvis pendents.');
-                this.loaded = true;
-                return [];
-            }
-
-            this.pendingData = data;
-            this.buildIndex(data);
-            this.loaded = true;
-            return this.pendingData;
-
-        } catch (err) {
-            console.error('[PendingService] Error carregant canvis pendents:', err);
-            return [];
-        }
+        this.loaded = true;
+        this.pendingData = [];
+        return [];
     },
 
     /**
