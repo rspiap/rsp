@@ -34,7 +34,11 @@
                 <p class="subtitle">
                     Òrgans de Govern Superior
                 </p>
-                <div style="margin-top: 1rem;">
+                <div style="margin-top: 1rem; display: flex; gap: 10px; align-items: center;">
+                    <a href="panell_potenciometres.html" class="btn btn-secondary" style="display: inline-flex; align-items: center; text-decoration: none;" title="Veure gràfics de caducitat">
+                        <i data-lucide="gauge" style="width: 16px; margin-right: 8px;"></i>
+                        Panell Caducitats
+                    </a>
                     <button id="btnSync" class="btn">
                         <i data-lucide="refresh-cw" style="width: 16px; margin-right: 8px;"></i>
                         Actualitzar
@@ -44,12 +48,92 @@
         </header>
 
         <section class="controls glass">
-            <div class="controls-row">
+            <!-- Fila 1: Configuració / Metadades -->
+            <div class="controls-row config-row">
+                <div class="filter-mode-switch-container">
+                    <span class="filter-mode-label">Lògica de filtres:</span>
+                    <div class="switch-wrapper" id="filterModeToggle">
+                        <span class="switch-text-left active" id="textModeSubtractive">Sostractiva (AND)</span>
+                        <label class="switch-control">
+                            <input type="checkbox" id="filterModeCheckbox">
+                            <span class="slider-round"></span>
+                        </label>
+                        <span class="switch-text-right" id="textModeAdditive">Additiva (OR)</span>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <div class="filter-input-container" style="display: flex; align-items: center; gap: 6px; background: var(--input-bg); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-color);">
+                        <label for="caExpireMonths" style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; white-space: nowrap;">Caducitat (mesos):</label>
+                        <input type="number" id="caExpireMonths" min="1" max="120" value="1" style="width: 35px; background: transparent; border: none; color: var(--text-main); font-weight: 700; font-size: 0.8rem; outline: none; text-align: center;">
+                    </div>
+                    <button id="btnExportCSV" class="btn btn-secondary">
+                        <i data-lucide="download" style="width: 14px; margin-right: 4px;"></i>
+                        CSV
+                    </button>
+                </div>
+            </div>
+
+            <!-- Fila 2: Tots els filtres específics junts -->
+            <div class="controls-row filters-row">
+                <div class="multiselect-container">
+                    <button id="btnCaStatus" class="btn">Estat Consells (CA)</button>
+                    <div id="dropdownCaStatus" class="multiselect-dropdown">
+                        <div class="multiselect-list" id="listCaStatus">
+                            <div style="padding: 0.5rem; text-align: center; color: var(--text-muted);">Carregant...</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="multiselect-container">
+                    <button id="btnOgsStatus" class="btn">Estat OGS</button>
+                    <div id="dropdownOgsStatus" class="multiselect-dropdown">
+                        <div class="multiselect-list" id="listOgsStatus">
+                            <div style="padding: 0.5rem; text-align: center; color: var(--text-muted);">Carregant...</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="multiselect-container">
+                    <button id="btnCategoritzacions" class="btn">Categorització</button>
+                    <div id="dropdownCategoritzacions" class="multiselect-dropdown">
+                        <div class="multiselect-list" id="listCategoritzacions">
+                            <div style="padding: 0.5rem; text-align: center; color: var(--text-muted);">Carregant...</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="multiselect-container">
+                    <button id="btnNaturezas" class="btn">Naturalesa jurídica</button>
+                    <div id="dropdownNaturezas" class="multiselect-dropdown">
+                        <div class="multiselect-list" id="listNaturezas">
+                            <div style="padding: 0.5rem; text-align: center; color: var(--text-muted);">Carregant...</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="multiselect-container">
+                    <button id="btnNomenaments" class="btn">Tipus Nomenament</button>
+                    <div id="dropdownNomenaments" class="multiselect-dropdown">
+                        <div class="multiselect-list" id="listNomenaments">
+                            <div style="padding: 0.5rem; text-align: center; color: var(--text-muted);">Carregant...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <button id="toggleSac" class="btn">Només SAC</button>
+                <button id="toggleGovern" class="btn">Sense càrrec</button>
+                <button id="toggleVacant" class="btn">Vacants</button>
+                <button id="togglePendingValidation" class="btn">
+                    <i data-lucide="clock" style="width: 14px; margin-right: 4px;"></i>
+                    Validacions pendents
+                </button>
+            </div>
+
+            <!-- Fila 3: Cerca i accions sobre la taula -->
+            <div class="controls-row search-row">
                 <div class="search-box">
                     <i data-lucide="search" class="search-icon"></i>
                     <input type="text" id="globalSearch" placeholder="Cerca...">
                 </div>
-                <div class="filter-group">
+                
+                <div style="display: flex; gap: 6px; align-items: center;">
                     <select id="filterDepartament">
                         <option value="">Tots els departaments</option>
                     </select>
@@ -59,49 +143,11 @@
                         <option value="Pendent">Pendents</option>
                         <option value="No aplica">No aplica</option>
                     </select>
-                </div>
-            </div>
-            <div class="controls-row wrap">
-                <button id="toggleSac" class="btn">Només amb codi SAC</button>
-                <button id="toggleGovern" class="btn">Sense càrrec informat</button>
-                <button id="toggleVacant" class="btn">Vacants</button>
-                <div class="multiselect-container">
-                    <button id="btnCategoritzacions" class="btn">
-                        <i data-lucide="layers" style="width: 16px; margin-right: 4px;"></i>
-                        Categorització
+                    <button id="btnResetFilters" class="btn btn-secondary">
+                        <i data-lucide="filter-x" style="width: 14px; margin-right: 4px;"></i>
+                        Netejar Filtres
                     </button>
-                    <div id="dropdownCategoritzacions" class="multiselect-dropdown">
-                        <div class="multiselect-list" id="listCategoritzacions">
-                            <div style="padding: 1rem; text-align: center; color: var(--text-muted);">Carregant...</div>
-                        </div>
-                    </div>
                 </div>
-                <div class="multiselect-container">
-                    <button id="btnNaturezas" class="btn">
-                        <i data-lucide="building" style="width: 16px; margin-right: 4px;"></i>
-                        Naturalesa jurídica
-                    </button>
-                    <div id="dropdownNaturezas" class="multiselect-dropdown">
-                        <div class="multiselect-list" id="listNaturezas">
-                            <div style="padding: 1rem; text-align: center; color: var(--text-muted);">Carregant...</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="multiselect-container">
-                    <button id="btnNomenaments" class="btn">
-                        <i data-lucide="list-checks" style="width: 16px; margin-right: 4px;"></i>
-                        Tipus Nomenament
-                    </button>
-                    <div id="dropdownNomenaments" class="multiselect-dropdown">
-                        <div class="multiselect-list" id="listNomenaments">
-                            <div style="padding: 1rem; text-align: center; color: var(--text-muted);">Carregant...</div>
-                        </div>
-                    </div>
-                </div>
-                <div style="flex: 1;"></div>
-                <button id="btnExportCSV" class="btn btn-secondary">Exportar CSV</button>
-                <button id="btnResetFilters" class="btn btn-secondary">Netejar Filtres</button>
-            </div>
         </section>
 
         <main class="glass">
@@ -146,7 +192,7 @@
                                     </div>
                                 </div>
                                 <div class="filter-popover" id="popoverEntitat" onclick="event.stopPropagation()">
-                                    <input type="text" id="colFilterEntitat" class="column-filter" placeholder="Entitat...">
+                                    <input type="text" id="colFilterEntitat" class="column-filter" placeholder="Entitat o registre...">
                                 </div>
                             </th>
                             <th class="sortable-header" data-sort="is_govern_superior" style="width: 24.75%;">

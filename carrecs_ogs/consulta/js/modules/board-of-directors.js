@@ -34,9 +34,14 @@ export const BoardService = {
         modal.style.display = 'flex';
 
         try {
-            const data = await API.fetchConsellAdmon(reg, name);
+            let data = await API.fetchConsellAdmon(reg, name);
             loading.style.display = 'none';
             content.style.display = 'block';
+
+            // Filtrem files buides del sector públic que només contenen dades de registre de l'entitat però no membres ni càrrecs
+            if (data) {
+                data = data.filter(d => d.c_rrec_en_l_rgan_de_govern_superior && d.c_rrec_en_l_rgan_de_govern_superior.trim() !== "");
+            }
 
             if (!data || data.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:2rem;">No s\'han trobat dades del consell per a aquesta entitat.</td></tr>';
@@ -67,6 +72,10 @@ export const BoardService = {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
+
+            const expireMonthsEl = document.getElementById('caExpireMonths');
+            const expireMonths = expireMonthsEl ? (parseInt(expireMonthsEl.value) || 1) : 1;
+            const maxDays = expireMonths * 30;
 
             const formatDate = (dateObj, originalStr) => {
                 if (!dateObj) return originalStr || '';
@@ -122,7 +131,7 @@ export const BoardService = {
                     const diffDays = (dFinal - today) / (1000 * 60 * 60 * 24);
                     if (diffDays < 0) {
                         finalStyle = "color: #ff6b6b; font-weight: 700;";
-                    } else if (diffDays < 30) {
+                    } else if (diffDays < maxDays) {
                         finalStyle = "color: #f59e0b; font-weight: 700;";
                     }
                 }

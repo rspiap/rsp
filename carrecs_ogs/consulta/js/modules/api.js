@@ -91,14 +91,33 @@ export const API = {
     },
     async fetchConsellAdmon(regNumber, name) {
         let url = `${CONFIG.OPEN_DATA.BASE_URL}/resource/${CONFIG.OPEN_DATA.CONSELL_ADMON_RESOURCE_ID}.json?`;
+        let queryUrl = url;
         if (regNumber && regNumber !== '-') {
-            url += `n_mero_de_registre=${regNumber}`;
+            const rawReg = regNumber.toString().trim();
+            const cleanReg = rawReg.replace(/^0+/, '');
+            const padded4 = cleanReg.padStart(4, '0');
+            const padded6 = cleanReg.padStart(6, '0');
+            // Try matching original, clean, 4-padded, and 6-padded versions
+            queryUrl += `$where=n_mero_de_registre='${rawReg}' or n_mero_de_registre='${cleanReg}' or n_mero_de_registre='${padded4}' or n_mero_de_registre='${padded6}'`;
         } else {
-            url += `denominaci=${encodeURIComponent(name)}`;
+            queryUrl += `denominaci=${encodeURIComponent(name)}`;
         }
-        url += `&$limit=50000`;
-        const response = await fetch(url);
+        queryUrl += `&$limit=50000`;
+        let response = await fetch(queryUrl);
         if (!response.ok) throw new Error('Error al carregar el consell');
-        return await response.json();
+        let data = await response.json();
+
+        // Fallback to name search if registry query returned nothing
+        if ((!data || data.length === 0) && name) {
+            let fallbackUrl = `${CONFIG.OPEN_DATA.BASE_URL}/resource/${CONFIG.OPEN_DATA.CONSELL_ADMON_RESOURCE_ID}.json?denominaci=${encodeURIComponent(name)}&$limit=50000`;
+            let fbResponse = await fetch(fallbackUrl);
+            if (fbResponse.ok) {
+                const fbData = await fbResponse.json();
+                if (fbData && fbData.length > 0) {
+                    data = fbData;
+                }
+            }
+        }
+        return data;
     }
 };

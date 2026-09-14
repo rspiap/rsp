@@ -78,29 +78,36 @@ export class Database {
             if (clear) {
                 const clearReq = store.clear();
                 clearReq.onsuccess = () => {
-                    if (Array.isArray(data)) {
+                    if (key !== null && key !== undefined) {
+                        store.put(data, key);
+                    } else if (Array.isArray(data)) {
                         const chunkSize = 5000;
                         for (let i = 0; i < data.length; i += chunkSize) {
                             const chunk = data.slice(i, i + chunkSize);
                             chunk.forEach(item => store.add(item));
                         }
                     } else {
-                        store.put(data, key);
+                        store.put(data);
                     }
                 };
             } else {
-                if (Array.isArray(data)) {
+                if (key !== null && key !== undefined) {
+                    store.put(data, key);
+                } else if (Array.isArray(data)) {
                     const chunkSize = 5000;
                     for (let i = 0; i < data.length; i += chunkSize) {
                         const chunk = data.slice(i, i + chunkSize);
                         chunk.forEach(item => store.add(item));
                     }
                 } else {
-                    store.put(data, key);
+                    store.put(data);
                 }
             }
 
-            transaction.oncomplete = () => resolve();
+            transaction.oncomplete = () => {
+                this.notifyChange(storeName);
+                resolve();
+            };
             transaction.onerror = (e) => reject(e.target.error);
         });
     }
@@ -111,9 +118,37 @@ export class Database {
             const transaction = this.db.transaction([storeName], 'readwrite');
             const store = transaction.objectStore(storeName);
             const request = store.clear();
-            request.onsuccess = () => resolve();
+            request.onsuccess = () => {
+                this.notifyChange(storeName);
+                resolve();
+            };
             request.onerror = (e) => reject(e.target.error);
         });
+    }
+
+    notifyChange(storeName) {
+        const timestamp = Date.now();
+        try {
+            if (typeof BroadcastChannel !== 'undefined') {
+                if (!this.broadcastChannel) {
+                    this.broadcastChannel = new BroadcastChannel('sector_public_db_channel');
+                }
+                this.broadcastChannel.postMessage({
+                    type: 'DB_CHANGED',
+                    store: storeName,
+                    timestamp: timestamp
+                });
+            }
+        } catch (e) {
+            console.warn("[DB] Error emetent per BroadcastChannel:", e);
+        }
+
+        try {
+            localStorage.setItem('db_last_update_' + storeName, timestamp.toString());
+            localStorage.setItem('db_last_records_update', timestamp.toString());
+        } catch (e) {
+            // Ignorat si hi ha restriccions de quota
+        }
     }
 }
 

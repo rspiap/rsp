@@ -7,30 +7,78 @@ import { db } from './modules/db.js';
 import { syncEngine } from './modules/sync-engine.js';
 import { CloudService } from './modules/cloud.js';
 import { BoardService } from './modules/board-of-directors.js';
-import { initTheme, toggleTheme, parseDate } from './modules/utils.js';
+import { PendingService } from './modules/pending-service.js';
+import { initTheme, toggleTheme, parseDate, baseNorm } from './modules/utils.js';
 
 let allRecords = [];
 let filteredRecords = [];
 let rowsShown = 15;
 let filters = { 
-    search: "", dept: "", status: "", naturezas: [], nomenaments: [], categoritzacions: [], 
-    onlySac: false, onlyGovern: false, onlyVacant: false,
-    colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "" 
+    search: "", dept: "", status: "", caStatus: [], ogsStatus: [], naturezas: [], nomenaments: [], categoritzacions: [], 
+    onlySac: false, onlyGovern: false, onlyVacant: false, onlyPendingValidation: false,
+    colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "",
+    expireMonths: 1, filterMode: "subtractive"
 };
 let sortConfig = { key: 'codi_sac', direction: 'asc' };
 
+function getCaStatus(r) {
+    const reg = r.n_registre || r.reg || "";
+    const isMercantil = (r.part_natureza || "").toLowerCase().includes("mercantil");
+    if (!reg || !isMercantil) return null;
+    if (r.ca_empty === true) return 'no_informat';
+
+    if (r.data_final_de_vig_ncia) {
+        const dFinal = parseDate(r.data_final_de_vig_ncia);
+        if (dFinal) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const diffDays = (dFinal - today) / (1000 * 60 * 60 * 24);
+            const maxDays = (filters.expireMonths || 1) * 30;
+            if (diffDays < 0) return 'caducat';
+            if (diffDays < maxDays) return 'propera';
+        }
+    }
+    return 'vigent';
+}
+
+function getOgsStatus(r) {
+    if (!r.data_final_individual) return null;
+    const dInd = parseDate(r.data_final_individual);
+    if (!dInd) return null;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffDays = (dInd - today) / (1000 * 60 * 60 * 24);
+    const maxDays = (filters.expireMonths || 1) * 30;
+
+    if (diffDays < 0) return 'caducat';
+    if (diffDays < maxDays) return 'propera';
+    return 'vigent';
+}
+
+function initExpireMonths() {
+    const saved = localStorage.getItem('caExpireMonths') || '1';
+    const expEl = document.getElementById('caExpireMonths');
+    if (expEl) {
+        expEl.value = saved;
+        filters.expireMonths = parseInt(saved) || 1;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     initTheme();
+    initExpireMonths();
     setupEventListeners();
     await loadInitialData();
 });
 
 async function loadInitialData() {
     try {
+        await PendingService.loadPendingData();
         let data = await db.getAll(CONFIG.DB.STORES.RECORDS);
         if (data && data.length > 0) {
             allRecords = data;
-            populateDepartaments(); populateNaturezas(); populateNomenaments(); populateCategoritzacions(); applyFilters(); checkCloudUpdates();
+            populateDepartaments(); populateNaturezas(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); applyFilters(); checkCloudUpdates();
         } else { handleSync(); }
     } catch (e) { console.error(e); }
 }
@@ -43,12 +91,14 @@ async function handleSync(manualCsvText = null) {
     try {
         if (btnSync) btnSync.disabled = true;
         modal.style.display = 'flex';
+        await PendingService.loadPendingData();
         const data = await syncEngine.runFullSync(manualCsvText, (info) => {
             if (info.step) stepText.textContent = info.step;
             if (info.progress) progressBar.style.width = `${info.progress}%`;
         });
         allRecords = data;
-        populateDepartaments(); populateNaturezas(); populateNomenaments(); populateCategoritzacions(); applyFilters();
+        await PendingService.loadPendingData();
+        populateDepartaments(); populateNaturezas(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); applyFilters();
         setTimeout(() => { modal.style.display = 'none'; if (btnSync) btnSync.disabled = false; }, 400);
     } catch (e) { if (btnSync) btnSync.disabled = false; }
 }
@@ -70,6 +120,8 @@ function applyFilters() {
     filters.search = (document.getElementById('globalSearch').value || "").toLowerCase().trim();
     filters.dept = document.getElementById('filterDepartament').value;
     filters.status = document.getElementById('filterStatus').value;
+    const expireMonthsEl = document.getElementById('caExpireMonths');
+    filters.expireMonths = expireMonthsEl ? (parseInt(expireMonthsEl.value) || 1) : 1;
 
     filters.colSac = (document.getElementById('colFilterSAC').value || "").toLowerCase().trim();
     filters.colCarrec = (document.getElementById('colFilterCarrec').value || "").toLowerCase().trim();
@@ -78,11 +130,14 @@ function applyFilters() {
     filters.colPersona = (document.getElementById('colFilterPersona').value || "").toLowerCase().trim();
 
     filteredRecords = allRecords.filter(r => {
-        const searchableText = `${r.persona_nom || ''} ${r.persona_cognoms || ''} ${r.nom_rep || ''} ${r.cognoms_rep || ''} ${r.denom_social || ''} ${r.entitat || ''} ${r.carrec || ''} ${r.codi_sac || ''}`.toLowerCase();
+        const cleanReg = String(r.n_registre || "").trim().replace(/^0+/, '');
+        const regVariants = cleanReg ? `${r.n_registre || ''} ${cleanReg} reg:${cleanReg} reg: ${cleanReg}` : (r.n_registre || "");
+        const searchableText = `${r.persona_nom || ''} ${r.persona_cognoms || ''} ${r.nom_rep || ''} ${r.cognoms_rep || ''} ${r.denom_social || ''} ${r.entitat || ''} ${regVariants} ${r.carrec || ''} ${r.codi_sac || ''}`.toLowerCase();
         const matchesSearch = !filters.search || searchableText.includes(filters.search);
         const matchesColSac = !filters.colSac || String(r.codi_sac || "").toLowerCase().includes(filters.colSac);
         const matchesColCarrec = !filters.colCarrec || String(r.carrec || "").toLowerCase().includes(filters.colCarrec);
-        const matchesColEntitat = !filters.colEntitat || String(r.entitat || "").toLowerCase().includes(filters.colEntitat);
+        const entitatSearchable = `${r.entitat || ''} ${r.n_registre || ''} ${cleanReg}`.toLowerCase();
+        const matchesColEntitat = !filters.colEntitat || entitatSearchable.includes(filters.colEntitat);
         const matchesColOGS = !filters.colOGS || String(r.is_govern_superior || "").toLowerCase().includes(filters.colOGS);
         const personaText = `${r.persona_nom || ''} ${r.persona_cognoms || ''} ${r.nom_rep || ''} ${r.cognoms_rep || ''} ${r.denom_social || ''}`.toLowerCase();
         const matchesColPersona = !filters.colPersona || personaText.includes(filters.colPersona);
@@ -97,16 +152,44 @@ function applyFilters() {
                 matchesStatus = (r.status === filters.status);
             }
         }
+        let matchesCaStatus = true;
+        if (filters.caStatus && filters.caStatus.length > 0) {
+            const caState = getCaStatus(r);
+            matchesCaStatus = (caState !== null && filters.caStatus.includes(caState));
+        }
+        let matchesOgsStatus = true;
+        if (filters.ogsStatus && filters.ogsStatus.length > 0) {
+            const ogsState = getOgsStatus(r);
+            matchesOgsStatus = (ogsState !== null && filters.ogsStatus.includes(ogsState));
+        }
         const matchesNatureza = filters.naturezas.length === 0 || filters.naturezas.includes(r.part_natureza);
         const nomVal = r.tipus_nomenament && r.tipus_nomenament.trim() !== "" ? r.tipus_nomenament : "No informat";
         const matchesNomenament = filters.nomenaments.length === 0 || filters.nomenaments.includes(nomVal);
         const matchesCategoritzacio = filters.categoritzacions.length === 0 || (r.categoritzacio && filters.categoritzacions.includes(r.categoritzacio));
-        const matchesSac = !filters.onlySac || (r.codi_sac && r.codi_sac.trim() !== "");
-        const matchesGovern = !filters.onlyGovern || (!r.is_govern_superior || r.is_govern_superior.trim() === "");
-        const matchesVacant = !filters.onlyVacant || (r.qualificador || "").toLowerCase().includes("vacant");
+        const satisfiesSac = (r.codi_sac && r.codi_sac.trim() !== "");
+        const satisfiesGovern = (!r.is_govern_superior || r.is_govern_superior.trim() === "");
+        const satisfiesVacant = (r.qualificador || "").toLowerCase().includes("vacant");
+        const satisfiesPending = (PendingService.getPendingChange(r) !== null);
+
+        let matchesToggles = true;
+        if (filters.filterMode === 'additive') {
+            const anyActive = filters.onlySac || filters.onlyGovern || filters.onlyVacant || filters.onlyPendingValidation;
+            if (anyActive) {
+                matchesToggles = (filters.onlySac && satisfiesSac) ||
+                                 (filters.onlyGovern && satisfiesGovern) ||
+                                 (filters.onlyVacant && satisfiesVacant) ||
+                                 (filters.onlyPendingValidation && satisfiesPending);
+            }
+        } else {
+            const matchesSac = !filters.onlySac || satisfiesSac;
+            const matchesGovern = !filters.onlyGovern || satisfiesGovern;
+            const matchesVacant = !filters.onlyVacant || satisfiesVacant;
+            const matchesPendingValidation = !filters.onlyPendingValidation || satisfiesPending;
+            matchesToggles = matchesSac && matchesGovern && matchesVacant && matchesPendingValidation;
+        }
 
         return matchesSearch && matchesColSac && matchesColCarrec && matchesColEntitat && matchesColOGS && matchesColPersona && 
-               matchesDept && matchesStatus && matchesNatureza && matchesNomenament && matchesCategoritzacio && matchesSac && matchesGovern && matchesVacant;
+               matchesDept && matchesStatus && matchesCaStatus && matchesOgsStatus && matchesNatureza && matchesNomenament && matchesCategoritzacio && matchesToggles;
     });
 
     const sortKey = sortConfig.key;
@@ -149,12 +232,45 @@ function renderTable() {
                     og.persons.forEach((p, pIdx) => {
                         const isFirstOfOGS = pIdx === 0;
 
-                        html += `<tr class="modular-row">`;
+                        // Comprovació de canvis pendents de validar
+                        const pending = PendingService.getPendingChange(p);
+                        let carrecPendingHTML = "";
+                        let organPendingHTML = "";
+                        let personaPendingHTML = "";
+
+                        const isDeletion = pending && pending.operacio && pending.operacio.trim().toLowerCase().includes("esborrar");
+                        const rowClass = isDeletion ? "modular-row row-deletion-pending" : "modular-row";
+
+                        if (pending && pending.nou) {
+                            const n = pending.nou;
+
+                            // 1. Canvi de Càrrec (Level 2) - Omitit per petició de l'usuari
+                            carrecPendingHTML = "";
+
+                            // 2. Canvi d'Òrgan (Level 4) - Correspon a CARGO_GOBIERNO_SUPERIOR en les dades
+                            if (n.CARGO_GOBIERNO_SUPERIOR && baseNorm(n.CARGO_GOBIERNO_SUPERIOR) !== baseNorm(og.name)) {
+                                organPendingHTML = `<div class="pending-change-badge" style="display:block; margin-top:6px;"><i data-lucide="clock" style="width:12px; height:12px; vertical-align:-2px; margin-right:4px;"></i><strong>Pendent:</strong> ${n.CARGO_GOBIERNO_SUPERIOR}</div>`;
+                            }
+
+                            // 3. Canvi de Persona/Estat (Level 5)
+                            const nMembre = (n.NOMBRE_PF ? `${n.NOMBRE_PF} ${n.APELLIDOS_PF}` : n.NOMBRE_PJ) ||
+                                            (n.NOMBRE_PERSONA_REPRESENTANTE ? `${n.NOMBRE_PERSONA_REPRESENTANTE} ${n.APELLIDOS_PERSONA_REPRESENTANTE}` : '') ||
+                                            n.MIEMBRO_ORGANO_GOBIERNO || "";
+                            const nData = n.FECHA_INICIO_VIGENCIA ? ` (des de ${n.FECHA_INICIO_VIGENCIA})` : "";
+
+                            if (isDeletion) {
+                                personaPendingHTML = `<div class="pending-change-badge" style="color:#ef4444; border-color:rgba(239,68,68,0.4); background:rgba(239,68,68,0.1);"><i data-lucide="clock" style="width:12px; height:12px; vertical-align:-2px; margin-right:4px;"></i><strong>Pendent:</strong> Baixa / Esborrar</div>`;
+                            } else {
+                                personaPendingHTML = `<div class="pending-change-badge"><i data-lucide="clock" style="width:12px; height:12px; vertical-align:-2px; margin-right:4px;"></i><strong>Pendent:</strong> ${nMembre}${nData}</div>`;
+                            }
+                        }
+
+                        html += `<tr class="${rowClass}">`;
                         if (isFirstOfSAC) html += `<td rowspan="${sacRows}" class="td-sac"><span class="parent-sac-badge">${sg.sac || '---'}</span></td>`;
                         if (isFirstOfCarrec) {
                             const first = cg.entities[0].ogs[0].persons[0];
                             let sacHTML = first.sac_carrec ? `<div class="clickable-sac" style="margin-top:8px; cursor:pointer;" data-record-id="${first.id}"><div style="font-size:0.6rem; color:var(--primary); font-weight:700; display:flex; align-items:center; gap:4px;">(SAC:) <i data-lucide="info" style="width:10px; height:10px;"></i></div><div style="font-size:0.75rem; color:var(--text-main); line-height:1.2;">${first.sac_carrec.toLowerCase()}</div><div style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">${first.sac_unitat || ''}</div></div>` : '';
-                            html += `<td rowspan="${carrecRows}" class="td-carrec"><div class="cell-main-title">${cg.name}</div>${sacHTML}</td>`;
+                            html += `<td rowspan="${carrecRows}" class="td-carrec"><div class="cell-main-title">${cg.name}</div>${carrecPendingHTML}${sacHTML}</td>`;
                         }
                         if (isFirstOfEntitat) {
                             const firstP = ent.ogs[0].persons[0];
@@ -162,14 +278,17 @@ function renderTable() {
                             let caBtn = '';
                             if (ent.reg && isMercantil) {
                                 let btnClass = "btn-ca-blue";
-                                if (firstP.data_final_de_vig_ncia) {
+                                if (ent.ca_empty === true) {
+                                    btnClass = "btn-ca-empty";
+                                } else if (firstP.data_final_de_vig_ncia) {
                                     const dFinal = parseDate(firstP.data_final_de_vig_ncia);
                                     if (dFinal) {
                                         const today = new Date();
                                         today.setHours(0,0,0,0);
                                         const diffDays = (dFinal - today) / (1000 * 60 * 60 * 24);
+                                        const maxDays = (filters.expireMonths || 1) * 30;
                                         if (diffDays < 0) btnClass = "btn-ca-red";
-                                        else if (diffDays < 30) btnClass = "btn-ca-orange";
+                                        else if (diffDays < maxDays) btnClass = "btn-ca-orange";
                                     }
                                 }
                                 caBtn = `<div style="margin-left:12px;"><button onclick="openConsellModal('${ent.reg || '-'}', '${ent.name.replace(/'/g, "\\'")}')" class="btn ${btnClass}" style="padding: 6px 12px; font-size: 0.7rem; font-weight: 800; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); white-space: nowrap;">CA</button></div>`;
@@ -198,6 +317,7 @@ function renderTable() {
                                         <div class="cell-main-title">${og.name}</div>
                                         <div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">${displayOrg}</div>
                                         <div style="margin-top:8px; font-size:0.65rem; color:var(--text-muted); border-top:1px solid rgba(255,255,255,0.05); padding-top:4px;">${p.part_cip_o_organisme || ''}${catHTML}</div>
+                                        ${organPendingHTML}
                                      </td>`;
                         }
 
@@ -217,10 +337,11 @@ function renderTable() {
                         if (dFinalInd) {
                             const today = new Date(); today.setHours(0,0,0,0);
                             const diffDays = (dFinalInd - today) / (1000 * 60 * 60 * 24);
+                            const maxDaysInd = (filters.expireMonths || 1) * 30;
                             if (diffDays < 0) {
                                 expStyle = "color: #ff6b6b; font-weight: 700;";
                                 expText = `<div style="font-size:0.7rem; color:#ff6b6b; margin-top:4px; font-weight:600;">Càrrec expirat el ${p.data_final_individual}</div>`;
-                            } else if (diffDays < 30) {
+                            } else if (diffDays < maxDaysInd) {
                                 expStyle = "color: #f59e0b; font-weight: 700;";
                                 expText = `<div style="font-size:0.7rem; color:#f59e0b; margin-top:4px; font-weight:600;">El càrrec expira el ${p.data_final_individual}</div>`;
                             }
@@ -230,12 +351,14 @@ function renderTable() {
                         if (qualif.includes("jur") && p.denom_social) {
                             personaHTML = `<div class="cell-main-title" style="${expStyle}">${p.denom_social}</div><div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">Rep: ${repName || '---'}</div>`;
                         } else if (qualif.includes("vacant")) {
-                            personaHTML = `<div class="cell-main-title" style="color:var(--text-muted); font-style:italic;">Vacant</div>`;
+                            personaHTML = `<div class="cell-main-title" style="color:var(--text-muted); font-style:italic;">(Vacant)</div>`;
+                        } else if (!personaName) {
+                            personaHTML = `<div class="cell-main-title" style="color:var(--text-muted); font-style:italic;">(No informat)</div>`;
                         }
 
                         html += `<td class="td-persona">
                                     <div style="display:flex; align-items:center; justify-content:space-between;">
-                                        <div>${personaHTML}${expText}</div>
+                                        <div>${personaHTML}${expText}${personaPendingHTML}</div>
                                         <div style="display:flex; align-items:center; gap:8px;">
                                             ${statusBadge}
                                             <button class="btn-edit" data-id="${p.id}"><i data-lucide="pencil" style="width:14px; height:14px;"></i></button>
@@ -265,8 +388,9 @@ function groupData(data) {
         if (!sGroup.carrecs.has(cKey)) sGroup.carrecs.set(cKey, { name: cKey, entities: new Map(), rows: 0 });
         const cGroup = sGroup.carrecs.get(cKey);
         
-        const eKey = r.entitat || '---';
-        if (!cGroup.entities.has(eKey)) cGroup.entities.set(eKey, { name: eKey, reg: r.n_registre, natureza: r.part_natureza, ogs: new Map(), rows: 0 });
+        const cleanReg = (r.n_registre || "").toString().trim().replace(/^0+/, '');
+        const eKey = r.entitat ? `${r.entitat}|${cleanReg}` : '---';
+        if (!cGroup.entities.has(eKey)) cGroup.entities.set(eKey, { name: r.entitat || '---', reg: cleanReg || r.n_registre, natureza: r.part_natureza, ca_empty: r.ca_empty, ogs: new Map(), rows: 0 });
         const eGroup = cGroup.entities.get(eKey);
         
         const oKey = r.is_govern_superior || '---';
@@ -296,6 +420,84 @@ function setupEventListeners() {
     document.getElementById('globalSearch').addEventListener('input', applyFilters);
     document.getElementById('filterDepartament').addEventListener('change', applyFilters);
     document.getElementById('filterStatus').addEventListener('change', applyFilters);
+    const expEl = document.getElementById('caExpireMonths');
+    if (expEl) {
+        const handleExpireMonthsInput = () => {
+            localStorage.setItem('caExpireMonths', expEl.value);
+            applyFilters(); populateCaStatus(); populateOgsStatus();
+        };
+        expEl.addEventListener('change', handleExpireMonthsInput);
+        expEl.addEventListener('input', handleExpireMonthsInput);
+    }
+    const filterCheckbox = document.getElementById('filterModeCheckbox');
+    const textSubtractive = document.getElementById('textModeSubtractive');
+    const textAdditive = document.getElementById('textModeAdditive');
+    
+    if (filterCheckbox && textSubtractive && textAdditive) {
+        textSubtractive.addEventListener('click', () => {
+            filterCheckbox.checked = false;
+            triggerChange();
+        });
+        textAdditive.addEventListener('click', () => {
+            filterCheckbox.checked = true;
+            triggerChange();
+        });
+        filterCheckbox.addEventListener('change', () => triggerChange());
+        
+        function triggerChange() {
+            const isAdditive = filterCheckbox.checked;
+            filters.filterMode = isAdditive ? 'additive' : 'subtractive';
+            textSubtractive.classList.toggle('active', !isAdditive);
+            textAdditive.classList.toggle('active', isAdditive);
+            applyFilters();
+        }
+    }
+
+    const btnReset = document.getElementById('btnResetFilters');
+    if (btnReset) {
+        btnReset.addEventListener('click', () => {
+            document.getElementById('globalSearch').value = "";
+            document.getElementById('filterDepartament').value = "";
+            document.getElementById('filterStatus').value = "";
+            document.querySelectorAll('.column-filter').forEach(input => input.value = "");
+            ['toggleSac', 'toggleGovern', 'toggleVacant', 'togglePendingValidation'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.classList.remove('btn-primary');
+            });
+            const expEl = document.getElementById('caExpireMonths');
+            const curMonths = expEl ? (parseInt(expEl.value) || 1) : 1;
+            filters = { search: "", dept: "", status: "", caStatus: [], ogsStatus: [], naturezas: [], nomenaments: [], categoritzacions: [], onlySac: false, onlyGovern: false, onlyVacant: false, onlyPendingValidation: false, colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "", expireMonths: curMonths, filterMode: "subtractive" };
+            if (filterCheckbox) filterCheckbox.checked = false;
+            if (textSubtractive) textSubtractive.classList.add('active');
+            if (textAdditive) textAdditive.classList.remove('active');
+            populateNaturezas(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); updateNaturezasUI(); updateNomenamentsUI(); updateCategoritzacionsUI(); updateCaStatusUI(); updateOgsStatusUI(); applyFilters();
+        });
+    }
+
+    const setupToggleBtn = (btnId, filterProp) => {
+        const btn = document.getElementById(btnId);
+        if (btn) {
+            btn.addEventListener('click', () => {
+                filters[filterProp] = !filters[filterProp];
+                btn.classList.toggle('btn-primary', filters[filterProp]);
+                applyFilters();
+            });
+        }
+    };
+    setupToggleBtn('toggleSac', 'onlySac');
+    setupToggleBtn('toggleGovern', 'onlyGovern');
+    setupToggleBtn('toggleVacant', 'onlyVacant');
+    setupToggleBtn('togglePendingValidation', 'onlyPendingValidation');
+
+    const setupMultiselect = (btnId, dropdownId) => {
+        const btn = document.getElementById(btnId); const dropdown = document.getElementById(dropdownId);
+        if (btn && dropdown) btn.addEventListener('click', (e) => { e.stopPropagation(); const wasActive = dropdown.classList.contains('active'); document.querySelectorAll('.multiselect-dropdown').forEach(d => d.classList.remove('active')); if (!wasActive) dropdown.classList.add('active'); });
+    };
+    setupMultiselect('btnCaStatus', 'dropdownCaStatus');
+    setupMultiselect('btnOgsStatus', 'dropdownOgsStatus');
+    setupMultiselect('btnCategoritzacions', 'dropdownCategoritzacions');
+    setupMultiselect('btnNaturezas', 'dropdownNaturezas');
+    setupMultiselect('btnNomenaments', 'dropdownNomenaments');
+    document.addEventListener('click', (e) => { document.querySelectorAll('.multiselect-dropdown').forEach(d => { if (!d.contains(e.target)) d.classList.remove('active'); }); });
     document.getElementById('btnSync').addEventListener('click', () => handleSync());
     document.getElementById('themeToggle').addEventListener('click', toggleTheme);
     document.getElementById('loadMore').addEventListener('click', () => { rowsShown += 20; renderTable(); });
@@ -347,21 +549,7 @@ function setupEventListeners() {
         });
     });
 
-    document.getElementById('btnFilterSac').addEventListener('click', (e) => {
-        filters.onlySac = !filters.onlySac;
-        e.target.classList.toggle('active');
-        applyFilters();
-    });
-    document.getElementById('btnFilterGovern').addEventListener('click', (e) => {
-        filters.onlyGovern = !filters.onlyGovern;
-        e.target.classList.toggle('active');
-        applyFilters();
-    });
-    document.getElementById('btnFilterVacant').addEventListener('click', (e) => {
-        filters.onlyVacant = !filters.onlyVacant;
-        e.target.classList.toggle('active');
-        applyFilters();
-    });
+
 }
 
 function setupTableInteractions() {
@@ -473,6 +661,83 @@ function populateCategoritzacions() {
     let html = '';
     sorted.forEach(v => html += `<div class="filter-pill" data-type="categoritzacio" data-value="${v}">${v}</div>`);
     container.innerHTML = html;
+}
+
+function populateCaStatus() {
+    const list = document.getElementById('listCaStatus');
+    if (!list) return;
+    const m = filters.expireMonths || 1;
+    const labelPropera = `Propera caducitat (${m} ${m === 1 ? 'mes' : 'mesos'})`;
+    const options = [
+        { value: 'caducat', label: 'Caducats', class: 'btn-ca-red' },
+        { value: 'propera', label: labelPropera, class: 'btn-ca-orange' },
+        { value: 'vigent', label: 'Vigents', class: 'btn-ca-blue' },
+        { value: 'no_informat', label: 'No informat', class: 'btn-ca-empty' }
+    ];
+    list.innerHTML = '';
+    options.forEach(opt => {
+        const item = document.createElement('label');
+        item.className = 'multiselect-item';
+        const isChecked = filters.caStatus.includes(opt.value);
+        item.innerHTML = `<input type="checkbox" value="${opt.value}" ${isChecked ? 'checked' : ''}><span class="btn ${opt.class}" style="padding: 4px 10px; font-size: 0.75rem; font-weight: 800; border-radius: 4px; pointer-events: none;">${opt.label}</span>`;
+        item.querySelector('input').addEventListener('change', (e) => {
+            if (e.target.checked) {
+                if (!filters.caStatus.includes(opt.value)) filters.caStatus.push(opt.value);
+            } else {
+                filters.caStatus = filters.caStatus.filter(v => v !== opt.value);
+            }
+            updateCaStatusUI();
+            applyFilters();
+        });
+        list.appendChild(item);
+    });
+    updateCaStatusUI();
+}
+
+function updateCaStatusUI() {
+    const btn = document.getElementById('btnCaStatus');
+    if (!btn) return;
+    btn.innerHTML = `<i data-lucide="shield-alert" style="width: 16px; margin-right: 4px;"></i> ${filters.caStatus.length ? `(${filters.caStatus.length}) Estat CA` : 'Estat Consells (CA)'}`;
+    btn.classList.toggle('btn-primary', filters.caStatus.length > 0);
+    if (window.lucide) lucide.createIcons();
+}
+
+function populateOgsStatus() {
+    const list = document.getElementById('listOgsStatus');
+    if (!list) return;
+    const m = filters.expireMonths || 1;
+    const labelPropera = `Propera caducitat (${m} ${m === 1 ? 'mes' : 'mesos'})`;
+    const options = [
+        { value: 'caducat', label: 'Caducats', class: 'btn-ca-red' },
+        { value: 'propera', label: labelPropera, class: 'btn-ca-orange' },
+        { value: 'vigent', label: 'Vigents', class: 'btn-ca-blue' }
+    ];
+    list.innerHTML = '';
+    options.forEach(opt => {
+        const item = document.createElement('label');
+        item.className = 'multiselect-item';
+        const isChecked = filters.ogsStatus.includes(opt.value);
+        item.innerHTML = `<input type="checkbox" value="${opt.value}" ${isChecked ? 'checked' : ''}><span class="btn ${opt.class}" style="padding: 4px 10px; font-size: 0.75rem; font-weight: 800; border-radius: 4px; pointer-events: none;">${opt.label}</span>`;
+        item.querySelector('input').addEventListener('change', (e) => {
+            if (e.target.checked) {
+                if (!filters.ogsStatus.includes(opt.value)) filters.ogsStatus.push(opt.value);
+            } else {
+                filters.ogsStatus = filters.ogsStatus.filter(v => v !== opt.value);
+            }
+            updateOgsStatusUI();
+            applyFilters();
+        });
+        list.appendChild(item);
+    });
+    updateOgsStatusUI();
+}
+
+function updateOgsStatusUI() {
+    const btn = document.getElementById('btnOgsStatus');
+    if (!btn) return;
+    btn.innerHTML = `<i data-lucide="user-check" style="width: 16px; margin-right: 4px;"></i> ${filters.ogsStatus.length ? `(${filters.ogsStatus.length}) Estat OGS` : 'Estat càrrecs OGS'}`;
+    btn.classList.toggle('btn-primary', filters.ogsStatus.length > 0);
+    if (window.lucide) lucide.createIcons();
 }
 
 function exportToCSV() {

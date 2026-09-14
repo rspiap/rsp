@@ -6,20 +6,67 @@ import { CONFIG } from './modules/config.js';
 import { db } from './modules/db.js';
 import { syncEngine } from './modules/sync-engine.js';
 import { BoardService } from './modules/board-of-directors.js';
-import { initTheme, toggleTheme, parseDate } from './modules/utils.js';
+import { PendingService } from './modules/pending-service.js';
+import { initTheme, toggleTheme, parseDate, baseNorm } from './modules/utils.js';
 
 let allRecords = [];
 let filteredRecords = [];
 let rowsShown = 15;
 let filters = { 
-    search: "", dept: "", status: "", naturezas: [], nomenaments: [], categoritzacions: [], 
-    onlySac: false, onlyGovern: false, onlyVacant: false,
-    colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "" 
+    search: "", dept: "", status: "", caStatus: [], ogsStatus: [], naturezas: [], nomenaments: [], categoritzacions: [], 
+    onlySac: false, onlyGovern: false, onlyVacant: false, onlyPendingValidation: false,
+    colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "",
+    expireMonths: 1, filterMode: "subtractive"
 };
 let sortConfig = { key: 'codi_sac', direction: 'asc' };
 
+function getCaStatus(r) {
+    const reg = r.n_registre || r.reg || "";
+    const isMercantil = (r.part_natureza || "").toLowerCase().includes("mercantil");
+    if (!reg || !isMercantil) return null;
+    if (r.ca_empty === true) return 'no_informat';
+
+    if (r.data_final_de_vig_ncia) {
+        const dFinal = parseDate(r.data_final_de_vig_ncia);
+        if (dFinal) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const diffDays = (dFinal - today) / (1000 * 60 * 60 * 24);
+            const maxDays = (filters.expireMonths || 1) * 30;
+            if (diffDays < 0) return 'caducat';
+            if (diffDays < maxDays) return 'propera';
+        }
+    }
+    return 'vigent';
+}
+
+function getOgsStatus(r) {
+    if (!r.data_final_individual) return null;
+    const dInd = parseDate(r.data_final_individual);
+    if (!dInd) return null;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffDays = (dInd - today) / (1000 * 60 * 60 * 24);
+    const maxDays = (filters.expireMonths || 1) * 30;
+
+    if (diffDays < 0) return 'caducat';
+    if (diffDays < maxDays) return 'propera';
+    return 'vigent';
+}
+
+function initExpireMonths() {
+    const saved = localStorage.getItem('caExpireMonths') || '1';
+    const expEl = document.getElementById('caExpireMonths');
+    if (expEl) {
+        expEl.value = saved;
+        filters.expireMonths = parseInt(saved) || 1;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     initTheme();
+    initExpireMonths();
     setupEventListeners();
     await loadData();
 });
@@ -27,9 +74,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function loadData() {
     try {
         await db.init();
+        await PendingService.loadPendingData();
         allRecords = await db.getAll(CONFIG.DB.STORES.RECORDS);
         if (allRecords.length > 0) {
-            applyFilters(); populateDepartaments(); populateNaturezas(); populateNomenaments(); populateCategoritzacions();
+            applyFilters(); populateDepartaments(); populateNaturezas(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus();
         } else { handleSync(); }
     } catch (e) { console.error(e); }
 }
@@ -40,13 +88,15 @@ async function handleSync() {
     try {
         if (btn) btn.disabled = true;
         modal.style.display = 'flex';
+        await PendingService.loadPendingData();
         allRecords = await syncEngine.runFullSync(null, (info) => {
             const stepText = document.getElementById('syncStep');
             const progressBar = document.getElementById('syncProgressBar');
             if (stepText) stepText.textContent = info.step;
             if (progressBar) progressBar.style.width = `${info.progress}%`;
         });
-        applyFilters(); populateDepartaments(); populateNaturezas(); populateNomenaments();
+        await PendingService.loadPendingData();
+        applyFilters(); populateDepartaments(); populateNaturezas(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus();
         setTimeout(() => { if (modal) modal.style.display = 'none'; if (btn) btn.disabled = false; }, 400);
     } catch (e) { if (btn) btn.disabled = false; }
 }
@@ -55,6 +105,8 @@ function applyFilters() {
     filters.search = (document.getElementById('globalSearch').value || "").toLowerCase().trim();
     filters.dept = document.getElementById('filterDepartament').value;
     filters.status = document.getElementById('filterStatus').value;
+    const expireMonthsEl = document.getElementById('caExpireMonths');
+    filters.expireMonths = expireMonthsEl ? (parseInt(expireMonthsEl.value) || 1) : 1;
 
     filters.colSac = (document.getElementById('colFilterSAC').value || "").toLowerCase().trim();
     filters.colCarrec = (document.getElementById('colFilterCarrec').value || "").toLowerCase().trim();
@@ -63,11 +115,14 @@ function applyFilters() {
     filters.colPersona = (document.getElementById('colFilterPersona').value || "").toLowerCase().trim();
 
     filteredRecords = allRecords.filter(r => {
-        const searchableText = `${r.persona_nom || ''} ${r.persona_cognoms || ''} ${r.nom_rep || ''} ${r.cognoms_rep || ''} ${r.denom_social || ''} ${r.entitat || ''} ${r.carrec || ''} ${r.codi_sac || ''}`.toLowerCase();
+        const cleanReg = String(r.n_registre || "").trim().replace(/^0+/, '');
+        const regVariants = cleanReg ? `${r.n_registre || ''} ${cleanReg} reg:${cleanReg} reg: ${cleanReg}` : (r.n_registre || "");
+        const searchableText = `${r.persona_nom || ''} ${r.persona_cognoms || ''} ${r.nom_rep || ''} ${r.cognoms_rep || ''} ${r.denom_social || ''} ${r.entitat || ''} ${regVariants} ${r.carrec || ''} ${r.codi_sac || ''}`.toLowerCase();
         const matchesSearch = !filters.search || searchableText.includes(filters.search);
         const matchesColSac = !filters.colSac || String(r.codi_sac || "").toLowerCase().includes(filters.colSac);
         const matchesColCarrec = !filters.colCarrec || String(r.carrec || "").toLowerCase().includes(filters.colCarrec);
-        const matchesColEntitat = !filters.colEntitat || String(r.entitat || "").toLowerCase().includes(filters.colEntitat);
+        const entitatSearchable = `${r.entitat || ''} ${r.n_registre || ''} ${cleanReg}`.toLowerCase();
+        const matchesColEntitat = !filters.colEntitat || entitatSearchable.includes(filters.colEntitat);
         const matchesColOGS = !filters.colOGS || String(r.is_govern_superior || "").toLowerCase().includes(filters.colOGS);
         const personaText = `${r.persona_nom || ''} ${r.persona_cognoms || ''} ${r.nom_rep || ''} ${r.cognoms_rep || ''} ${r.denom_social || ''}`.toLowerCase();
         const matchesColPersona = !filters.colPersona || personaText.includes(filters.colPersona);
@@ -82,16 +137,44 @@ function applyFilters() {
                 matchesStatus = (r.status === filters.status);
             }
         }
+        let matchesCaStatus = true;
+        if (filters.caStatus && filters.caStatus.length > 0) {
+            const caState = getCaStatus(r);
+            matchesCaStatus = (caState !== null && filters.caStatus.includes(caState));
+        }
+        let matchesOgsStatus = true;
+        if (filters.ogsStatus && filters.ogsStatus.length > 0) {
+            const ogsState = getOgsStatus(r);
+            matchesOgsStatus = (ogsState !== null && filters.ogsStatus.includes(ogsState));
+        }
         const matchesNatureza = filters.naturezas.length === 0 || filters.naturezas.includes(r.part_natureza);
         const nomVal = r.tipus_nomenament && r.tipus_nomenament.trim() !== "" ? r.tipus_nomenament : "No informat";
         const matchesNomenament = filters.nomenaments.length === 0 || filters.nomenaments.includes(nomVal);
         const matchesCategoritzacio = filters.categoritzacions.length === 0 || (r.categoritzacio && filters.categoritzacions.includes(r.categoritzacio));
-        const matchesSac = !filters.onlySac || (r.codi_sac && r.codi_sac.trim() !== "");
-        const matchesGovern = !filters.onlyGovern || (!r.is_govern_superior || r.is_govern_superior.trim() === "");
-        const matchesVacant = !filters.onlyVacant || (r.qualificador || "").toLowerCase().includes("vacant");
+        const satisfiesSac = (r.codi_sac && r.codi_sac.trim() !== "");
+        const satisfiesGovern = (!r.is_govern_superior || r.is_govern_superior.trim() === "");
+        const satisfiesVacant = (r.qualificador || "").toLowerCase().includes("vacant");
+        const satisfiesPending = (PendingService.getPendingChange(r) !== null);
+
+        let matchesToggles = true;
+        if (filters.filterMode === 'additive') {
+            const anyActive = filters.onlySac || filters.onlyGovern || filters.onlyVacant || filters.onlyPendingValidation;
+            if (anyActive) {
+                matchesToggles = (filters.onlySac && satisfiesSac) ||
+                                 (filters.onlyGovern && satisfiesGovern) ||
+                                 (filters.onlyVacant && satisfiesVacant) ||
+                                 (filters.onlyPendingValidation && satisfiesPending);
+            }
+        } else {
+            const matchesSac = !filters.onlySac || satisfiesSac;
+            const matchesGovern = !filters.onlyGovern || satisfiesGovern;
+            const matchesVacant = !filters.onlyVacant || satisfiesVacant;
+            const matchesPendingValidation = !filters.onlyPendingValidation || satisfiesPending;
+            matchesToggles = matchesSac && matchesGovern && matchesVacant && matchesPendingValidation;
+        }
 
         return matchesSearch && matchesColSac && matchesColCarrec && matchesColEntitat && matchesColOGS && matchesColPersona && 
-               matchesDept && matchesStatus && matchesNatureza && matchesNomenament && matchesCategoritzacio && matchesSac && matchesGovern && matchesVacant;
+               matchesDept && matchesStatus && matchesCaStatus && matchesOgsStatus && matchesNatureza && matchesNomenament && matchesCategoritzacio && matchesToggles;
     });
 
     const updateIcon = (id, val) => {
@@ -149,17 +232,21 @@ function groupRecords5Levels(records) {
     const sacMap = new Map();
     records.forEach((r, index) => {
         const sValue = r.codi_sac;
-        const sKey = sValue && sValue.trim() !== "" ? sValue : `EMPTY_SAC_${index}`;
+        const cleanReg = (r.n_registre || "").toString().trim().replace(/^0+/, '');
+        const entName = (r.entitat || "").trim();
+        const sKey = (sValue && sValue.trim() !== "") ? sValue : `NO_SAC_${entName}_${cleanReg || index}`;
         if (!sacMap.has(sKey)) { const sg = { sac: sValue || '', carrecGroups: [] }; sacGroups.push(sg); sacMap.set(sKey, sg); }
         const sacGroup = sacMap.get(sKey);
+
         const cValue = r.carrec;
-        const cKey = cValue && cValue.trim() !== "" ? `${cValue}|${r.sac_carrec || ''}|${r.sac_unitat || ''}` : `EMPTY_CARREC_${index}`;
+        const cKey = (cValue && cValue.trim() !== "") ? `${cValue}|${r.sac_carrec || ''}|${r.sac_unitat || ''}` : `NO_CARREC_${entName}_${cleanReg || index}`;
         let cg = sacGroup.carrecGroups.find(c => c.id === cKey);
         if (!cg) { cg = { id: cKey, name: cValue || '', entities: [] }; sacGroup.carrecGroups.push(cg); }
-        const eValue = r.entitat;
-        const eKey = eValue && eValue.trim() !== "" ? `${eValue}|${r.n_registre || ''}` : `EMPTY_ENT_${index}`;
+
+        const eKey = entName ? `${entName}|${cleanReg}` : `EMPTY_ENT_${index}`;
         let eg = cg.entities.find(e => e.id === eKey);
-        if (!eg) { eg = { id: eKey, name: eValue || '', reg: r.n_registre, natureza: r.part_natureza, ogs: [] }; cg.entities.push(eg); }
+        if (!eg) { eg = { id: eKey, name: entName || '', reg: r.n_registre, natureza: r.part_natureza, ca_empty: r.ca_empty, ogs: [] }; cg.entities.push(eg); }
+
         const oValue = r.is_govern_superior;
         const oKey = oValue && oValue.trim() !== "" ? `${oValue}|${r.departament || ''}|${r.part_cip_o_organisme || ''}` : `EMPTY_OGS_${index}`;
         let og = eg.ogs.find(o => o.id === oKey);
@@ -209,12 +296,44 @@ function renderTable(append = false) {
                         const isFirstOfEntitat = ogIdx === 0 && pIdx === 0;
                         const isFirstOfOGS = pIdx === 0;
 
-                        html += `<tr class="modular-row">`;
+                        const pending = PendingService.getPendingChange(p);
+                        let carrecPendingHTML = "";
+                        let organPendingHTML = "";
+                        let personaPendingHTML = "";
+
+                        const isDeletion = pending && pending.operacio && pending.operacio.trim().toLowerCase().includes("esborrar");
+                        const rowClass = isDeletion ? "modular-row row-deletion-pending" : "modular-row";
+
+                        if (pending && pending.nou) {
+                            const n = pending.nou;
+
+                            // 1. Canvi de Càrrec (Level 2) - Omitit per petició de l'usuari
+                            carrecPendingHTML = "";
+
+                            // 2. Canvi d'Òrgan (Level 4) - Correspon a CARGO_GOBIERNO_SUPERIOR en les dades
+                            if (n.CARGO_GOBIERNO_SUPERIOR && baseNorm(n.CARGO_GOBIERNO_SUPERIOR) !== baseNorm(og.name)) {
+                                organPendingHTML = `<div class="pending-change-badge" style="display:block; margin-top:6px;"><i data-lucide="clock" style="width:12px; height:12px; vertical-align:-2px; margin-right:4px;"></i><strong>Pendent:</strong> ${n.CARGO_GOBIERNO_SUPERIOR}</div>`;
+                            }
+
+                            // 3. Canvi de Persona/Estat (Level 5)
+                            const nMembre = (n.NOMBRE_PF ? `${n.NOMBRE_PF} ${n.APELLIDOS_PF}` : n.NOMBRE_PJ) ||
+                                            (n.NOMBRE_PERSONA_REPRESENTANTE ? `${n.NOMBRE_PERSONA_REPRESENTANTE} ${n.APELLIDOS_PERSONA_REPRESENTANTE}` : '') ||
+                                            n.MIEMBRO_ORGANO_GOBIERNO || "";
+                            const nData = n.FECHA_INICIO_VIGENCIA ? ` (des de ${n.FECHA_INICIO_VIGENCIA})` : "";
+
+                            if (isDeletion) {
+                                personaPendingHTML = `<div class="pending-change-badge" style="color:#ef4444; border-color:rgba(239,68,68,0.4); background:rgba(239,68,68,0.1);"><i data-lucide="clock" style="width:12px; height:12px; vertical-align:-2px; margin-right:4px;"></i><strong>Pendent:</strong> Baixa / Esborrar</div>`;
+                            } else {
+                                personaPendingHTML = `<div class="pending-change-badge"><i data-lucide="clock" style="width:12px; height:12px; vertical-align:-2px; margin-right:4px;"></i><strong>Pendent:</strong> ${nMembre}${nData}</div>`;
+                            }
+                        }
+
+                        html += `<tr class="${rowClass}">`;
                         if (isFirstOfSAC) html += `<td rowspan="${sacRows}" class="td-sac"><span class="parent-sac-badge">${sg.sac || '---'}</span></td>`;
                         if (isFirstOfCarrec) {
                             const first = cg.entities[0].ogs[0].persons[0];
                             let sacHTML = first.sac_carrec ? `<div class="clickable-sac" style="margin-top:8px; cursor:pointer;" data-record-id="${first.id}"><div style="font-size:0.6rem; color:var(--primary); font-weight:700; display:flex; align-items:center; gap:4px;">(SAC:) <i data-lucide="info" style="width:10px; height:10px;"></i></div><div style="font-size:0.75rem; color:var(--text-main); line-height:1.2;">${first.sac_carrec.toLowerCase()}</div><div style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">${first.sac_unitat || ''}</div></div>` : '';
-                            html += `<td rowspan="${carrecRows}" class="td-carrec"><div class="cell-main-title">${cg.name}</div>${sacHTML}</td>`;
+                            html += `<td rowspan="${carrecRows}" class="td-carrec"><div class="cell-main-title">${cg.name}</div>${carrecPendingHTML}${sacHTML}</td>`;
                         }
                         if (isFirstOfEntitat) {
                             const firstP = ent.ogs[0].persons[0];
@@ -222,14 +341,17 @@ function renderTable(append = false) {
                             let caBtn = '';
                             if (ent.reg && isMercantil) {
                                 let btnClass = "btn-ca-blue";
-                                if (firstP.data_final_de_vig_ncia) {
+                                if (ent.ca_empty === true) {
+                                    btnClass = "btn-ca-empty";
+                                } else if (firstP.data_final_de_vig_ncia) {
                                     const dFinal = parseDate(firstP.data_final_de_vig_ncia);
                                     if (dFinal) {
                                         const today = new Date();
                                         today.setHours(0,0,0,0);
                                         const diffDays = (dFinal - today) / (1000 * 60 * 60 * 24);
+                                        const maxDays = (filters.expireMonths || 1) * 30;
                                         if (diffDays < 0) btnClass = "btn-ca-red";
-                                        else if (diffDays < 30) btnClass = "btn-ca-orange";
+                                        else if (diffDays < maxDays) btnClass = "btn-ca-orange";
                                     }
                                 }
                                 caBtn = `<div style="margin-left:12px;"><button onclick="openConsellModal('${ent.reg || '-'}', '${ent.name.replace(/'/g, "\\'")}')" class="btn ${btnClass}" style="padding: 6px 12px; font-size: 0.7rem; font-weight: 800; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); white-space: nowrap;">CA</button></div>`;
@@ -258,6 +380,7 @@ function renderTable(append = false) {
                                         <div class="cell-main-title">${og.name}</div>
                                         <div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">${displayOrg}</div>
                                         <div style="margin-top:8px; font-size:0.65rem; color:var(--text-muted); border-top:1px solid rgba(255,255,255,0.05); padding-top:4px;">${p.part_cip_o_organisme || ''}${catHTML}</div>
+                                        ${organPendingHTML}
                                      </td>`;
                         }
 
@@ -275,10 +398,11 @@ function renderTable(append = false) {
                         if (dFinalInd) {
                             const today = new Date(); today.setHours(0,0,0,0);
                             const diffDays = (dFinalInd - today) / (1000 * 60 * 60 * 24);
+                            const maxDaysInd = (filters.expireMonths || 1) * 30;
                             if (diffDays < 0) {
                                 expStyle = "color: #ff6b6b !important; font-weight: 700;";
                                 expText = `<div style="font-size:0.7rem; color:#ff6b6b; margin-top:4px; font-weight:600;">Càrrec expirat el ${p.data_final_individual}</div>`;
-                            } else if (diffDays < 30) {
+                            } else if (diffDays < maxDaysInd) {
                                 expStyle = "color: #f59e0b !important; font-weight: 700;";
                                 expText = `<div style="font-size:0.7rem; color:#f59e0b; margin-top:4px; font-weight:600;">El càrrec expira el ${p.data_final_individual}</div>`;
                             }
@@ -292,13 +416,19 @@ function renderTable(append = false) {
                         } else if ((p.qualificador || "").toLowerCase().includes("vacant")) {
                             nomHTML = `<div style="color:var(--text-muted); font-style:italic;">(Vacant)</div>`;
                         } else {
-                            nomHTML = `<div class="persona-nom" style="${expStyle}">${p.persona_nom || ''} ${p.persona_cognoms || ''}</div>`;
+                            const pNom = `${p.persona_nom || ''} ${p.persona_cognoms || ''}`.trim();
+                            if (!pNom) {
+                                nomHTML = `<div class="persona-nom" style="color:var(--text-muted); font-style:italic;">(No informat)</div>`;
+                            } else {
+                                nomHTML = `<div class="persona-nom" style="${expStyle}">${pNom}</div>`;
+                            }
                         }
+
                         let sacInfoHTML = (p.codi_sac && p.sac_nom_responsable && p.status !== 'Validat') ? `<div class="sac-ref-box"><div style="font-size: 0.55rem; text-transform: uppercase; color: #ff6b6b; font-weight: 700;">Ref. SAC:</div><div style="font-weight: 600; color: #ff6b6b;">${p.sac_nom_responsable}</div></div>` : '';
 
                         html += `<td class="td-persona">
                                     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                                        <div>${nomHTML}${expText}<div class="persona-sub">${p.tipus_nomenament || ''}</div>${sacInfoHTML}</div>
+                                        <div>${nomHTML}${expText}${personaPendingHTML}<div class="persona-sub">${p.tipus_nomenament || ''}</div>${sacInfoHTML}</div>
                                         <div style="text-align:right;">
                                             <div>${statusBadge}</div>
                                         </div>
@@ -333,21 +463,79 @@ function setupEventListeners() {
     safeAddListener('themeToggle', 'click', toggleTheme);
     safeAddListener('filterDepartament', 'change', applyFilters);
     safeAddListener('filterStatus', 'change', applyFilters);
+    const handleExpireMonthsInput = () => {
+        const expEl = document.getElementById('caExpireMonths');
+        if (expEl) {
+            localStorage.setItem('caExpireMonths', expEl.value);
+        }
+        applyFilters(); populateCaStatus(); populateOgsStatus();
+    };
+    safeAddListener('caExpireMonths', 'change', handleExpireMonthsInput);
+    safeAddListener('caExpireMonths', 'input', handleExpireMonthsInput);
     safeAddListener('btnResetFilters', 'click', () => {
         ['globalSearch', 'colFilterSAC', 'colFilterCarrec', 'colFilterEntitat', 'colFilterOGS', 'colFilterPersona', 'filterDepartament', 'filterStatus'].forEach(id => {
             const el = document.getElementById(id); if (el) el.value = "";
         });
-        ['toggleSac', 'toggleGovern', 'toggleVacant'].forEach(id => {
+        ['toggleSac', 'toggleGovern', 'toggleVacant', 'togglePendingValidation'].forEach(id => {
             const el = document.getElementById(id); if (el) el.classList.remove('btn-primary');
         });
-        filters = { search: "", dept: "", status: "", naturezas: [], nomenaments: [], categoritzacions: [], onlySac: false, onlyGovern: false, onlyVacant: false, colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "" };
-        populateNaturezas(); populateNomenaments(); populateCategoritzacions(); updateNaturezasUI(); updateNomenamentsUI(); updateCategoritzacionsUI(); applyFilters();
+        const expEl = document.getElementById('caExpireMonths');
+        const curMonths = expEl ? (parseInt(expEl.value) || 1) : 1;
+        filters = { search: "", dept: "", status: "", caStatus: [], ogsStatus: [], naturezas: [], nomenaments: [], categoritzacions: [], onlySac: false, onlyGovern: false, onlyVacant: false, onlyPendingValidation: false, colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "", expireMonths: curMonths, filterMode: "subtractive" };
+        const filterCheckbox = document.getElementById('filterModeCheckbox');
+        const textSubtractive = document.getElementById('textModeSubtractive');
+        const textAdditive = document.getElementById('textModeAdditive');
+        if (filterCheckbox) filterCheckbox.checked = false;
+        if (textSubtractive) textSubtractive.classList.add('active');
+        if (textAdditive) textAdditive.classList.remove('active');
+        populateNaturezas(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); updateNaturezasUI(); updateNomenamentsUI(); updateCategoritzacionsUI(); updateCaStatusUI(); updateOgsStatusUI(); applyFilters();
     });
+
+    const filterCheckbox = document.getElementById('filterModeCheckbox');
+    const textSubtractive = document.getElementById('textModeSubtractive');
+    const textAdditive = document.getElementById('textModeAdditive');
+    
+    if (filterCheckbox && textSubtractive && textAdditive) {
+        textSubtractive.addEventListener('click', () => {
+            filterCheckbox.checked = false;
+            triggerChange();
+        });
+        textAdditive.addEventListener('click', () => {
+            filterCheckbox.checked = true;
+            triggerChange();
+        });
+        filterCheckbox.addEventListener('change', () => triggerChange());
+        
+        function triggerChange() {
+            const isAdditive = filterCheckbox.checked;
+            filters.filterMode = isAdditive ? 'additive' : 'subtractive';
+            textSubtractive.classList.toggle('active', !isAdditive);
+            textAdditive.classList.toggle('active', isAdditive);
+            applyFilters();
+        }
+    }
+
+    const setupToggleBtn = (btnId, filterProp) => {
+        const btn = document.getElementById(btnId);
+        if (btn) {
+            btn.addEventListener('click', () => {
+                filters[filterProp] = !filters[filterProp];
+                btn.classList.toggle('btn-primary', filters[filterProp]);
+                applyFilters();
+            });
+        }
+    };
+    setupToggleBtn('toggleSac', 'onlySac');
+    setupToggleBtn('toggleGovern', 'onlyGovern');
+    setupToggleBtn('toggleVacant', 'onlyVacant');
+    setupToggleBtn('togglePendingValidation', 'onlyPendingValidation');
 
     const setupMultiselect = (btnId, dropdownId) => {
         const btn = document.getElementById(btnId); const dropdown = document.getElementById(dropdownId);
         if (btn && dropdown) btn.addEventListener('click', (e) => { e.stopPropagation(); const wasActive = dropdown.classList.contains('active'); document.querySelectorAll('.multiselect-dropdown').forEach(d => d.classList.remove('active')); if (!wasActive) dropdown.classList.add('active'); });
     };
+    setupMultiselect('btnCaStatus', 'dropdownCaStatus');
+    setupMultiselect('btnOgsStatus', 'dropdownOgsStatus');
     setupMultiselect('btnCategoritzacions', 'dropdownCategoritzacions');
     setupMultiselect('btnNaturezas', 'dropdownNaturezas');
     setupMultiselect('btnNomenaments', 'dropdownNomenaments');
@@ -370,16 +558,6 @@ function setupEventListeners() {
         });
     });
 
-    ['toggleSac', 'toggleGovern', 'toggleVacant'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener('click', (e) => {
-            const key = id.replace('toggle', 'only');
-            const filterKey = key.charAt(0).toLowerCase() + key.slice(1);
-            filters[filterKey] = !filters[filterKey];
-            e.currentTarget.classList.toggle('btn-primary');
-            applyFilters();
-        });
-    });
     window.addEventListener('scroll', () => {
         if ((window.innerHeight + window.scrollY) / document.documentElement.scrollHeight > 0.85 && rowsShown < filteredRecords.length) {
             rowsShown += 10; renderTable(true);
@@ -472,6 +650,84 @@ function updateCategoritzacionsUI() {
     btn.classList.toggle('btn-primary', filters.categoritzacions.length > 0);
     if (window.lucide) lucide.createIcons();
 }
+
+function populateCaStatus() {
+    const list = document.getElementById('listCaStatus');
+    if (!list) return;
+    const m = filters.expireMonths || 1;
+    const labelPropera = `Propera caducitat (${m} ${m === 1 ? 'mes' : 'mesos'})`;
+    const options = [
+        { value: 'caducat', label: 'Caducats', class: 'btn-ca-red' },
+        { value: 'propera', label: labelPropera, class: 'btn-ca-orange' },
+        { value: 'vigent', label: 'Vigents', class: 'btn-ca-blue' },
+        { value: 'no_informat', label: 'No informat', class: 'btn-ca-empty' }
+    ];
+    list.innerHTML = '';
+    options.forEach(opt => {
+        const item = document.createElement('label');
+        item.className = 'multiselect-item';
+        const isChecked = filters.caStatus.includes(opt.value);
+        item.innerHTML = `<input type="checkbox" value="${opt.value}" ${isChecked ? 'checked' : ''}><span class="btn ${opt.class}" style="padding: 4px 10px; font-size: 0.75rem; font-weight: 800; border-radius: 4px; pointer-events: none;">${opt.label}</span>`;
+        item.querySelector('input').addEventListener('change', (e) => {
+            if (e.target.checked) {
+                if (!filters.caStatus.includes(opt.value)) filters.caStatus.push(opt.value);
+            } else {
+                filters.caStatus = filters.caStatus.filter(v => v !== opt.value);
+            }
+            updateCaStatusUI();
+            applyFilters();
+        });
+        list.appendChild(item);
+    });
+    updateCaStatusUI();
+}
+
+function updateCaStatusUI() {
+    const btn = document.getElementById('btnCaStatus');
+    if (!btn) return;
+    btn.innerHTML = `<i data-lucide="shield-alert" style="width: 16px; margin-right: 4px;"></i> ${filters.caStatus.length ? `(${filters.caStatus.length}) Estat CA` : 'Estat Consells (CA)'}`;
+    btn.classList.toggle('btn-primary', filters.caStatus.length > 0);
+    if (window.lucide) lucide.createIcons();
+}
+
+function populateOgsStatus() {
+    const list = document.getElementById('listOgsStatus');
+    if (!list) return;
+    const m = filters.expireMonths || 1;
+    const labelPropera = `Propera caducitat (${m} ${m === 1 ? 'mes' : 'mesos'})`;
+    const options = [
+        { value: 'caducat', label: 'Caducats', class: 'btn-ca-red' },
+        { value: 'propera', label: labelPropera, class: 'btn-ca-orange' },
+        { value: 'vigent', label: 'Vigents', class: 'btn-ca-blue' }
+    ];
+    list.innerHTML = '';
+    options.forEach(opt => {
+        const item = document.createElement('label');
+        item.className = 'multiselect-item';
+        const isChecked = filters.ogsStatus.includes(opt.value);
+        item.innerHTML = `<input type="checkbox" value="${opt.value}" ${isChecked ? 'checked' : ''}><span class="btn ${opt.class}" style="padding: 4px 10px; font-size: 0.75rem; font-weight: 800; border-radius: 4px; pointer-events: none;">${opt.label}</span>`;
+        item.querySelector('input').addEventListener('change', (e) => {
+            if (e.target.checked) {
+                if (!filters.ogsStatus.includes(opt.value)) filters.ogsStatus.push(opt.value);
+            } else {
+                filters.ogsStatus = filters.ogsStatus.filter(v => v !== opt.value);
+            }
+            updateOgsStatusUI();
+            applyFilters();
+        });
+        list.appendChild(item);
+    });
+    updateOgsStatusUI();
+}
+
+function updateOgsStatusUI() {
+    const btn = document.getElementById('btnOgsStatus');
+    if (!btn) return;
+    btn.innerHTML = `<i data-lucide="user-check" style="width: 16px; margin-right: 4px;"></i> ${filters.ogsStatus.length ? `(${filters.ogsStatus.length}) Estat OGS` : 'Estat càrrecs OGS'}`;
+    btn.classList.toggle('btn-primary', filters.ogsStatus.length > 0);
+    if (window.lucide) lucide.createIcons();
+}
+
 function exportToCSV() {
     if (filteredRecords.length === 0) return;
     const headers = ["Codi SAC", "Membre", "Representant", "Carrec", "Departament", "Entitat", "N. Registre", "Òrgan Govern Superior", "Tipus Membre", "Particip/Organisme", "Tipus Nomenament", "Estat", "Qualificador"];
