@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anonimitzador Local de JSON</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --border: rgba(255,255,255,0.1);
+            --danger: #ef4444;
+            --success: #10b981;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 2rem;
+            line-height: 1.5;
+        }
+
+        .container { max-width: 900px; margin: 0 auto; }
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            margin-bottom: 1.5rem;
+        }
+
+        h1 { margin-top: 0; font-size: 1.4rem; color: #fff; }
+        p { color: var(--text-muted); font-size: 0.9rem; }
+
+        .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn:hover { background: var(--primary-hover); }
+        .btn-success { background: var(--success); }
+        
+        .file-drop {
+            border: 2px dashed var(--border);
+            border-radius: 10px;
+            padding: 2rem;
+            text-align: center;
+            background: rgba(0,0,0,0.2);
+            cursor: pointer;
+            margin: 1rem 0;
+        }
+
+        .file-drop:hover { border-color: var(--primary); }
+
+        .field-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 10px;
+            margin: 1rem 0;
+            max-height: 250px;
+            overflow-y: auto;
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .field-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: var(--text);
+            background: rgba(255,255,255,0.05);
+            padding: 6px 10px;
+            border-radius: 6px;
+        }
+
+        .badge-privat {
+            background: rgba(16, 185, 129, 0.2);
+            color: #34d399;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            display: inline-block;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <span class="badge-privat">🔒 100% Privat - Les dades NO surten mai del teu ordinador</span>
+            <h1>🛡️ Anonimitzador i Netejador de JSON</h1>
+            <p>Carrega qualsevol fitxer JSON per seleccionar i eliminar camps sensibles (NIFs, noms, DNI, etc.) de forma massiva abans de compartir-ho.</p>
+
+            <div class="file-drop" onclick="document.getElementById('fileInput').click()">
+                <div style="font-weight:bold; font-size:1.1rem;">📂 Fes clic per seleccionar el fitxer JSON</div>
+                <div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;" id="fileNameDisplay">O arrossega'l directament aquí</div>
+                <input type="file" id="fileInput" accept=".json" style="display:none;" onchange="carregarJSON(event)">
+            </div>
+        </div>
+
+        <div id="fieldsCard" class="card" style="display:none;">
+            <h3>📋 Selecciona els camps que vols ELIMINAR / ANONIMITZAR:</h3>
+            <p>Els camps marcats s'eliminaran per complet de totes les llistes i objectes anidats.</p>
+
+            <div style="margin-bottom:10px;">
+                <button class="btn" onclick="seleccionarTotsSensibles()" style="padding:4px 10px; font-size:0.75rem;">Marcar Camps Sensibles de Persones (NIF, Nom, DNI)</button>
+            </div>
+
+            <div class="field-grid" id="fieldContainer"></div>
+
+            <button class="btn btn-success" onclick="processarIAnonimitzar()">✨ Anonimitzar i Descarregar JSON Netejat</button>
+        </div>
+    </div>
+
+    <script>
+        let jsonOriginal = null;
+        let nomFitxerOriginal = "dades.json";
+        let campsTrobats = new Set();
+
+        function carregarJSON(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            nomFitxerOriginal = file.name;
+            document.getElementById('fileNameDisplay').textContent = `Fitxer seleccionat: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    jsonOriginal = JSON.parse(evt.target.result);
+                    detectarCamps(jsonOriginal);
+                    mostrarCamps();
+                } catch (err) {
+                    alert("Error en llegir el fitxer JSON: " + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function detectarCamps(obj) {
+            campsTrobats.clear();
+            function recórrer(item) {
+                if (Array.isArray(item)) {
+                    item.forEach(recórrer);
+                } else if (item && typeof item === 'object') {
+                    Object.keys(item).forEach(key => {
+                        if (key !== '_detall_representants') campsTrobats.add(key);
+                        recórrer(item[key]);
+                    });
+                }
+            }
+            recórrer(obj);
+        }
+
+        function mostrarCamps() {
+            const container = document.getElementById('fieldContainer');
+            container.innerHTML = '';
+
+            const sorted = Array.from(campsTrobats).sort();
+            sorted.forEach(field => {
+                const label = document.createElement('label');
+                label.className = 'field-checkbox';
+                const isSensible = /NIF|DNI|NOMBRE|APELLIDOS|PERSONA|SOLICITANTE|USUARIO|REPRESENTANTE/i.test(field);
+                
+                label.innerHTML = `<input type="checkbox" class="field-check" value="${field}" ${isSensible ? 'checked' : ''}> <span>${field}</span>`;
+                container.appendChild(label);
+            });
+
+            document.getElementById('fieldsCard').style.display = 'block';
+        }
+
+        function seleccionarTotsSensibles() {
+            document.querySelectorAll('.field-check').forEach(cb => {
+                const isSensible = /NIF|DNI|NOMBRE|APELLIDOS|PERSONA|SOLICITANTE|USUARIO|REPRESENTANTE/i.test(cb.value);
+                cb.checked = isSensible;
+            });
+        }
+
+        function processarIAnonimitzar() {
+            if (!jsonOriginal) return;
+
+            const campsAEliminar = new Set();
+            document.querySelectorAll('.field-check:checked').forEach(cb => campsAEliminar.add(cb.value));
+
+            function netejar(item) {
+                if (Array.isArray(item)) {
+                    return item.map(netejar);
+                } else if (item && typeof item === 'object') {
+                    const nouObj = {};
+                    Object.keys(item).forEach(key => {
+                        if (!campsAEliminar.has(key)) {
+                            nouObj[key] = netejar(item[key]);
+                        }
+                    });
+                    return nouObj;
+                }
+                return item;
+            }
+
+            const jsonNetejat = netejar(jsonOriginal);
+
+            const blob = new Blob([JSON.stringify(jsonNetejat, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `anonimitzat_${nomFitxerOriginal}`;
+            a.click();
+        }
+    </script>
+</body>
+</html>

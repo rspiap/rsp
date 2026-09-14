@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extractor de Canvis Pendents CATENS</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --border: rgba(255,255,255,0.1);
+            --success: #10b981;
+            --warning: #f59e0b;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 2rem;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            margin-bottom: 1.5rem;
+        }
+
+        h1 { margin-top: 0; font-size: 1.5rem; color: #fff; }
+        p { color: var(--text-muted); font-size: 0.9rem; }
+
+        .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn:hover { background: var(--primary-hover); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .progress-box {
+            margin-top: 1rem;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            padding: 1rem;
+            border: 1px solid var(--border);
+        }
+
+        .progress-bar-bg {
+            background: rgba(255,255,255,0.1);
+            height: 12px;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .progress-bar-fill {
+            background: var(--primary);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        #logConsole {
+            background: #090d16;
+            color: #38bdf8;
+            font-family: monospace;
+            font-size: 0.85rem;
+            padding: 1rem;
+            border-radius: 8px;
+            height: 250px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            margin-top: 1rem;
+            white-space: pre-wrap;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            font-size: 0.85rem;
+        }
+
+        th, td {
+            padding: 10px;
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+        }
+
+        th {
+            background: rgba(255,255,255,0.05);
+            color: var(--text-muted);
+            font-weight: 700;
+        }
+
+        .badge-nou { color: #34d399; font-weight: bold; }
+        .badge-ant { color: #f87171; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>🚀 Extractor de Canvis Pendents CATENS</h1>
+            <p>Aquest programa executa el procés en 2 fases:</p>
+            <ol style="font-size: 0.85rem; color: var(--text-muted);">
+                <li>Obté el llistat d'entitats amb canvis pendents (paginat de 50 en 50 fins al total de registres).</li>
+                <li>Per a cada ID de canvi obtingut, crida a l'API de detall de representant i n'extreu la informació de canvis.</li>
+            </ol>
+            
+            <button id="btnStart" class="btn" onclick="iniciarExtraccio()">Iniciar Extracció de Dades</button>
+            <button id="btnDownload" class="btn" style="display:none; background:var(--success);" onclick="descarregarJSON()">Descarregar Fitxer JSON</button>
+        </div>
+
+        <div id="progressCard" class="card" style="display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <strong id="statusTitle">Processant Fase 1...</strong>
+                <span id="statusPercent" style="font-weight:bold; color:var(--primary);">0%</span>
+            </div>
+            <div class="progress-bar-bg">
+                <div id="progressBar" class="progress-bar-fill"></div>
+            </div>
+            <div id="logConsole">Esperant inici...</div>
+        </div>
+
+        <div id="resultsCard" class="card" style="display:none;">
+            <h2>📊 Resultats Obtinguts (<span id="totalResultsCount">0</span>)</h2>
+            <div style="max-height: 400px; overflow-y: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID Canvi</th>
+                            <th>Estat</th>
+                            <th>Membre / Persona</th>
+                            <th>Càrrec OGS</th>
+                            <th>Data Inici</th>
+                            <th>Òrgan</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let dadesFinalsExtretes = [];
+
+        // Funció per simular pausa de comportament humà (aleatòria entre min i max mil·lisegons)
+        function sleepHuman(minMs = 600, maxMs = 1400) {
+            const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+            return new Promise(resolve => setTimeout(resolve, delay));
+        }
+
+        function appendLog(msg) {
+            const consoleEl = document.getElementById('logConsole');
+            consoleEl.textContent += `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        function updateProgress(percent, text) {
+            document.getElementById('progressBar').style.width = `${percent}%`;
+            document.getElementById('statusPercent').textContent = `${Math.round(percent)}%`;
+            if (text) document.getElementById('statusTitle').textContent = text;
+        }
+
+        async function iniciarExtraccio() {
+            const btnStart = document.getElementById('btnStart');
+            const btnDownload = document.getElementById('btnDownload');
+            const progressCard = document.getElementById('progressCard');
+            const resultsCard = document.getElementById('resultsCard');
+            
+            btnStart.disabled = true;
+            btnDownload.style.display = 'none';
+            progressCard.style.display = 'block';
+            resultsCard.style.display = 'none';
+            document.getElementById('logConsole').textContent = '';
+            dadesFinalsExtretes = [];
+
+            try {
+                // ==========================================
+                // FASE 1: Obtenir la llista d'IDs de canvis
+                // ==========================================
+                appendLog("🚀 FASE 1: Consultant la llista d'entitats amb canvis pendents de validar...");
+                appendLog("🛡️ Comportament humà activat: Delays aleatoris entre 600ms i 1400ms per petició.");
+                updateProgress(0, "Fase 1: Cercant llista de canvis...");
+
+                let allCambioIDs = [];
+                let start = 0;
+                const limit = 50;
+                let totalRegistros = 0;
+                let hasMore = true;
+                let page = 1;
+
+                while (hasMore) {
+                    const urlFase1 = `https://catens.gencat.cat/catensformacio/pantalla/nucleo.catens.ens/datosListaEnsCambio.action?idEntidadPrincipal=71303&_dc=${Date.now()}&listaFiltrada=si&prefijoPantalla=pantalla0_&pantalla0_filtro_filtro_codigo_catalogo=&pantalla0_filtro_filtro_ens_cambio_estado=0&pantalla0_filtro_filtro_agrup_datos=19&pantalla0_filtro_filtro_fecha_ultimo_cambio_desde=&pantalla0_filtro_filtro_fecha_modificacion_desde=&pantalla0_filtro_filtro_validador=&pantalla0_filtro_filtro_fecha_ultimo_cambio_hasta=&pantalla0_filtro_filtro_fecha_modificacion_hasta=&pantalla0_filtro_filtro_operacion=&pantalla0_filtro_filtro_id_usuario=3004238&ctrl_fama_id_contexto_pantalla_actual=194&identificadorGridAsociado=pantalla0_identificadorGrid_CAMPO_LISTA_ENS_CAMBIO&ctrl_fama_identificador_campo_arbol_lista=CAMPO_LISTA_ENS_CAMBIO&parametro_TIPOWF=M&page=${page}&start=${start}&limit=${limit}`;
+
+                    appendLog(`Petició Fase 1 - Pàgina ${page} (start=${start}, limit=${limit})...`);
+                    const resp = await fetch(urlFase1);
+                    const data = await resp.json();
+
+                    totalRegistros = parseInt(data.totalRegistros) || 0;
+                    const registres = data.registros || [];
+
+                    registres.forEach(item => {
+                        if (item.ID && item.ID.trim() !== "") {
+                            allCambioIDs.push(item.ID.trim());
+                        }
+                    });
+
+                    appendLog(`Obtinguts ${registres.length} registres en aquesta pàgina. (Total acumulats: ${allCambioIDs.length} de ${totalRegistros})`);
+
+                    start += limit;
+                    page++;
+
+                    const percentFase1 = totalRegistros > 0 ? Math.min(50, (allCambioIDs.length / totalRegistros) * 50) : 50;
+                    updateProgress(percentFase1, `Fase 1: Obtinguts ${allCambioIDs.length} de ${totalRegistros} IDs`);
+
+                    if (start >= totalRegistros || registres.length === 0) {
+                        hasMore = false;
+                    } else {
+                        // Pausa humana entre pàgines
+                        await sleepHuman(800, 1500);
+                    }
+                }
+
+                appendLog(`✅ FASE 1 COMPLETADA: S'han trobat ${allCambioIDs.length} IDs de canvis pendents.`);
+
+                if (allCambioIDs.length === 0) {
+                    appendLog("⚠️ No s'han trobat IDs per processar.");
+                    btnStart.disabled = false;
+                    return;
+                }
+
+                // ==========================================
+                // FASE 2: Extreure el detall de cada ID de canvi
+                // ==========================================
+                appendLog("🚀 FASE 2: Consultant el detall de representant per a cada ID de canvi (amb pausa humana entre consultes)...");
+                
+                for (let i = 0; i < allCambioIDs.length; i++) {
+                    const idCambio = allCambioIDs[i];
+                    appendLog(`[${i + 1}/${allCambioIDs.length}] Processant ID: ${idCambio}...`);
+
+                    const urlFase2 = `https://catens.gencat.cat/catensformacio/pantalla/nucleo.catens.ens/datosListaEnsRepresentante.action?idEntidadPrincipal=${idCambio}&_dc=${Date.now()}&listaFiltrada=si&prefijoPantalla=pantalla0_&pantalla0_filtro_FILTRO_CAMBIO_P_REP=${idCambio}&ordenacion=ID&ctrl_fama_id_contexto_pantalla_actual=255&identificadorGridAsociado=pantalla0_identificadorGrid_LISTA_ENS_R&ctrl_fama_identificador_campo_arbol_lista=LISTA_ENS_R&pantalla_definicion_sistema=nucleo.catens.ens&pantalla_definicion_entidad=EnsCambio&identificador_campo_lista=LISTA_ENS_R&page=1&start=0&limit=50&sort=%5B%7B%22property%22%3A%22ID%22%2C%22direction%22%3A%22ASC%22%7D%5D`;
+
+                    try {
+                        const respDetall = await fetch(urlFase2);
+                        const dataDetall = await respDetall.json();
+                        const registresDetall = dataDetall.registros || [];
+
+                        registresDetall.forEach(reg => {
+                            reg._id_cambio_origen = idCambio;
+                            dadesFinalsExtretes.push(reg);
+                        });
+
+                        appendLog(`   -> Trobat(s) ${registresDetall.length} detall(s) per a l'ID ${idCambio}`);
+                    } catch (errDetall) {
+                        appendLog(`   ❌ Error consultant detall de l'ID ${idCambio}: ${errDetall.message}`);
+                    }
+
+                    const percentFase2 = 50 + (((i + 1) / allCambioIDs.length) * 50);
+                    updateProgress(percentFase2, `Fase 2: Processant ID ${idCambio} (${i + 1}/${allCambioIDs.length})`);
+
+                    // Pausa humana entre consultes (ex: 600ms - 1300ms, i cada 10 peticions una pausa més llarga de 2s)
+                    if ((i + 1) % 10 === 0 && i + 1 < allCambioIDs.length) {
+                        appendLog("☕ Pausa humana breu de seguretat (2.5 segons)...");
+                        await sleepHuman(2200, 2800);
+                    } else {
+                        await sleepHuman(600, 1300);
+                    }
+                }
+
+                appendLog(`🎉 PROCÉS COMPLETAT! S'han extret un total de ${dadesFinalsExtretes.length} registres de detall.`);
+                
+                // Mostrar taula i botó de descàrrega
+                mostrarResultats(dadesFinalsExtretes);
+                btnDownload.style.display = 'inline-block';
+
+            } catch (err) {
+                appendLog(`❌ ERROR DURANT L'EXTRACCIÓ: ${err.message}`);
+            } finally {
+                btnStart.disabled = false;
+            }
+        }
+
+        function mostrarResultats(llista) {
+            const resultsCard = document.getElementById('resultsCard');
+            const tbody = document.getElementById('resultsTableBody');
+            const countEl = document.getElementById('totalResultsCount');
+
+            countEl.textContent = llista.length;
+            tbody.innerHTML = '';
+
+            llista.forEach(r => {
+                const tr = document.createElement('tr');
+                const membre = (r.NOMBRE_PF ? `${r.NOMBRE_PF} ${r.APELLIDOS_PF}` : r.NOMBRE_PJ) || r.MIEMBRO_ORGANO_GOBIERNO || '-';
+                const badgeClass = r.ESTADO === 'Valor nou' ? 'badge-nou' : 'badge-ant';
+
+                tr.innerHTML = `
+                    <td><strong>${r._id_cambio_origen || r.ID}</strong></td>
+                    <td><span class="${badgeClass}">${r.ESTADO || '-'}</span></td>
+                    <td>${membre}</td>
+                    <td>${r.CARGO_GOBIERNO_SUPERIOR || '-'}</td>
+                    <td>${r.FECHA_INICIO_VIGENCIA || '-'}</td>
+                    <td>${r.ORGANO_NOMBRE || '-'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            resultsCard.style.display = 'block';
+        }
+
+        function descarregarJSON() {
+            if (!dadesFinalsExtretes || dadesFinalsExtretes.length === 0) return;
+            const jsonStr = JSON.stringify(dadesFinalsExtretes, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `canvis_pendents_catens_${new Date().toISOString().slice(0, 10)}.json`;
+            link.click();
+        }
+    </script>
+</body>
+</html>
