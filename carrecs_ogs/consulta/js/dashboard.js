@@ -8,7 +8,7 @@ import { syncEngine } from './modules/sync-engine.js';
 import { CloudService } from './modules/cloud.js';
 import { BoardService } from './modules/board-of-directors.js';
 import { PendingService } from './modules/pending-service.js';
-import { initTheme, toggleTheme, parseDate, baseNorm } from './modules/utils.js';
+import { initTheme, toggleTheme, parseDate, baseNorm, prepareOrganRenderRows } from './modules/utils.js';
 
 let allRecords = [];
 let filteredRecords = [];
@@ -91,13 +91,11 @@ async function handleSync(manualCsvText = null) {
     try {
         if (btnSync) btnSync.disabled = true;
         modal.style.display = 'flex';
-        await PendingService.loadPendingData();
         const data = await syncEngine.runFullSync(manualCsvText, (info) => {
             if (info.step) stepText.textContent = info.step;
             if (info.progress) progressBar.style.width = `${info.progress}%`;
         });
         allRecords = data;
-        await PendingService.loadPendingData();
         populateDepartaments(); populateNaturezas(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); applyFilters();
         setTimeout(() => { modal.style.display = 'none'; if (btnSync) btnSync.disabled = false; }, 400);
     } catch (e) { if (btnSync) btnSync.disabled = false; }
@@ -229,8 +227,9 @@ function renderTable() {
                 ent.ogs.forEach((og, oIdx) => {
                     const ogRows = og.rows;
                     const isFirstOfEntitat = oIdx === 0;
-                    og.persons.forEach((p, pIdx) => {
-                        const isFirstOfOGS = pIdx === 0;
+                    og.renderRows.forEach((rowItem, rIdx) => {
+                        const isFirstOfOGS = rIdx === 0;
+                        const p = rowItem.isGrouped ? rowItem.rep : rowItem.person;
 
                         // Comprovació de canvis pendents de validar
                         const pending = PendingService.getPendingChange(p);
@@ -321,6 +320,23 @@ function renderTable() {
                                      </td>`;
                         }
 
+                        if (rowItem.isGrouped) {
+                            html += `<td class="td-persona">
+                                        <div style="display:flex; align-items:center; justify-content:space-between;">
+                                            <div>
+                                                <div class="cell-main-title" style="color:var(--text-muted); font-style:italic;">${rowItem.titleText || (rowItem.count > 1 ? `${rowItem.count} persones no informades` : "Persona no informada")}</div>
+                                                <div class="persona-sub" style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">${rowItem.subText || 'Tipus de nomenament no informat'}</div>
+                                            </div>
+                                            <div style="display:flex; align-items:center; gap:8px;">
+                                                <span class="badge badge-no-aplica">No aplica</span>
+                                                <button class="btn-edit" data-id="${rowItem.firstId}"><i data-lucide="pencil" style="width:14px; height:14px;"></i></button>
+                                            </div>
+                                        </div>
+                                     </td>`;
+                            html += `</tr>`;
+                            return;
+                        }
+
                         let statusBadge = '';
                         if (p.status === 'Validat') statusBadge = '<span class="badge badge-validat">Validat</span>';
                         else if (p.status === 'Pendent') statusBadge = '<span class="badge badge-pendent">Pendent</span>';
@@ -353,12 +369,19 @@ function renderTable() {
                         } else if (qualif.includes("vacant")) {
                             personaHTML = `<div class="cell-main-title" style="color:var(--text-muted); font-style:italic;">(Vacant)</div>`;
                         } else if (!personaName) {
-                            personaHTML = `<div class="cell-main-title" style="color:var(--text-muted); font-style:italic;">(No informat)</div>`;
+                            personaHTML = `<div class="cell-main-title" style="color:var(--text-muted); font-style:italic;">Persona no informada</div>`;
                         }
+
+                        const nomText = (p.tipus_nomenament && p.tipus_nomenament.trim() && p.tipus_nomenament.trim().toLowerCase() !== 'no informat' && p.tipus_nomenament.trim().toLowerCase() !== 'tipus de nomenament no informat')
+                            ? p.tipus_nomenament.trim()
+                            : 'Tipus de nomenament no informat';
 
                         html += `<td class="td-persona">
                                     <div style="display:flex; align-items:center; justify-content:space-between;">
-                                        <div>${personaHTML}${expText}${personaPendingHTML}</div>
+                                        <div>
+                                            ${personaHTML}${expText}${personaPendingHTML}
+                                            <div class="persona-sub" style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">${nomText}</div>
+                                        </div>
                                         <div style="display:flex; align-items:center; gap:8px;">
                                             ${statusBadge}
                                             <button class="btn-edit" data-id="${p.id}"><i data-lucide="pencil" style="width:14px; height:14px;"></i></button>
@@ -381,39 +404,61 @@ function groupData(data) {
     const sacMap = new Map();
     data.forEach(r => {
         const sKey = r.codi_sac || '---';
-        if (!sacMap.has(sKey)) sacMap.set(sKey, { sac: sKey, carrecs: new Map(), rows: 0 });
+        if (!sacMap.has(sKey)) sacMap.set(sKey, { sac: sKey, carrecs: new Map() });
         const sGroup = sacMap.get(sKey);
         
         const cKey = r.carrec || '---';
-        if (!sGroup.carrecs.has(cKey)) sGroup.carrecs.set(cKey, { name: cKey, entities: new Map(), rows: 0 });
+        if (!sGroup.carrecs.has(cKey)) sGroup.carrecs.set(cKey, { name: cKey, entities: new Map() });
         const cGroup = sGroup.carrecs.get(cKey);
         
         const cleanReg = (r.n_registre || "").toString().trim().replace(/^0+/, '');
         const eKey = r.entitat ? `${r.entitat}|${cleanReg}` : '---';
-        if (!cGroup.entities.has(eKey)) cGroup.entities.set(eKey, { name: r.entitat || '---', reg: cleanReg || r.n_registre, natureza: r.part_natureza, ca_empty: r.ca_empty, ogs: new Map(), rows: 0 });
+        if (!cGroup.entities.has(eKey)) cGroup.entities.set(eKey, { name: r.entitat || '---', reg: cleanReg || r.n_registre, natureza: r.part_natureza, ca_empty: r.ca_empty, ogs: new Map() });
         const eGroup = cGroup.entities.get(eKey);
         
         const oKey = r.is_govern_superior || '---';
-        if (!eGroup.ogs.has(oKey)) eGroup.ogs.set(oKey, { name: oKey, persons: [], rows: 0 });
+        if (!eGroup.ogs.has(oKey)) eGroup.ogs.set(oKey, { name: oKey, persons: [] });
         const oGroup = eGroup.ogs.get(oKey);
         
         oGroup.persons.push(r);
-        oGroup.rows++;
-        eGroup.rows++;
-        cGroup.rows++;
-        sGroup.rows++;
     });
 
-    return Array.from(sacMap.values()).map(sg => ({
-        ...sg,
-        carrecs: Array.from(sg.carrecs.values()).map(cg => ({
-            ...cg,
-            entities: Array.from(cg.entities.values()).map(eg => ({
-                ...eg,
-                ogs: Array.from(eg.ogs.values())
-            }))
-        }))
-    }));
+    return Array.from(sacMap.values()).map(sg => {
+        let sRows = 0;
+        const carrecs = Array.from(sg.carrecs.values()).map(cg => {
+            let cRows = 0;
+            const entities = Array.from(cg.entities.values()).map(eg => {
+                let eRows = 0;
+                const ogs = Array.from(eg.ogs.values()).map(og => {
+                    const renderRows = prepareOrganRenderRows(og.persons, PendingService);
+                    const oRows = renderRows.length;
+                    eRows += oRows;
+                    return {
+                        ...og,
+                        renderRows: renderRows,
+                        rows: oRows
+                    };
+                });
+                cRows += eRows;
+                return {
+                    ...eg,
+                    ogs: ogs,
+                    rows: eRows
+                };
+            });
+            sRows += cRows;
+            return {
+                ...cg,
+                entities: entities,
+                rows: cRows
+            };
+        });
+        return {
+            ...sg,
+            carrecs: carrecs,
+            rows: sRows
+        };
+    });
 }
 
 function setupEventListeners() {

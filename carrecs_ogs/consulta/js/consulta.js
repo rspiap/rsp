@@ -7,11 +7,12 @@ import { db } from './modules/db.js';
 import { syncEngine } from './modules/sync-engine.js';
 import { BoardService } from './modules/board-of-directors.js';
 import { PendingService } from './modules/pending-service.js';
-import { initTheme, toggleTheme, parseDate, baseNorm } from './modules/utils.js';
+import { initTheme, toggleTheme, parseDate, baseNorm, prepareOrganRenderRows } from './modules/utils.js';
 
 let allRecords = [];
 let filteredRecords = [];
 let rowsShown = 15;
+let renderedGroupsCount = 0;
 let filters = { 
     search: "", dept: "", status: "", caStatus: [], ogsStatus: [], naturezas: [], nomenaments: [], categoritzacions: [], 
     onlySac: false, onlyGovern: false, onlyVacant: false, onlyPendingValidation: false,
@@ -88,14 +89,12 @@ async function handleSync() {
     try {
         if (btn) btn.disabled = true;
         modal.style.display = 'flex';
-        await PendingService.loadPendingData();
         allRecords = await syncEngine.runFullSync(null, (info) => {
             const stepText = document.getElementById('syncStep');
             const progressBar = document.getElementById('syncProgressBar');
             if (stepText) stepText.textContent = info.step;
             if (progressBar) progressBar.style.width = `${info.progress}%`;
         });
-        await PendingService.loadPendingData();
         applyFilters(); populateDepartaments(); populateNaturezas(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus();
         setTimeout(() => { if (modal) modal.style.display = 'none'; if (btn) btn.disabled = false; }, 400);
     } catch (e) { if (btn) btn.disabled = false; }
@@ -259,10 +258,14 @@ function groupRecords5Levels(records) {
 function renderTable(append = false) {
     const tbody = document.getElementById('tableBody');
     if (!tbody) return;
-    if (!append) tbody.innerHTML = '';
+    if (!append) {
+        tbody.innerHTML = '';
+        renderedGroupsCount = 0;
+    }
 
     const tree = groupRecords5Levels(filteredRecords);
-    const slice = tree.slice(append ? tbody.children.length : 0, rowsShown);
+    const slice = tree.slice(renderedGroupsCount, rowsShown);
+    renderedGroupsCount = Math.min(tree.length, rowsShown);
 
     if (slice.length === 0 && !append) {
         tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 3rem; color:var(--text-muted);">No s\'han trobat resultats</td></tr>';
@@ -274,27 +277,32 @@ function renderTable(append = false) {
         let sacRows = 0;
         sg.carrecGroups.forEach(cg => {
             cg.entities.forEach(ent => {
-                ent.ogs.forEach(og => { sacRows += og.persons.length; });
+                ent.ogs.forEach(og => {
+                    og.renderRows = prepareOrganRenderRows(og.persons, PendingService);
+                    sacRows += og.renderRows.length;
+                });
             });
         });
 
         sg.carrecGroups.forEach((cg, cgIdx) => {
             let carrecRows = 0;
             cg.entities.forEach(ent => {
-                ent.ogs.forEach(og => { carrecRows += og.persons.length; });
+                ent.ogs.forEach(og => { carrecRows += og.renderRows.length; });
             });
 
             cg.entities.forEach((ent, entIdx) => {
                 let entRows = 0;
-                ent.ogs.forEach(og => { entRows += og.persons.length; });
+                ent.ogs.forEach(og => { entRows += og.renderRows.length; });
 
                 ent.ogs.forEach((og, ogIdx) => {
-                    const ogRows = og.persons.length;
-                    og.persons.forEach((p, pIdx) => {
-                        const isFirstOfSAC = cgIdx === 0 && entIdx === 0 && ogIdx === 0 && pIdx === 0;
-                        const isFirstOfCarrec = entIdx === 0 && ogIdx === 0 && pIdx === 0;
-                        const isFirstOfEntitat = ogIdx === 0 && pIdx === 0;
-                        const isFirstOfOGS = pIdx === 0;
+                    const ogRows = og.renderRows.length;
+                    og.renderRows.forEach((rowItem, rIdx) => {
+                        const isFirstOfSAC = cgIdx === 0 && entIdx === 0 && ogIdx === 0 && rIdx === 0;
+                        const isFirstOfCarrec = entIdx === 0 && ogIdx === 0 && rIdx === 0;
+                        const isFirstOfEntitat = ogIdx === 0 && rIdx === 0;
+                        const isFirstOfOGS = rIdx === 0;
+
+                        const p = rowItem.isGrouped ? rowItem.rep : rowItem.person;
 
                         const pending = PendingService.getPendingChange(p);
                         let carrecPendingHTML = "";
@@ -384,6 +392,22 @@ function renderTable(append = false) {
                                      </td>`;
                         }
 
+                        if (rowItem.isGrouped) {
+                            html += `<td class="td-persona">
+                                        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                                            <div>
+                                                <div class="persona-nom" style="color:var(--text-muted); font-style:italic;">${rowItem.titleText || (rowItem.count > 1 ? `${rowItem.count} persones no informades` : "Persona no informada")}</div>
+                                                <div class="persona-sub">${rowItem.subText || 'Tipus de nomenament no informat'}</div>
+                                            </div>
+                                            <div style="text-align:right;">
+                                                <div><span class="badge badge-no-aplica">No aplica</span></div>
+                                            </div>
+                                        </div>
+                                     </td>`;
+                            html += `</tr>`;
+                            return;
+                        }
+
                         let statusBadge = '';
                         if (p.status === 'Validat') statusBadge = '<span class="badge badge-validat">Validat</span>';
                         else if (p.status === 'Pendent') statusBadge = '<span class="badge badge-pendent">Pendent</span>';
@@ -418,7 +442,7 @@ function renderTable(append = false) {
                         } else {
                             const pNom = `${p.persona_nom || ''} ${p.persona_cognoms || ''}`.trim();
                             if (!pNom) {
-                                nomHTML = `<div class="persona-nom" style="color:var(--text-muted); font-style:italic;">(No informat)</div>`;
+                                nomHTML = `<div class="persona-nom" style="color:var(--text-muted); font-style:italic;">Persona no informada</div>`;
                             } else {
                                 nomHTML = `<div class="persona-nom" style="${expStyle}">${pNom}</div>`;
                             }
@@ -426,9 +450,13 @@ function renderTable(append = false) {
 
                         let sacInfoHTML = (p.codi_sac && p.sac_nom_responsable && p.status !== 'Validat') ? `<div class="sac-ref-box"><div style="font-size: 0.55rem; text-transform: uppercase; color: #ff6b6b; font-weight: 700;">Ref. SAC:</div><div style="font-weight: 600; color: #ff6b6b;">${p.sac_nom_responsable}</div></div>` : '';
 
+                        const nomText = (p.tipus_nomenament && p.tipus_nomenament.trim() && p.tipus_nomenament.trim().toLowerCase() !== 'no informat' && p.tipus_nomenament.trim().toLowerCase() !== 'tipus de nomenament no informat')
+                            ? p.tipus_nomenament.trim()
+                            : 'Tipus de nomenament no informat';
+
                         html += `<td class="td-persona">
                                     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                                        <div>${nomHTML}${expText}${personaPendingHTML}<div class="persona-sub">${p.tipus_nomenament || ''}</div>${sacInfoHTML}</div>
+                                        <div>${nomHTML}${expText}${personaPendingHTML}<div class="persona-sub">${nomText}</div>${sacInfoHTML}</div>
                                         <div style="text-align:right;">
                                             <div>${statusBadge}</div>
                                         </div>

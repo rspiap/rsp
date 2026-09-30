@@ -136,3 +136,122 @@ export function parseDate(dStr) {
     const d = new Date(cleanStr);
     return isNaN(d.getTime()) ? null : d;
 }
+
+/**
+ * Comprova si un registre es correspon amb un registre no informat (com a la imatge: "(No informat)", "No informat", "NO APLICA")
+ */
+export function isNoInformatRecord(p, pendingService = null) {
+    if (!p) return false;
+
+    // Si té canvis pendents, cal visualitzar-los expressament
+    if (pendingService && pendingService.getPendingChange && pendingService.getPendingChange(p)) {
+        return false;
+    }
+
+    // Estat: a la imatge es mostra el distintiu "NO APLICA" (no Validat ni Pendent)
+    const st = (p.status || "").toLowerCase().trim();
+    if (st === 'validat' || st === 'pendent') return false;
+
+    // Vacant expressa: es mostraria com (Vacant)
+    const qualif = (p.qualificador || "").toLowerCase();
+    if (qualif.includes("vacant")) return false;
+
+    // Persona jurídica amb representant o raó social informada
+    const membreTipus = (p.membre_tipus || "").toLowerCase();
+    const isJuridica = qualif.includes("jur") || membreTipus.includes("jur");
+    if (isJuridica) {
+        const rep = `${p.nom_rep || ''} ${p.cognoms_rep || ''}`.trim();
+        const principal = rep || p.persona_nom || p.nom || "";
+        if (principal || (p.denom_social && p.denom_social.trim())) {
+            return false;
+        }
+    }
+
+    // Persona física: si té nom real indicat, no coincideix amb la imatge
+    const pNom = `${p.persona_nom || p.nom || ''} ${p.persona_cognoms || p.cognoms || ''}`.trim();
+    if (pNom) {
+        const norm = pNom.toLowerCase().replace(/[\(\)]/g, '').trim();
+        if (norm !== 'no informat' && norm !== 'sense persona' && norm !== 'no indicada' && norm !== 'persona no indicada' && norm !== 'persona no informada' && norm !== '') {
+            return false;
+        }
+    }
+
+    if (p.persona && typeof p.persona === 'string' && p.persona.trim()) {
+        const normP = p.persona.trim().toLowerCase().replace(/[\(\)]/g, '');
+        if (normP !== 'no informat' && normP !== 'sense persona' && normP !== 'no indicada' && normP !== 'persona no indicada' && normP !== 'persona no informada' && normP !== '') {
+            return false;
+        }
+    }
+
+    // Caducitat individual
+    if (p.data_final_individual && parseDate(p.data_final_individual)) {
+        return false;
+    }
+
+    // Referència SAC
+    if (p.codi_sac && p.sac_nom_responsable && p.status !== 'Validat') {
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Agrupa les persones d'un mateix Òrgan / Membre:
+ * Si hi ha més d'un registre no informat (com a la imatge), es col·lapsen en una sola fila indicant
+ * quantes repeticions hi ha (p.ex: "4 persones no informades").
+ * Si n'hi ha un de sol, s'indica "Persona no informada".
+ */
+export function prepareOrganRenderRows(persons, pendingService = null) {
+    if (!persons || persons.length === 0) return [];
+
+    const normalItems = [];
+    const noInformats = [];
+
+    persons.forEach(p => {
+        if (isNoInformatRecord(p, pendingService)) {
+            noInformats.push(p);
+        } else {
+            normalItems.push(p);
+        }
+    });
+
+    const getNomenamentText = (r) => {
+        const val = r && r.tipus_nomenament ? r.tipus_nomenament.trim() : "";
+        if (!val || val.toLowerCase() === 'no informat' || val.toLowerCase() === 'tipus de nomenament no informat') {
+            return "Tipus de nomenament no informat";
+        }
+        return val;
+    };
+
+    if (noInformats.length > 1) {
+        const rep = noInformats[0];
+        const sub = getNomenamentText(rep);
+        const groupedItem = {
+            isGrouped: true,
+            count: noInformats.length,
+            titleText: `${noInformats.length} persones no informades`,
+            subText: sub,
+            persons: noInformats,
+            rep: rep,
+            firstId: rep.id
+        };
+        return [...normalItems.map(p => ({ isGrouped: false, person: p })), groupedItem];
+    } else if (noInformats.length === 1) {
+        const rep = noInformats[0];
+        const sub = getNomenamentText(rep);
+        const singleItem = {
+            isGrouped: true,
+            count: 1,
+            titleText: "Persona no informada",
+            subText: sub,
+            persons: noInformats,
+            rep: rep,
+            firstId: rep.id
+        };
+        return [...normalItems.map(p => ({ isGrouped: false, person: p })), singleItem];
+    } else {
+        return persons.map(p => ({ isGrouped: false, person: p }));
+    }
+}
+

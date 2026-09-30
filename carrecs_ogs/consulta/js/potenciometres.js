@@ -326,16 +326,16 @@ function getPersonaEstat(r) {
     if (!pNom) {
         if (r.persona && r.persona.trim()) {
             const normP = r.persona.trim().toLowerCase().replace(/[\(\)]/g, '');
-            if (normP !== 'no informat' && normP !== 'persona no indicada' && normP !== 'sense persona') {
+            if (normP !== 'no informat' && normP !== 'persona no indicada' && normP !== 'sense persona' && normP !== 'persona no informada') {
                 return r.persona.trim();
             }
         }
-        return "(No informat)";
+        return "Persona no informada";
     }
 
     const norm = pNom.toLowerCase().replace(/[\(\)]/g, '').trim();
-    if (norm === 'no informat' || norm === 'sense persona' || norm === 'no indicada' || norm === 'persona no indicada') {
-        return "(No informat)";
+    if (norm === 'no informat' || norm === 'sense persona' || norm === 'no indicada' || norm === 'persona no indicada' || norm === 'persona no informada') {
+        return "Persona no informada";
     }
 
     return pNom;
@@ -362,7 +362,7 @@ function isAuaiRecord(r) {
     const hasDesigna = Boolean(r.rgan_que_designa && r.rgan_que_designa.trim());
     const hasData = Boolean(r.data_final_individual && r.data_final_individual.trim());
     const hasRealQualif = Boolean(r.qualificador && r.qualificador.trim() && r.qualificador.trim().toLowerCase() !== 'no informat');
-    const hasRealNomenament = Boolean(r.tipus_nomenament && r.tipus_nomenament.trim() && r.tipus_nomenament.trim().toLowerCase() !== 'no informat');
+    const hasRealNomenament = Boolean(r.tipus_nomenament && r.tipus_nomenament.trim() && r.tipus_nomenament.trim().toLowerCase() !== 'no informat' && r.tipus_nomenament.trim().toLowerCase() !== 'tipus de nomenament no informat');
 
     return Boolean(hasCarrec || hasPersona || hasRep || hasDesigna || hasData || hasRealQualif || hasRealNomenament);
 }
@@ -439,7 +439,7 @@ function getPersonaDisplayName(r) {
 
     const pNom = `${r.persona_nom || r.nom || ''} ${r.persona_cognoms || r.cognoms || ''}`.trim();
     if (pNom) return pNom;
-    return "(No informat)";
+    return "Persona no informada";
 }
 
 /**
@@ -628,7 +628,7 @@ function recalculateConsellsAdmon(now, thresholdDate) {
             } else if (qualif.includes("vacant")) {
                 personaText = "(Vacant)";
             } else {
-                personaText = "(No informat)";
+                personaText = "Persona no informada";
             }
         }
 
