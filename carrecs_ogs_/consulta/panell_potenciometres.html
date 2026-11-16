@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ca">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panell de Potenciòmetres - Caducitat Mandats OGS</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/potenciometres.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="js/lucide.min.js"></script>
+    <script>
+        window.onerror = function (msg, url, lineNo, columnNo, error) {
+            const debugDiv = document.createElement('div');
+            debugDiv.style.position = 'fixed'; debugDiv.style.bottom = '0'; debugDiv.style.left = '0';
+            debugDiv.style.width = '100%'; debugDiv.style.background = '#ef4444'; debugDiv.style.color = 'white';
+            debugDiv.style.padding = '1rem'; debugDiv.style.zIndex = '9999'; debugDiv.style.fontSize = '0.8rem';
+            debugDiv.textContent = 'Error: ' + msg + ' (' + url + ':' + lineNo + ')';
+            document.body.appendChild(debugDiv);
+            return false;
+        };
+    </script>
+</head>
+
+<body>
+    <div class="dashboard-container">
+        <!-- Capçalera Principal -->
+        <header style="margin-bottom: 2rem;">
+            <button id="themeToggle" class="theme-toggle" title="Canviar tema">
+                <i data-lucide="sun" style="width: 20px; height: 20px;"></i>
+            </button>
+            <h1>Estat de Caducitat dels Mandats</h1>
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; width: 100%; flex-wrap: wrap; gap: 1rem;">
+                <p class="subtitle" style="margin: 0;">
+                    Òrgans de Govern Superior (OGS) i Consells d'Administració del Sector Públic
+                </p>
+                <div>
+                    <a href="index.html" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 8px; text-decoration: none;">
+                        <i data-lucide="table" style="width: 16px; height: 16px;"></i>
+                        Taula de Consulta
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <!-- Barra d'Eines i Paràmetres Dinàmics -->
+        <div class="dashboard-toolbar glass">
+            <div class="toolbar-group">
+                <!-- Casella de configuració de mesos -->
+                <div class="months-input-wrapper" title="Estableix els mesos futurs per considerar un mandat a punt de caducar (franja taronja)">
+                    <label for="monthsInput">
+                        <i data-lucide="clock" style="width: 16px; height: 16px; color: var(--gauge-orange);"></i>
+                        Propera caducitat (mesos):
+                    </label>
+                    <input type="number" id="monthsInput" min="1" max="120" value="6" step="1">
+                </div>
+
+                <!-- Commutador de tipus d'òrgan (OGS vs Consells d'Administració) -->
+                <div class="view-switch-wrapper">
+                    <span class="view-switch-label">Visualitzar:</span>
+                    <div class="view-switch-pills" id="organSwitch">
+                        <button type="button" class="switch-pill active" data-mode="ogs" id="pillOGS">
+                            <i data-lucide="user-check" style="width: 15px; height: 15px;"></i>
+                            Òrgans de Govern Superior (OGS)
+                        </button>
+                        <button type="button" class="switch-pill" data-mode="ca" id="pillCA">
+                            <i data-lucide="building" style="width: 15px; height: 15px;"></i>
+                            Consells d'Administració (CA)
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="toolbar-group">
+                <div style="font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 12px;">
+                    <span style="display: flex; align-items: center; gap: 5px;">
+                        <span class="stat-dot green" style="width: 8px; height: 8px;"></span> Vigent (> X mesos)
+                    </span>
+                    <span style="display: flex; align-items: center; gap: 5px;">
+                        <span class="stat-dot orange" style="width: 8px; height: 8px;"></span> Proper (&le; X mesos)
+                    </span>
+                    <span style="display: flex; align-items: center; gap: 5px;">
+                        <span class="stat-dot red" style="width: 8px; height: 8px;"></span> Caducat
+                    </span>
+                    <span style="display: flex; align-items: center; gap: 5px;">
+                        <span class="stat-dot blue" style="width: 8px; height: 8px;"></span> No informat
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Indicador de Càrrega -->
+        <div id="dashboardLoader" class="loading-state" style="display: none;">
+            <i data-lucide="loader-2" class="spin" style="width: 36px; height: 36px; color: var(--primary); margin-bottom: 0.5rem;"></i>
+            <div>Processant registres del Sector Públic...</div>
+        </div>
+
+        <!-- Targeta Hero Global -->
+        <section id="heroGaugeCard" class="hero-gauge-card"></section>
+
+        <!-- Secció de Potenciòmetres per Naturalesa Jurídica -->
+        <section>
+            <div class="gauges-section-header">
+                <h2 class="gauges-section-title">
+                    <i data-lucide="gauge" style="width: 22px; height: 22px; color: var(--primary);"></i>
+                    Percentatge de Caducitat per Naturalesa Jurídica
+                </h2>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">
+                    Feu clic a qualsevol targeta per veure el detall dels càrrecs
+                </span>
+            </div>
+
+            <!-- Graella de Potenciòmetres -->
+            <div id="gaugesGrid" class="gauges-grid"></div>
+        </section>
+    </div>
+
+    <!-- Modal de Detall d'Entitats i Càrrecs -->
+    <div id="detailModal" class="modal-overlay">
+        <div class="modal-content detail-modal-content glass">
+            <div class="detail-modal-header">
+                <div>
+                    <h3 id="modalTitle" style="font-size: 1.25rem; font-weight: 800; color: var(--text-main); margin-bottom: 2px;">
+                        Detall de Naturalesa Jurídica
+                    </h3>
+                    <p id="modalSubtitle" style="font-size: 0.8rem; color: var(--text-muted); margin: 0;"></p>
+                </div>
+                <button id="modalCloseBtn" class="modal-close" type="button" aria-label="Tancar">&times;</button>
+            </div>
+
+            <!-- Barra de cerca dins el modal -->
+            <div style="margin-bottom: 1rem;">
+                <input type="text" id="modalSearchInput" placeholder="Cercar per entitat, persona, càrrec o codi SAC..." 
+                       style="width: 100%; padding: 10px 14px; background: var(--input-bg); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-main); font-size: 0.85rem; outline: none;">
+            </div>
+
+            <div class="detail-table-wrapper">
+                <table class="detail-table">
+                    <thead id="modalTableHead">
+                        <tr>
+                            <th style="width: 32%;">Entitat</th>
+                            <th style="width: 25%;">Persona</th>
+                            <th style="width: 20%;">Càrrec</th>
+                            <th style="width: 13%;">Data Fi</th>
+                            <th style="width: 10%;">Estat</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modalTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="js/potenciometres.js?v=ca_perf_optimized"></script>
+</body>
+
+</html>

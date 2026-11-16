@@ -13,8 +13,8 @@ import { initTheme, toggleTheme, parseDate, baseNorm, prepareOrganRenderRows } f
 let allRecords = [];
 let filteredRecords = [];
 let rowsShown = 15;
-let filters = { 
-    search: "", dept: "", status: "", caStatus: [], ogsStatus: [], naturezas: [], nomenaments: [], categoritzacions: [], 
+let filters = {
+    search: "", dept: "", status: "", caStatus: [], ogsStatus: [], naturezas: [], qualificadors: [], nomenaments: [], categoritzacions: [],
     onlySac: false, onlyGovern: false, onlyVacant: false, onlyPendingValidation: false,
     colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "",
     expireMonths: 1, filterMode: "subtractive"
@@ -42,9 +42,9 @@ function getCaStatus(r) {
 }
 
 function getOgsStatus(r) {
-    if (!r.data_final_individual) return null;
+    if (!r.data_final_individual) return 'no_informat';
     const dInd = parseDate(r.data_final_individual);
-    if (!dInd) return null;
+    if (!dInd) return 'no_informat';
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -78,7 +78,7 @@ async function loadInitialData() {
         let data = await db.getAll(CONFIG.DB.STORES.RECORDS);
         if (data && data.length > 0) {
             allRecords = data;
-            populateDepartaments(); populateNaturezas(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); applyFilters(); checkCloudUpdates();
+            populateDepartaments(); populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); applyFilters(); checkCloudUpdates();
         } else { handleSync(); }
     } catch (e) { console.error(e); }
 }
@@ -96,7 +96,7 @@ async function handleSync(manualCsvText = null) {
             if (info.progress) progressBar.style.width = `${info.progress}%`;
         });
         allRecords = data;
-        populateDepartaments(); populateNaturezas(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); applyFilters();
+        populateDepartaments(); populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); applyFilters();
         setTimeout(() => { modal.style.display = 'none'; if (btnSync) btnSync.disabled = false; }, 400);
     } catch (e) { if (btnSync) btnSync.disabled = false; }
 }
@@ -161,6 +161,7 @@ function applyFilters() {
             matchesOgsStatus = (ogsState !== null && filters.ogsStatus.includes(ogsState));
         }
         const matchesNatureza = filters.naturezas.length === 0 || filters.naturezas.includes(r.part_natureza);
+        const matchesQualificador = filters.qualificadors.length === 0 || filters.qualificadors.includes(r.part_qualificador);
         const nomVal = r.tipus_nomenament && r.tipus_nomenament.trim() !== "" ? r.tipus_nomenament : "No informat";
         const matchesNomenament = filters.nomenaments.length === 0 || filters.nomenaments.includes(nomVal);
         const matchesCategoritzacio = filters.categoritzacions.length === 0 || (r.categoritzacio && filters.categoritzacions.includes(r.categoritzacio));
@@ -174,9 +175,9 @@ function applyFilters() {
             const anyActive = filters.onlySac || filters.onlyGovern || filters.onlyVacant || filters.onlyPendingValidation;
             if (anyActive) {
                 matchesToggles = (filters.onlySac && satisfiesSac) ||
-                                 (filters.onlyGovern && satisfiesGovern) ||
-                                 (filters.onlyVacant && satisfiesVacant) ||
-                                 (filters.onlyPendingValidation && satisfiesPending);
+                    (filters.onlyGovern && satisfiesGovern) ||
+                    (filters.onlyVacant && satisfiesVacant) ||
+                    (filters.onlyPendingValidation && satisfiesPending);
             }
         } else {
             const matchesSac = !filters.onlySac || satisfiesSac;
@@ -186,8 +187,8 @@ function applyFilters() {
             matchesToggles = matchesSac && matchesGovern && matchesVacant && matchesPendingValidation;
         }
 
-        return matchesSearch && matchesColSac && matchesColCarrec && matchesColEntitat && matchesColOGS && matchesColPersona && 
-               matchesDept && matchesStatus && matchesCaStatus && matchesOgsStatus && matchesNatureza && matchesNomenament && matchesCategoritzacio && matchesToggles;
+        return matchesSearch && matchesColSac && matchesColCarrec && matchesColEntitat && matchesColOGS && matchesColPersona &&
+            matchesDept && matchesStatus && matchesCaStatus && matchesOgsStatus && matchesNatureza && matchesQualificador && matchesNomenament && matchesCategoritzacio && matchesToggles;
     });
 
     const sortKey = sortConfig.key;
@@ -253,8 +254,8 @@ function renderTable() {
 
                             // 3. Canvi de Persona/Estat (Level 5)
                             const nMembre = (n.NOMBRE_PF ? `${n.NOMBRE_PF} ${n.APELLIDOS_PF}` : n.NOMBRE_PJ) ||
-                                            (n.NOMBRE_PERSONA_REPRESENTANTE ? `${n.NOMBRE_PERSONA_REPRESENTANTE} ${n.APELLIDOS_PERSONA_REPRESENTANTE}` : '') ||
-                                            n.MIEMBRO_ORGANO_GOBIERNO || "";
+                                (n.NOMBRE_PERSONA_REPRESENTANTE ? `${n.NOMBRE_PERSONA_REPRESENTANTE} ${n.APELLIDOS_PERSONA_REPRESENTANTE}` : '') ||
+                                n.MIEMBRO_ORGANO_GOBIERNO || "";
                             const nData = n.FECHA_INICIO_VIGENCIA ? ` (des de ${n.FECHA_INICIO_VIGENCIA})` : "";
 
                             if (isDeletion) {
@@ -283,7 +284,7 @@ function renderTable() {
                                     const dFinal = parseDate(firstP.data_final_de_vig_ncia);
                                     if (dFinal) {
                                         const today = new Date();
-                                        today.setHours(0,0,0,0);
+                                        today.setHours(0, 0, 0, 0);
                                         const diffDays = (dFinal - today) / (1000 * 60 * 60 * 24);
                                         const maxDays = (filters.expireMonths || 1) * 30;
                                         if (diffDays < 0) btnClass = "btn-ca-red";
@@ -345,13 +346,13 @@ function renderTable() {
                         const personaName = `${p.persona_nom || ''} ${p.persona_cognoms || ''}`.trim();
                         const repName = `${p.nom_rep || ''} ${p.cognoms_rep || ''}`.trim();
                         const qualif = (p.qualificador || "").toLowerCase();
-                        
+
                         // Lògica de caducitat individual
                         const dFinalInd = parseDate(p.data_final_individual);
                         let expStyle = "";
                         let expText = "";
                         if (dFinalInd) {
-                            const today = new Date(); today.setHours(0,0,0,0);
+                            const today = new Date(); today.setHours(0, 0, 0, 0);
                             const diffDays = (dFinalInd - today) / (1000 * 60 * 60 * 24);
                             const maxDaysInd = (filters.expireMonths || 1) * 30;
                             if (diffDays < 0) {
@@ -406,20 +407,20 @@ function groupData(data) {
         const sKey = r.codi_sac || '---';
         if (!sacMap.has(sKey)) sacMap.set(sKey, { sac: sKey, carrecs: new Map() });
         const sGroup = sacMap.get(sKey);
-        
+
         const cKey = r.carrec || '---';
         if (!sGroup.carrecs.has(cKey)) sGroup.carrecs.set(cKey, { name: cKey, entities: new Map() });
         const cGroup = sGroup.carrecs.get(cKey);
-        
+
         const cleanReg = (r.n_registre || "").toString().trim().replace(/^0+/, '');
         const eKey = r.entitat ? `${r.entitat}|${cleanReg}` : '---';
         if (!cGroup.entities.has(eKey)) cGroup.entities.set(eKey, { name: r.entitat || '---', reg: cleanReg || r.n_registre, natureza: r.part_natureza, ca_empty: r.ca_empty, ogs: new Map() });
         const eGroup = cGroup.entities.get(eKey);
-        
+
         const oKey = r.is_govern_superior || '---';
         if (!eGroup.ogs.has(oKey)) eGroup.ogs.set(oKey, { name: oKey, persons: [] });
         const oGroup = eGroup.ogs.get(oKey);
-        
+
         oGroup.persons.push(r);
     });
 
@@ -477,7 +478,7 @@ function setupEventListeners() {
     const filterCheckbox = document.getElementById('filterModeCheckbox');
     const textSubtractive = document.getElementById('textModeSubtractive');
     const textAdditive = document.getElementById('textModeAdditive');
-    
+
     if (filterCheckbox && textSubtractive && textAdditive) {
         textSubtractive.addEventListener('click', () => {
             filterCheckbox.checked = false;
@@ -488,7 +489,7 @@ function setupEventListeners() {
             triggerChange();
         });
         filterCheckbox.addEventListener('change', () => triggerChange());
-        
+
         function triggerChange() {
             const isAdditive = filterCheckbox.checked;
             filters.filterMode = isAdditive ? 'additive' : 'subtractive';
@@ -510,11 +511,11 @@ function setupEventListeners() {
             });
             const expEl = document.getElementById('caExpireMonths');
             const curMonths = expEl ? (parseInt(expEl.value) || 1) : 1;
-            filters = { search: "", dept: "", status: "", caStatus: [], ogsStatus: [], naturezas: [], nomenaments: [], categoritzacions: [], onlySac: false, onlyGovern: false, onlyVacant: false, onlyPendingValidation: false, colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "", expireMonths: curMonths, filterMode: "subtractive" };
+            filters = { search: "", dept: "", status: "", caStatus: [], ogsStatus: [], naturezas: [], qualificadors: [], nomenaments: [], categoritzacions: [], onlySac: false, onlyGovern: false, onlyVacant: false, onlyPendingValidation: false, colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "", expireMonths: curMonths, filterMode: "subtractive" };
             if (filterCheckbox) filterCheckbox.checked = false;
             if (textSubtractive) textSubtractive.classList.add('active');
             if (textAdditive) textAdditive.classList.remove('active');
-            populateNaturezas(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); updateNaturezasUI(); updateNomenamentsUI(); updateCategoritzacionsUI(); updateCaStatusUI(); updateOgsStatusUI(); applyFilters();
+            populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); updateNaturezasUI(); updateQualificadorsUI(); updateNomenamentsUI(); updateCategoritzacionsUI(); updateCaStatusUI(); updateOgsStatusUI(); applyFilters();
         });
     }
 
@@ -541,13 +542,14 @@ function setupEventListeners() {
     setupMultiselect('btnOgsStatus', 'dropdownOgsStatus');
     setupMultiselect('btnCategoritzacions', 'dropdownCategoritzacions');
     setupMultiselect('btnNaturezas', 'dropdownNaturezas');
+    setupMultiselect('btnQualificadors', 'dropdownQualificadors');
     setupMultiselect('btnNomenaments', 'dropdownNomenaments');
     document.addEventListener('click', (e) => { document.querySelectorAll('.multiselect-dropdown').forEach(d => { if (!d.contains(e.target)) d.classList.remove('active'); }); });
     document.getElementById('btnSync').addEventListener('click', () => handleSync());
     document.getElementById('themeToggle').addEventListener('click', toggleTheme);
     document.getElementById('loadMore').addEventListener('click', () => { rowsShown += 20; renderTable(); });
-    
-    document.getElementById('btnExportCSV').addEventListener('click', exportToCSV);
+
+    document.getElementById('btnExportXLSX').addEventListener('click', exportToXLSX);
     document.getElementById('btnOpenSyncModal').addEventListener('click', () => { document.getElementById('syncModal').style.display = 'flex'; });
     document.getElementById('btnCloseSyncModal').addEventListener('click', () => { document.getElementById('syncModal').style.display = 'none'; });
     document.getElementById('btnStartSync').addEventListener('click', () => {
@@ -580,16 +582,16 @@ function setupEventListeners() {
             const type = pill.dataset.type;
             const val = pill.dataset.value;
             pill.classList.toggle('active');
-            
+
             let arr = [];
             if (type === 'natureza') arr = filters.naturezas;
             else if (type === 'nomenament') arr = filters.nomenaments;
             else if (type === 'categoritzacio') arr = filters.categoritzacions;
-            
+
             const idx = arr.indexOf(val);
             if (idx > -1) arr.splice(idx, 1);
             else arr.push(val);
-            
+
             applyFilters();
         });
     });
@@ -644,12 +646,12 @@ function openEditor(record) {
     }
 }
 
-window.closeEditor = function() {
+window.closeEditor = function () {
     document.getElementById('editorModal').style.display = 'none';
     document.getElementById('editorIframe').src = '';
 };
 
-window.onRecordUpdated = function(updatedRecord) {
+window.onRecordUpdated = function (updatedRecord) {
     const idx = allRecords.findIndex(r => r.id === updatedRecord.id);
     if (idx > -1) {
         allRecords[idx] = updatedRecord;
@@ -657,7 +659,7 @@ window.onRecordUpdated = function(updatedRecord) {
     }
 };
 
-window.openConsellModal = function(reg, name) {
+window.openConsellModal = function (reg, name) {
     BoardService.openModal(reg, name);
 };
 
@@ -683,6 +685,40 @@ function populateNaturezas() {
     let html = '';
     sorted.forEach(v => html += `<div class="filter-pill" data-type="natureza" data-value="${v}">${v}</div>`);
     container.innerHTML = html;
+}
+
+function populateQualificadors() {
+    const list = document.getElementById('listQualificadors');
+    if (!list) return;
+    const quals = [...new Set(allRecords.map(r => r.part_qualificador && r.part_qualificador !== "-" ? r.part_qualificador : null))].filter(Boolean).sort();
+    list.innerHTML = '';
+    if (quals.length === 0) {
+        list.innerHTML = '<div style="padding: 0.5rem; text-align: center; color: var(--text-muted);">Sense dades (torna a sincronitzar)</div>';
+        return;
+    }
+    quals.forEach(qual => {
+        const item = document.createElement('label');
+        item.className = 'multiselect-item';
+        const isChecked = filters.qualificadors.includes(qual);
+        item.innerHTML = `<input type="checkbox" value="${qual}" ${isChecked ? 'checked' : ''}><span>${qual}</span>`;
+        item.querySelector('input').addEventListener('change', (e) => {
+            if (e.target.checked) {
+                if (!filters.qualificadors.includes(qual)) filters.qualificadors.push(qual);
+            } else {
+                filters.qualificadors = filters.qualificadors.filter(v => v !== qual);
+            }
+            updateQualificadorsUI();
+            applyFilters();
+        });
+        list.appendChild(item);
+    });
+}
+function updateQualificadorsUI() {
+    const btn = document.getElementById('btnQualificadors');
+    if (!btn) return;
+    btn.innerHTML = `<i data-lucide="award" style="width: 16px; margin-right: 4px;"></i> ${filters.qualificadors.length ? `(${filters.qualificadors.length}) Qualificador` : 'Qualificador'}`;
+    btn.classList.toggle('btn-primary', filters.qualificadors.length > 0);
+    if (window.lucide) lucide.createIcons();
 }
 
 function populateNomenaments() {
@@ -755,7 +791,8 @@ function populateOgsStatus() {
     const options = [
         { value: 'caducat', label: 'Caducats', class: 'btn-ca-red' },
         { value: 'propera', label: labelPropera, class: 'btn-ca-orange' },
-        { value: 'vigent', label: 'Vigents', class: 'btn-ca-blue' }
+        { value: 'vigent', label: 'Vigents', class: 'btn-ca-blue' },
+        { value: 'no_informat', label: 'No informat', class: 'btn-ca-empty' }
     ];
     list.innerHTML = '';
     options.forEach(opt => {
@@ -785,17 +822,21 @@ function updateOgsStatusUI() {
     if (window.lucide) lucide.createIcons();
 }
 
-function exportToCSV() {
+function exportToXLSX() {
     if (filteredRecords.length === 0) return;
+    if (typeof XLSX === 'undefined') {
+        alert("La llibreria XLSX no s'ha carregat correctament.");
+        return;
+    }
     const headers = ["SAC", "Departament (SAC)", "Unitat (SAC)", "Càrrec (SAC)", "Responsable (SAC)", "Entitat", "Càrrec", "Departament", "Membre", "Representant", "Participació", "Tipus Nomenament", "Status"];
     const rows = filteredRecords.map(r => {
         const personaName = `${r.persona_nom || ''} ${r.persona_cognoms || ''}`.trim();
         const repName = `${r.nom_rep || ''} ${r.cognoms_rep || ''}`.trim();
         const qualif = (r.qualificador || "").toLowerCase();
-        
+
         let membre = personaName;
         let representant = "";
-        
+
         if (qualif.includes("jur")) {
             membre = r.denom_social || "Persona Jurídica";
             representant = repName;
@@ -804,18 +845,16 @@ function exportToCSV() {
         }
 
         return [
-            r.codi_sac, r.sac_departament, r.sac_unitat, r.sac_carrec, r.sac_nom_responsable,
-            r.entitat, r.carrec, r.departament, membre, representant, r.part_total, r.tipus_nomenament, r.status
-        ].map(v => `"${(v || "").toString().replace(/"/g, '""')}"`).join(";");
+            r.codi_sac || "", r.sac_departament || "", r.sac_unitat || "", r.sac_carrec || "", r.sac_nom_responsable || "",
+            r.entitat || "", r.carrec || "", r.departament || "", membre, representant, r.part_total || "", r.tipus_nomenament || "", r.status || ""
+        ];
     });
 
-    const csvContent = "\uFEFF" + headers.join(";") + "\n" + rows.join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `export_auditoria_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    ws['!cols'] = headers.map((h, i) => ({
+        wch: Math.min(50, Math.max(h.length + 2, ...rows.slice(0, 200).map(r => String(r[i] || "").length + 2)))
+    }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Auditoria");
+    XLSX.writeFile(wb, `export_auditoria_${new Date().toISOString().split('T')[0]}.xlsx`);
 }

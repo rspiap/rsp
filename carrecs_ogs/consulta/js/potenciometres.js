@@ -23,6 +23,7 @@ const state = {
     monthsThreshold: parseInt(localStorage.getItem('gaugeExpireMonths') || '6', 10),
     legalNatures: {},
     totals: { vigents: 0, propers: 0, caducats: 0, noInformats: 0, total: 0 },
+    qualificadors: [],
     activeModalNature: null,
     modalSearchTerm: ''
 };
@@ -110,6 +111,21 @@ function setupEventListeners() {
             const card = e.target.closest('.gauge-card');
             if (card && card.dataset.nature) {
                 openNatureModal(card.dataset.nature);
+            }
+        });
+    }
+
+    // Desplegable multiselecció Qualificador
+    const btnQual = document.getElementById('btnQualificadors');
+    const dropdownQual = document.getElementById('dropdownQualificadors');
+    if (btnQual && dropdownQual) {
+        btnQual.addEventListener('click', (e) => {
+            e.stopPropagation();
+            dropdownQual.classList.toggle('active');
+        });
+        document.addEventListener('click', (e) => {
+            if (!dropdownQual.contains(e.target) && e.target !== btnQual) {
+                dropdownQual.classList.remove('active');
             }
         });
     }
@@ -224,6 +240,43 @@ function updateSwitchPillUI() {
     });
 }
 
+function populateQualificadors() {
+    const list = document.getElementById('listQualificadors');
+    if (!list) return;
+    const quals = [...new Set(state.records.map(r => r.part_qualificador && r.part_qualificador !== "-" ? r.part_qualificador : null))].filter(Boolean).sort();
+    list.innerHTML = '';
+    if (quals.length === 0) {
+        list.innerHTML = '<div style="padding: 0.5rem; text-align: center; color: var(--text-muted);">Sense dades (torna a sincronitzar)</div>';
+        updateQualificadorsUI();
+        return;
+    }
+    quals.forEach(qual => {
+        const item = document.createElement('label');
+        item.className = 'multiselect-item';
+        const isChecked = state.qualificadors.includes(qual);
+        item.innerHTML = `<input type="checkbox" value="${qual}" ${isChecked ? 'checked' : ''}><span>${qual}</span>`;
+        item.querySelector('input').addEventListener('change', (e) => {
+            if (e.target.checked) {
+                if (!state.qualificadors.includes(qual)) state.qualificadors.push(qual);
+            } else {
+                state.qualificadors = state.qualificadors.filter(v => v !== qual);
+            }
+            updateQualificadorsUI();
+            recalculateAndRender();
+        });
+        list.appendChild(item);
+    });
+    updateQualificadorsUI();
+}
+
+function updateQualificadorsUI() {
+    const btn = document.getElementById('btnQualificadors');
+    if (!btn) return;
+    btn.innerHTML = `<i data-lucide="award" style="width: 16px; margin-right: 4px;"></i> ${state.qualificadors.length ? `(${state.qualificadors.length}) Qualificador` : 'Qualificador'}`;
+    btn.classList.toggle('btn-primary', state.qualificadors.length > 0);
+    if (window.lucide) lucide.createIcons();
+}
+
 /**
  * Carrega les dades emmagatzemades a IndexedDB
  */
@@ -255,6 +308,7 @@ async function loadData() {
         }
         state.caRecords = caRaw || [];
 
+        populateQualificadors();
         recalculateAndRender();
 
         // Si estem en mode OGS i no tenim CA en local, podem pre-carregar-los en segon pla
@@ -462,6 +516,11 @@ function recalculateOGS(now, thresholdDate) {
             return;
         }
 
+        // Filtre per qualificador de participació
+        if (state.qualificadors.length > 0 && !state.qualificadors.includes(r.part_qualificador)) {
+            return;
+        }
+
         const rawNature = (r.part_natureza || "Altres / No informada").trim();
         if (!naturesMap[rawNature]) {
             naturesMap[rawNature] = {
@@ -568,7 +627,8 @@ function recalculateConsellsAdmon(now, thresholdDate) {
         const payload = {
             entitat: r.entitat || r.denominacio || "",
             codi_sac: r.codi_sac || "",
-            natureza: (r.part_natureza && r.part_natureza.trim() !== "-" && r.part_natureza.trim() !== "") ? r.part_natureza.trim() : "Societat mercantil"
+            natureza: (r.part_natureza && r.part_natureza.trim() !== "-" && r.part_natureza.trim() !== "") ? r.part_natureza.trim() : "Societat mercantil",
+            qualificador: (r.part_qualificador && r.part_qualificador.trim() !== "-" && r.part_qualificador.trim() !== "") ? r.part_qualificador.trim() : "-"
         };
         if (cleanReg && !entityMap.has(`reg_${cleanReg}`)) entityMap.set(`reg_${cleanReg}`, payload);
         if (normName && !entityMap.has(`name_${normName}`)) entityMap.set(`name_${normName}`, payload);
@@ -588,6 +648,9 @@ function recalculateConsellsAdmon(now, thresholdDate) {
         const normNom = baseNorm(rawNom);
 
         const meta = (cleanReg && entityMap.get(`reg_${cleanReg}`)) || (normNom && entityMap.get(`name_${normNom}`)) || {};
+        if (state.qualificadors.length > 0 && !state.qualificadors.includes(meta.qualificador)) {
+            return;
+        }
         const entitat = meta.entitat || rawNom || "Entitat sense nom";
         const codi_sac = meta.codi_sac || "";
         const rawNature = meta.natureza || "Societat mercantil";

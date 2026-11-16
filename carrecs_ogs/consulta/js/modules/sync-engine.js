@@ -129,7 +129,8 @@ export class SyncEngine {
                         total: d.total_participaci_generalitat || "-",
                         mesura: d.mesura_de_la_participaci || "-",
                         deptAdscripcio: d.departament_d_adscripci || "-",
-                        natureza: d.naturalesa_jur_dica || "-"
+                        natureza: d.naturalesa_jur_dica || "-",
+                        qualificadorParticipacio: d.qualificador_de_la_participaci || "-"
                     };
                     participacioLookup.set(nEns, payload);
                     if (nReg && nReg !== "") {
@@ -373,6 +374,7 @@ export class SyncEngine {
                 part_mesura: "-",
                 part_dept_adscripcio: "-",
                 part_natureza: "-",
+                part_qualificador: "-",
                 data_final_de_vig_ncia: "",
                 data_final_individual: p[k.dataFinal] || "",
                 source: "auai-ppkn"
@@ -386,6 +388,7 @@ export class SyncEngine {
                 record.part_mesura = partExtra.mesura;
                 record.part_dept_adscripcio = partExtra.deptAdscripcio;
                 record.part_natureza = partExtra.natureza;
+                record.part_qualificador = partExtra.qualificadorParticipacio;
             }
             
             const vDataFinalObj = consellLookup.get(nReg) || consellLookup.get(nEns);
@@ -479,6 +482,7 @@ export class SyncEngine {
                                 part_mesura: "-",
                                 part_dept_adscripcio: "-",
                                 part_natureza: "-",
+                                part_qualificador: "-",
                                 data_final_de_vig_ncia: "",
                                 data_final_individual: ""
                             };
@@ -491,6 +495,7 @@ export class SyncEngine {
                                 syntheticRecord.part_mesura = partExtra.mesura;
                                 syntheticRecord.part_dept_adscripcio = partExtra.deptAdscripcio;
                                 syntheticRecord.part_natureza = partExtra.natureza;
+                                syntheticRecord.part_qualificador = partExtra.qualificadorParticipacio;
                             }
 
                             const vDataFinalObj = consellLookup.get(entityObj.cleanReg) || consellLookup.get(entityObj.ensNorm);

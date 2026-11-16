@@ -1,0 +1,752 @@
+/* css/potenciometres.css - Estils per al Panell de Control de Potenciòmetres */
+
+:root {
+    --gauge-green: #10b981;
+    --gauge-green-glow: rgba(16, 185, 129, 0.4);
+    --gauge-orange: #f59e0b;
+    --gauge-orange-glow: rgba(245, 158, 11, 0.4);
+    --gauge-red: #ef4444;
+    --gauge-red-glow: rgba(239, 68, 68, 0.4);
+    --gauge-blue: #38bdf8;
+    --gauge-blue-glow: rgba(56, 189, 248, 0.4);
+    --gauge-track: rgba(255, 255, 255, 0.06);
+    --needle-color: #f8fafc;
+    --needle-shadow: rgba(0, 0, 0, 0.6);
+}
+
+body.light-mode {
+    --gauge-track: rgba(0, 0, 0, 0.08);
+    --needle-color: #0f172a;
+    --needle-shadow: rgba(0, 0, 0, 0.2);
+}
+
+/* Contenidor Principal */
+.dashboard-container {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 1.5rem 2rem 4rem;
+}
+
+/* Barra superior de controls i filtres */
+.dashboard-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    margin-bottom: 2rem;
+}
+
+.toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+/* Casella d'entrada de mesos de caducitat */
+.months-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    padding: 6px 12px;
+    border-radius: 8px;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.months-input-wrapper:focus-within {
+    border-color: var(--primary);
+    box-shadow: 0 0 8px rgba(0, 198, 255, 0.3);
+}
+
+.months-input-wrapper label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.months-input-wrapper input {
+    width: 45px;
+    background: transparent;
+    border: none;
+    color: var(--text-main);
+    font-size: 0.95rem;
+    font-weight: 800;
+    text-align: center;
+    outline: none;
+}
+
+.months-input-wrapper input::-webkit-inner-spin-button,
+.months-input-wrapper input::-webkit-outer-spin-button {
+    opacity: 1;
+}
+
+/* Commutador de Tipus d'Òrgan (OGS vs Consells d'Administració) */
+.view-switch-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.view-switch-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.view-switch-pills {
+    display: inline-flex;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 3px;
+    gap: 4px;
+}
+
+.switch-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 7px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.switch-pill:hover {
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.switch-pill.active {
+    background: var(--primary);
+    color: #0f172a;
+    box-shadow: 0 2px 8px rgba(0, 198, 255, 0.35);
+}
+
+body.light-mode .switch-pill.active {
+    color: #ffffff;
+    background: #0284c7;
+}
+
+/* Targeta Hero del Potenciòmetre Global */
+.hero-gauge-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 2rem;
+    margin-bottom: 2.5rem;
+    box-shadow: var(--card-shadow);
+    backdrop-filter: blur(12px);
+    display: grid;
+    grid-template-columns: 1fr 1.3fr 1fr;
+    gap: 2rem;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-gauge-card::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 600px;
+    height: 300px;
+    background: radial-gradient(ellipse, rgba(0, 198, 255, 0.08) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.hero-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.hero-title {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.hero-subtitle {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.hero-stats-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    justify-content: center;
+}
+
+.stat-badge-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    transition: transform 0.2s;
+}
+
+.stat-badge-row:hover {
+    transform: translateX(4px);
+}
+
+.stat-badge-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.stat-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.stat-dot.green { background: var(--gauge-green); box-shadow: 0 0 8px var(--gauge-green-glow); }
+.stat-dot.orange { background: var(--gauge-orange); box-shadow: 0 0 8px var(--gauge-orange-glow); }
+.stat-dot.red { background: var(--gauge-red); box-shadow: 0 0 8px var(--gauge-red-glow); }
+.stat-dot.blue { background: var(--gauge-blue); box-shadow: 0 0 8px var(--gauge-blue-glow); }
+.stat-dot.muted { background: var(--text-muted); }
+
+.stat-badge-val {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--text-main);
+}
+
+/* Graella de Potenciòmetres per Naturalesa Jurídica */
+.gauges-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 1.25rem;
+}
+
+.gauges-section-title {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.gauges-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 1.5rem;
+}
+
+/* Targeta de Potenciòmetre Individual */
+.gauge-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 1.5rem;
+    box-shadow: var(--card-shadow);
+    backdrop-filter: blur(10px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.25s, box-shadow 0.25s;
+}
+
+.gauge-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(0, 198, 255, 0.4);
+    box-shadow: 0 14px 28px rgba(0,0,0,0.4), 0 0 15px rgba(0, 198, 255, 0.15);
+}
+
+.gauge-card-header {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.5rem;
+}
+
+.gauge-natureza-name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-main);
+    line-height: 1.3;
+    max-width: 80%;
+}
+
+.gauge-total-chip {
+    font-size: 0.72rem;
+    font-weight: 800;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    padding: 3px 9px;
+    border-radius: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-left: 8px;
+}
+
+/* Contenidor SVG del Potenciòmetre */
+.gauge-svg-container {
+    width: 100%;
+    max-width: 250px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0.5rem 0 0.5rem;
+}
+
+.hero-gauge-card .gauge-svg-container {
+    max-width: 290px;
+}
+
+.gauge-svg {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+}
+
+/* Estils de les pistes i arcs SVG */
+.gauge-track {
+    stroke: var(--gauge-track);
+    stroke-linecap: round;
+    fill: none;
+}
+
+.gauge-arc-green {
+    stroke: var(--gauge-green);
+    fill: none;
+    stroke-linecap: butt;
+    transition: all 0.6s ease;
+}
+
+.gauge-arc-orange {
+    stroke: var(--gauge-orange);
+    fill: none;
+    stroke-linecap: butt;
+    transition: all 0.6s ease;
+}
+
+.gauge-arc-red {
+    stroke: var(--gauge-red);
+    fill: none;
+    stroke-linecap: butt;
+    transition: all 0.6s ease;
+}
+
+.gauge-arc-blue {
+    stroke: var(--gauge-blue);
+    fill: none;
+    stroke-linecap: butt;
+    transition: all 0.6s ease;
+}
+
+/* Agulla indicadora */
+.gauge-needle-group {
+    transform-origin: 100px 90px;
+    transition: transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.gauge-needle {
+    fill: var(--needle-color);
+    filter: drop-shadow(0 2px 4px var(--needle-shadow));
+}
+
+.gauge-needle-pin {
+    fill: var(--primary);
+    stroke: var(--bg-card);
+    stroke-width: 2;
+}
+
+/* Text central del percentatge posicionat netament sota l'arc */
+.gauge-center-metrics {
+    margin-top: 6px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+}
+
+.gauge-percentage {
+    font-size: 1.65rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: var(--gauge-green);
+    text-shadow: 0 0 10px var(--gauge-green-glow);
+}
+
+.hero-gauge-card .gauge-percentage {
+    font-size: 2.2rem;
+}
+
+.gauge-percentage-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* Barra de completesa (Informats vs Sense data) a sobre del potenciòmetre */
+.completeness-container {
+    width: 100%;
+    margin-bottom: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.hero-gauge-card .completeness-container {
+    margin-bottom: 1rem;
+}
+
+.completeness-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+
+.completeness-label-left {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--primary);
+}
+
+.completeness-label-right {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--text-muted);
+}
+
+.completeness-bar {
+    width: 100%;
+    height: 7px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    overflow: hidden;
+    display: flex;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.completeness-fill-informed {
+    height: 100%;
+    background: linear-gradient(90deg, #2563eb, #3b82f6);
+    box-shadow: 0 0 6px rgba(59, 130, 246, 0.4);
+    transition: width 0.6s ease;
+}
+
+.completeness-fill-missing {
+    height: 100%;
+    background: rgba(148, 163, 184, 0.25);
+    transition: width 0.6s ease;
+}
+
+[data-theme="light"] .completeness-bar {
+    background: #e2e8f0;
+}
+
+[data-theme="light"] .completeness-fill-missing {
+    background: #cbd5e1;
+}
+
+/* Llegenda de percentatges inferiors (3 trams: verd, taronja, vermell) */
+.gauge-legend {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.gauge-legend-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.gauge-legend-dot-title {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.gauge-legend-value {
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: var(--text-main);
+    margin-top: 1px;
+}
+
+.gauge-legend-pct {
+    font-size: 0.6rem;
+    font-weight: 700;
+    opacity: 0.85;
+}
+
+.color-green { color: var(--gauge-green) !important; }
+.color-orange { color: var(--gauge-orange) !important; }
+.color-red { color: var(--gauge-red) !important; }
+.color-blue { color: var(--gauge-blue) !important; }
+
+/* Botó de Detalls a la Targeta */
+.gauge-card-footer {
+    width: 100%;
+    margin-top: 0.75rem;
+    display: flex;
+    justify-content: center;
+}
+
+.btn-view-details {
+    background: transparent;
+    border: none;
+    color: var(--primary);
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: color 0.2s, transform 0.2s;
+}
+
+.gauge-card:hover .btn-view-details {
+    transform: translateX(3px);
+}
+
+/* Modal de Detall d'Entitats */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(6px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.modal-overlay.show {
+    display: flex !important;
+}
+
+.detail-modal-content {
+    max-width: 1100px;
+    width: 95%;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.detail-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-close {
+    background: transparent;
+    border: none;
+    font-size: 1.75rem;
+    line-height: 1;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: color 0.2s, background 0.2s;
+}
+
+.modal-close:hover {
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.detail-table-wrapper {
+    overflow-y: auto;
+    flex: 1;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.detail-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    text-align: left;
+}
+
+.detail-table th {
+    position: sticky;
+    top: 0;
+    background: var(--bg-card);
+    padding: 10px 12px;
+    font-weight: 700;
+    border-bottom: 2px solid var(--border-color);
+    color: var(--text-muted);
+}
+
+.detail-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.detail-table tr:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.badge-status {
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    display: inline-block;
+}
+
+.badge-status.vigent {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--gauge-green);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.badge-status.propera {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--gauge-orange);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.badge-status.caducat {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--gauge-red);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.badge-status.no_informat {
+    background: rgba(56, 189, 248, 0.15);
+    color: var(--gauge-blue);
+    border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+/* Estat buit o carregant */
+.loading-state {
+    text-align: center;
+    padding: 4rem 1rem;
+    color: var(--text-muted);
+}
+
+/* Responsivitat */
+@media (max-width: 900px) {
+    .hero-gauge-card {
+        grid-template-columns: 1fr;
+        text-align: center;
+    }
+    .hero-info {
+        align-items: center;
+    }
+    .dashboard-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .toolbar-group {
+        justify-content: center;
+    }
+}
+
+/* Notificació discreta d'actualització en temps real */
+.live-sync-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 18px;
+    background: rgba(15, 23, 42, 0.92);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 15px rgba(16, 185, 129, 0.25);
+    border-radius: 30px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #f8fafc;
+    z-index: 9999;
+    opacity: 0;
+    transform: translateY(15px) scale(0.96);
+    pointer-events: none;
+    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    backdrop-filter: blur(8px);
+}
+
+body.light-mode .live-sync-toast {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(16, 185, 129, 0.5);
+    color: #0f172a;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 0 15px rgba(16, 185, 129, 0.2);
+}
+
+.live-sync-toast.visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+.live-pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 8px #10b981;
+    animation: livePulse 1.8s infinite;
+}
+
+@keyframes livePulse {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+    70% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}

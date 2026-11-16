@@ -14,7 +14,7 @@ let filteredRecords = [];
 let rowsShown = 15;
 let renderedGroupsCount = 0;
 let filters = { 
-    search: "", dept: "", status: "", caStatus: [], ogsStatus: [], naturezas: [], nomenaments: [], categoritzacions: [], 
+    search: "", dept: "", status: "", caStatus: [], ogsStatus: [], naturezas: [], qualificadors: [], nomenaments: [], categoritzacions: [], 
     onlySac: false, onlyGovern: false, onlyVacant: false, onlyPendingValidation: false,
     colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "",
     expireMonths: 1, filterMode: "subtractive"
@@ -42,9 +42,9 @@ function getCaStatus(r) {
 }
 
 function getOgsStatus(r) {
-    if (!r.data_final_individual) return null;
+    if (!r.data_final_individual) return 'no_informat';
     const dInd = parseDate(r.data_final_individual);
-    if (!dInd) return null;
+    if (!dInd) return 'no_informat';
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -78,7 +78,7 @@ async function loadData() {
         await PendingService.loadPendingData();
         allRecords = await db.getAll(CONFIG.DB.STORES.RECORDS);
         if (allRecords.length > 0) {
-            applyFilters(); populateDepartaments(); populateNaturezas(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus();
+            applyFilters(); populateDepartaments(); populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus();
         } else { handleSync(); }
     } catch (e) { console.error(e); }
 }
@@ -95,7 +95,7 @@ async function handleSync() {
             if (stepText) stepText.textContent = info.step;
             if (progressBar) progressBar.style.width = `${info.progress}%`;
         });
-        applyFilters(); populateDepartaments(); populateNaturezas(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus();
+        applyFilters(); populateDepartaments(); populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus();
         setTimeout(() => { if (modal) modal.style.display = 'none'; if (btn) btn.disabled = false; }, 400);
     } catch (e) { if (btn) btn.disabled = false; }
 }
@@ -147,6 +147,7 @@ function applyFilters() {
             matchesOgsStatus = (ogsState !== null && filters.ogsStatus.includes(ogsState));
         }
         const matchesNatureza = filters.naturezas.length === 0 || filters.naturezas.includes(r.part_natureza);
+        const matchesQualificador = filters.qualificadors.length === 0 || filters.qualificadors.includes(r.part_qualificador);
         const nomVal = r.tipus_nomenament && r.tipus_nomenament.trim() !== "" ? r.tipus_nomenament : "No informat";
         const matchesNomenament = filters.nomenaments.length === 0 || filters.nomenaments.includes(nomVal);
         const matchesCategoritzacio = filters.categoritzacions.length === 0 || (r.categoritzacio && filters.categoritzacions.includes(r.categoritzacio));
@@ -173,7 +174,7 @@ function applyFilters() {
         }
 
         return matchesSearch && matchesColSac && matchesColCarrec && matchesColEntitat && matchesColOGS && matchesColPersona && 
-               matchesDept && matchesStatus && matchesCaStatus && matchesOgsStatus && matchesNatureza && matchesNomenament && matchesCategoritzacio && matchesToggles;
+               matchesDept && matchesStatus && matchesCaStatus && matchesOgsStatus && matchesNatureza && matchesQualificador && matchesNomenament && matchesCategoritzacio && matchesToggles;
     });
 
     const updateIcon = (id, val) => {
@@ -509,14 +510,14 @@ function setupEventListeners() {
         });
         const expEl = document.getElementById('caExpireMonths');
         const curMonths = expEl ? (parseInt(expEl.value) || 1) : 1;
-        filters = { search: "", dept: "", status: "", caStatus: [], ogsStatus: [], naturezas: [], nomenaments: [], categoritzacions: [], onlySac: false, onlyGovern: false, onlyVacant: false, onlyPendingValidation: false, colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "", expireMonths: curMonths, filterMode: "subtractive" };
+        filters = { search: "", dept: "", status: "", caStatus: [], ogsStatus: [], naturezas: [], qualificadors: [], nomenaments: [], categoritzacions: [], onlySac: false, onlyGovern: false, onlyVacant: false, onlyPendingValidation: false, colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "", expireMonths: curMonths, filterMode: "subtractive" };
         const filterCheckbox = document.getElementById('filterModeCheckbox');
         const textSubtractive = document.getElementById('textModeSubtractive');
         const textAdditive = document.getElementById('textModeAdditive');
         if (filterCheckbox) filterCheckbox.checked = false;
         if (textSubtractive) textSubtractive.classList.add('active');
         if (textAdditive) textAdditive.classList.remove('active');
-        populateNaturezas(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); updateNaturezasUI(); updateNomenamentsUI(); updateCategoritzacionsUI(); updateCaStatusUI(); updateOgsStatusUI(); applyFilters();
+        populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); updateNaturezasUI(); updateQualificadorsUI(); updateNomenamentsUI(); updateCategoritzacionsUI(); updateCaStatusUI(); updateOgsStatusUI(); applyFilters();
     });
 
     const filterCheckbox = document.getElementById('filterModeCheckbox');
@@ -566,9 +567,10 @@ function setupEventListeners() {
     setupMultiselect('btnOgsStatus', 'dropdownOgsStatus');
     setupMultiselect('btnCategoritzacions', 'dropdownCategoritzacions');
     setupMultiselect('btnNaturezas', 'dropdownNaturezas');
+    setupMultiselect('btnQualificadors', 'dropdownQualificadors');
     setupMultiselect('btnNomenaments', 'dropdownNomenaments');
     document.addEventListener('click', (e) => { document.querySelectorAll('.multiselect-dropdown').forEach(d => { if (!d.contains(e.target)) d.classList.remove('active'); }); });
-    safeAddListener('btnExportCSV', 'click', exportToCSV);
+    safeAddListener('btnExportXLSX', 'click', exportToXLSX);
     const btnSync = document.getElementById('btnSync'); if (btnSync) btnSync.addEventListener('click', () => handleSync());
 
     document.querySelectorAll('.sortable-header').forEach(th => {
@@ -643,6 +645,40 @@ function updateNaturezasUI() {
     if (!btn) return;
     btn.innerHTML = `<i data-lucide="building" style="width: 16px; margin-right: 4px;"></i> ${filters.naturezas.length ? `(${filters.naturezas.length}) Naturalesa` : 'Naturalesa jurídica'}`;
     btn.classList.toggle('btn-primary', filters.naturezas.length > 0);
+    if (window.lucide) lucide.createIcons();
+}
+
+function populateQualificadors() {
+    const list = document.getElementById('listQualificadors');
+    if (!list) return;
+    const quals = [...new Set(allRecords.map(r => r.part_qualificador && r.part_qualificador !== "-" ? r.part_qualificador : null))].filter(Boolean).sort();
+    list.innerHTML = '';
+    if (quals.length === 0) {
+        list.innerHTML = '<div style="padding: 0.5rem; text-align: center; color: var(--text-muted);">Sense dades (torna a sincronitzar)</div>';
+        return;
+    }
+    quals.forEach(qual => {
+        const item = document.createElement('label');
+        item.className = 'multiselect-item';
+        const isChecked = filters.qualificadors.includes(qual);
+        item.innerHTML = `<input type="checkbox" value="${qual}" ${isChecked ? 'checked' : ''}><span>${qual}</span>`;
+        item.querySelector('input').addEventListener('change', (e) => {
+            if (e.target.checked) {
+                if (!filters.qualificadors.includes(qual)) filters.qualificadors.push(qual);
+            } else {
+                filters.qualificadors = filters.qualificadors.filter(v => v !== qual);
+            }
+            updateQualificadorsUI();
+            applyFilters();
+        });
+        list.appendChild(item);
+    });
+}
+function updateQualificadorsUI() {
+    const btn = document.getElementById('btnQualificadors');
+    if (!btn) return;
+    btn.innerHTML = `<i data-lucide="award" style="width: 16px; margin-right: 4px;"></i> ${filters.qualificadors.length ? `(${filters.qualificadors.length}) Qualificador` : 'Qualificador'}`;
+    btn.classList.toggle('btn-primary', filters.qualificadors.length > 0);
     if (window.lucide) lucide.createIcons();
 }
 
@@ -726,7 +762,8 @@ function populateOgsStatus() {
     const options = [
         { value: 'caducat', label: 'Caducats', class: 'btn-ca-red' },
         { value: 'propera', label: labelPropera, class: 'btn-ca-orange' },
-        { value: 'vigent', label: 'Vigents', class: 'btn-ca-blue' }
+        { value: 'vigent', label: 'Vigents', class: 'btn-ca-blue' },
+        { value: 'no_informat', label: 'No informat', class: 'btn-ca-empty' }
     ];
     list.innerHTML = '';
     options.forEach(opt => {
@@ -756,38 +793,42 @@ function updateOgsStatusUI() {
     if (window.lucide) lucide.createIcons();
 }
 
-function exportToCSV() {
+function exportToXLSX() {
     if (filteredRecords.length === 0) return;
+    if (typeof XLSX === 'undefined') {
+        alert("La llibreria XLSX no s'ha carregat correctament.");
+        return;
+    }
     const headers = ["Codi SAC", "Membre", "Representant", "Carrec", "Departament", "Entitat", "N. Registre", "Òrgan Govern Superior", "Tipus Membre", "Particip/Organisme", "Tipus Nomenament", "Estat", "Qualificador"];
-    let csvContent = "\ufeff" + headers.join(";") + "\n";
-    filteredRecords.forEach(r => {
+    const rows = filteredRecords.map(r => {
         const isJuridica = (r.qualificador || "").toLowerCase().includes("jur") || (r.membre_tipus || "").toLowerCase().includes("jur");
-        
         const membre = isJuridica ? (r.denom_social || "") : `${r.persona_nom || ''} ${r.persona_cognoms || ''}`.trim();
         const representant = isJuridica ? `${r.nom_rep || ''} ${r.cognoms_rep || ''}`.trim() : "";
-        
-        const row = [
-            r.codi_sac || "", 
-            membre, 
+
+        return [
+            r.codi_sac || "",
+            membre,
             representant,
-            r.carrec || "", 
-            r.sac_departament || r.departament || "", 
-            r.entitat || "", 
-            r.n_registre || "", 
-            r.is_govern_superior || "", 
-            r.membre_tipus || "", 
-            r.part_cip_o_organisme || "", 
-            r.tipus_nomenament || "", 
-            r.status || "", 
-            r.qualificador || ""
+            r.carrec || "",
+            r.sac_departament || r.departament || "",
+            r.entitat || "",
+            r.n_registre || "",
+            r.is_govern_superior || "",
+            r.membre_tipus || "",
+            r.part_cip_o_organisme || "",
+            r.tipus_nomenament || "",
+            r.status || "",
+            (r.part_qualificador && r.part_qualificador !== "-") ? r.part_qualificador : ""
         ];
-        csvContent += row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";") + "\n";
     });
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.setAttribute("href", URL.createObjectURL(blob));
-    link.setAttribute("download", `export_${new Date().toISOString().slice(0, 10)}.csv`);
-    link.click();
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    ws['!cols'] = headers.map((h, i) => ({
+        wch: Math.min(50, Math.max(h.length + 2, ...rows.slice(0, 200).map(r => String(r[i] || "").length + 2)))
+    }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Consulta");
+    XLSX.writeFile(wb, `export_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
 const tooltip = document.getElementById('global-tooltip');
