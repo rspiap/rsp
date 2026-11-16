@@ -13,7 +13,7 @@
 import { db } from './modules/db.js';
 import { API } from './modules/api.js';
 import { CONFIG } from './modules/config.js';
-import { parseDate, baseNorm, initTheme, toggleTheme } from './modules/utils.js';
+import { parseDate, baseNorm, initTheme, toggleTheme, isPersonaJuridica } from './modules/utils.js';
 
 // Estat global de la vista
 const state = {
@@ -363,8 +363,7 @@ function getPersonaEstat(r) {
     if (!r) return "(No informat)";
 
     const qualif = (r.qualificador || "").toLowerCase();
-    const membreTipus = (r.membre_tipus || "").toLowerCase();
-    const isJuridica = qualif.includes("jur") || membreTipus.includes("jur");
+    const isJuridica = isPersonaJuridica(r);
 
     if (isJuridica) {
         const rep = `${r.nom_rep || ''} ${r.cognoms_rep || ''}`.trim();
@@ -442,9 +441,7 @@ function isRecordLikeImage(r) {
     if (qualif.includes("vacant")) return false;
 
     // Persona jurídica amb representant o raó social
-    const membreTipus = (r.membre_tipus || "").toLowerCase();
-    const isJuridica = qualif.includes("jur") || membreTipus.includes("jur");
-    if (isJuridica) {
+    if (isPersonaJuridica(r)) {
         const rep = `${r.nom_rep || ''} ${r.cognoms_rep || ''}`.trim();
         const principal = rep || r.persona_nom || r.nom || "";
         if (principal || (r.denom_social && r.denom_social.trim())) {
@@ -478,8 +475,7 @@ function isRecordLikeImage(r) {
 function getPersonaDisplayName(r) {
     if (!r) return "(No informat)";
     const qualif = (r.qualificador || "").toLowerCase();
-    const membreTipus = (r.membre_tipus || "").toLowerCase();
-    const isJuridica = qualif.includes("jur") || membreTipus.includes("jur");
+    const isJuridica = isPersonaJuridica(r);
 
     if (isJuridica) {
         const rep = `${r.nom_rep || ''} ${r.cognoms_rep || ''}`.trim();
@@ -672,8 +668,7 @@ function recalculateConsellsAdmon(now, thresholdDate) {
         const carrecNet = rawCarrec.replace(/^\d+-/, "").trim() || "Conseller";
 
         // Persona física o representant de persona jurídica
-        const qualif = (d.qualificador || "").toLowerCase();
-        const isJuridica = qualif.includes("jur");
+        const isJuridica = isPersonaJuridica(d);
         let personaText = "";
 
         if (isJuridica) {

@@ -8,7 +8,7 @@ import { syncEngine } from './modules/sync-engine.js';
 import { CloudService } from './modules/cloud.js';
 import { BoardService } from './modules/board-of-directors.js';
 import { PendingService } from './modules/pending-service.js';
-import { initTheme, toggleTheme, parseDate, baseNorm, prepareOrganRenderRows } from './modules/utils.js';
+import { initTheme, toggleTheme, parseDate, baseNorm, prepareOrganRenderRows, isPersonaJuridica } from './modules/utils.js';
 
 let allRecords = [];
 let filteredRecords = [];
@@ -365,7 +365,7 @@ function renderTable() {
                         }
 
                         let personaHTML = `<div class="cell-main-title" style="${expStyle}">${personaName || '---'}</div>`;
-                        if (qualif.includes("jur") && p.denom_social) {
+                        if (isPersonaJuridica(p) && p.denom_social) {
                             personaHTML = `<div class="cell-main-title" style="${expStyle}">${p.denom_social}</div><div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">Rep: ${repName || '---'}</div>`;
                         } else if (qualif.includes("vacant")) {
                             personaHTML = `<div class="cell-main-title" style="color:var(--text-muted); font-style:italic;">(Vacant)</div>`;
@@ -837,7 +837,7 @@ function exportToXLSX() {
         let membre = personaName;
         let representant = "";
 
-        if (qualif.includes("jur")) {
+        if (isPersonaJuridica(r)) {
             membre = r.denom_social || "Persona Jurídica";
             representant = repName;
         } else if (qualif.includes("vacant")) {

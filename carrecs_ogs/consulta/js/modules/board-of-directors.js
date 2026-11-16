@@ -2,7 +2,7 @@
  * board-of-directors.js - Mòdul per gestionar la consulta dels Consells d'Administració
  */
 import { API } from './api.js';
-import { parseDate } from './utils.js';
+import { parseDate, isPersonaJuridica } from './utils.js';
 
 export const BoardService = {
     currentData: null,
@@ -93,7 +93,7 @@ export const BoardService = {
                 
                 // Lògica per a Persones Jurídiques vs Físiques
                 let membreHTML = "";
-                const isJuridica = (d.qualificador || "").toLowerCase().includes("jur");
+                const isJuridica = isPersonaJuridica(d);
                 
                 const nomenamentText = d.tipus_de_nomenament || "";
                 const organText = d.rgan_que_designa ? `(${d.rgan_que_designa})` : "";
@@ -171,7 +171,7 @@ export const BoardService = {
 
         this.currentData.forEach(d => {
             const carrec = (d.c_rrec_en_l_rgan_de_govern_superior || "").replace(/^\d+-/, "");
-            const isJuridica = (d.qualificador || "").toLowerCase().includes("jur");
+            const isJuridica = isPersonaJuridica(d);
             
             const membre = isJuridica ? (d.denominaci_social || "") : `${d.nom_representant || ''} ${d.cognoms_representant || ''}`.trim();
             const representant = isJuridica ? `${d.nom_representant_p_jur_dica || ''} ${d.cognoms_representant_p_jur_dica || ''}`.trim() : "";

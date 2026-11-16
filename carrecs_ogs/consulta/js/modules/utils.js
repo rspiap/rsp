@@ -138,6 +138,16 @@ export function parseDate(dStr) {
 }
 
 /**
+ * Comprova si un registre correspon a una persona jurídica (tolera "P. Júridica" amb accent a la u)
+ */
+export function isPersonaJuridica(p) {
+    if (!p) return false;
+    const qualif = (p.qualificador || "").toLowerCase();
+    const membreTipus = (p.membre_tipus || "").toLowerCase();
+    return /j[uú]r/.test(qualif) || /j[uú]r/.test(membreTipus);
+}
+
+/**
  * Comprova si un registre es correspon amb un registre no informat (com a la imatge: "(No informat)", "No informat", "NO APLICA")
  */
 export function isNoInformatRecord(p, pendingService = null) {
@@ -157,9 +167,7 @@ export function isNoInformatRecord(p, pendingService = null) {
     if (qualif.includes("vacant")) return false;
 
     // Persona jurídica amb representant o raó social informada
-    const membreTipus = (p.membre_tipus || "").toLowerCase();
-    const isJuridica = qualif.includes("jur") || membreTipus.includes("jur");
-    if (isJuridica) {
+    if (isPersonaJuridica(p)) {
         const rep = `${p.nom_rep || ''} ${p.cognoms_rep || ''}`.trim();
         const principal = rep || p.persona_nom || p.nom || "";
         if (principal || (p.denom_social && p.denom_social.trim())) {

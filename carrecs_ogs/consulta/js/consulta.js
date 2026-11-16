@@ -7,7 +7,7 @@ import { db } from './modules/db.js';
 import { syncEngine } from './modules/sync-engine.js';
 import { BoardService } from './modules/board-of-directors.js';
 import { PendingService } from './modules/pending-service.js';
-import { initTheme, toggleTheme, parseDate, baseNorm, prepareOrganRenderRows } from './modules/utils.js';
+import { initTheme, toggleTheme, parseDate, baseNorm, prepareOrganRenderRows, isPersonaJuridica } from './modules/utils.js';
 
 let allRecords = [];
 let filteredRecords = [];
@@ -414,7 +414,7 @@ function renderTable(append = false) {
                         else if (p.status === 'Pendent') statusBadge = '<span class="badge badge-pendent">Pendent</span>';
                         else statusBadge = '<span class="badge badge-no-aplica">No aplica</span>';
 
-                        const isJuridica = (p.qualificador || "").toLowerCase().includes("jur") || (p.membre_tipus || "").toLowerCase().includes("jur");
+                        const isJuridica = isPersonaJuridica(p);
                         
                         // Lògica de caducitat individual
                         const dFinalInd = parseDate(p.data_final_individual);
@@ -801,7 +801,7 @@ function exportToXLSX() {
     }
     const headers = ["Codi SAC", "Membre", "Representant", "Carrec", "Departament", "Entitat", "N. Registre", "Òrgan Govern Superior", "Tipus Membre", "Particip/Organisme", "Tipus Nomenament", "Estat", "Qualificador"];
     const rows = filteredRecords.map(r => {
-        const isJuridica = (r.qualificador || "").toLowerCase().includes("jur") || (r.membre_tipus || "").toLowerCase().includes("jur");
+        const isJuridica = isPersonaJuridica(r);
         const membre = isJuridica ? (r.denom_social || "") : `${r.persona_nom || ''} ${r.persona_cognoms || ''}`.trim();
         const representant = isJuridica ? `${r.nom_rep || ''} ${r.cognoms_rep || ''}`.trim() : "";
 
