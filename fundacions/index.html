@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ca">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -20,7 +21,10 @@
       --red-fg: #b03a2e;
     }
 
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
       font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -48,6 +52,7 @@
       font-weight: 700;
       color: #1e293b;
     }
+
     .title-block .subtitle {
       font-size: 12.5px;
       color: var(--muted);
@@ -61,7 +66,8 @@
       gap: 8px;
     }
 
-    input[type="search"], select {
+    input[type="search"],
+    select {
       height: 34px;
       padding: 0 10px;
       border: 1px solid var(--border);
@@ -70,9 +76,13 @@
       background: #fff;
       color: var(--text);
     }
-    input[type="search"] { width: 240px; }
 
-    button, .file-btn {
+    input[type="search"] {
+      width: 240px;
+    }
+
+    button,
+    .file-btn {
       height: 34px;
       padding: 0 14px;
       border: 1px solid var(--border);
@@ -87,14 +97,23 @@
       gap: 6px;
       transition: background 0.15s, border-color 0.15s;
     }
-    button:hover, .file-btn:hover { background: #f1f5f9; }
-    button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    button:hover,
+    .file-btn:hover {
+      background: #f1f5f9;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
 
     button.primary {
       background: var(--primary);
       border-color: var(--primary);
       color: #fff;
     }
+
     button.primary:hover:not(:disabled) {
       background: var(--primary-dark);
       border-color: var(--primary-dark);
@@ -110,6 +129,7 @@
       justify-content: space-between;
       gap: 12px;
     }
+
     .status-bar.error {
       background: var(--red-bg);
       border-color: #f1b0a9;
@@ -119,11 +139,12 @@
     .progress-wrap {
       width: 220px;
       height: 8px;
-      background: rgba(0,0,0,0.08);
+      background: rgba(0, 0, 0, 0.08);
       border-radius: 99px;
       overflow: hidden;
       display: none;
     }
+
     .progress-fill {
       height: 100%;
       width: 0%;
@@ -142,7 +163,7 @@
       border-collapse: collapse;
       background: var(--surface);
       font-size: 13px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
     }
 
     thead th {
@@ -155,9 +176,12 @@
       padding: 9px 10px;
       font-weight: 600;
       white-space: nowrap;
-      border-right: 1px solid rgba(255,255,255,0.14);
+      border-right: 1px solid rgba(255, 255, 255, 0.14);
     }
-    thead th.center { text-align: center; }
+
+    thead th.center {
+      text-align: center;
+    }
 
     thead tr.filter-row th {
       top: 35px;
@@ -167,6 +191,7 @@
       border-bottom: 2px solid var(--border);
       border-right: 1px solid var(--border);
     }
+
     thead tr.filter-row input,
     thead tr.filter-row select {
       width: 100%;
@@ -186,11 +211,21 @@
       vertical-align: top;
     }
 
-    tbody tr.pair-odd td { background: #ffffff; }
-    tbody tr.pair-even td { background: var(--pair-alt); }
+    tbody tr.pair-odd td {
+      background: #ffffff;
+    }
 
-    tbody tr.row-second td {
+    tbody tr.pair-even td {
+      background: var(--pair-alt);
+    }
+
+    tbody tr.row-second td,
+    tbody tr.row-first td.merged-cell {
       border-bottom: 2px solid var(--group-sep);
+    }
+
+    tbody td.merged-cell {
+      vertical-align: middle;
     }
 
     td.badge-col {
@@ -198,8 +233,14 @@
       font-weight: 700;
       width: 48px;
     }
-    td.badge-f { color: var(--primary); }
-    td.badge-r { color: var(--blue); }
+
+    td.badge-f {
+      color: var(--primary);
+    }
+
+    td.badge-r {
+      color: var(--blue);
+    }
 
     td.diff-cell {
       background: var(--red-bg) !important;
@@ -215,11 +256,13 @@
     }
   </style>
 </head>
+
 <body>
   <header>
     <div class="title-block">
       <h1>Comparativa Òrgans de Govern de Fundacions: Registre Fundacions (F) vs RSP (R)</h1>
-      <div class="subtitle">Creuament en directe de Guia d'Entitats (<code>i46c-ebpp</code>) i Registre del Sector Públic (<code>auai-ppkn</code>)</div>
+      <div class="subtitle">Creuament en directe de Guia d'Entitats (<code>i46c-ebpp</code>) i Registre del Sector
+        Públic (<code>auai-ppkn</code>)</div>
     </div>
     <div class="toolbar">
       <input type="search" id="searchInput" placeholder="Cercar fundació, NIF, càrrec, persona...">
@@ -280,7 +323,9 @@
         </tr>
       </thead>
       <tbody id="tableBody">
-        <tr><td colspan="9" class="empty-state">Carregant dades...</td></tr>
+        <tr>
+          <td colspan="9" class="empty-state">Carregant dades...</td>
+        </tr>
       </tbody>
     </table>
   </div>
@@ -288,7 +333,7 @@
   <script>
     const URL_SECTOR_PUBLIC = "https://analisi.transparenciacatalunya.cat/resource/gr39-ik6u.json";
     const URL_GUIA_ENTITATS = "https://analisi.transparenciacatalunya.cat/resource/y6fz-g3ff.json";
-    const URL_GUIA_GOVERN   = "https://analisi.transparenciacatalunya.cat/resource/i46c-ebpp.json";
+    const URL_GUIA_GOVERN = "https://analisi.transparenciacatalunya.cat/resource/i46c-ebpp.json";
     const URL_SECTOR_PUB_GOV = "https://analisi.transparenciacatalunya.cat/resource/auai-ppkn.json";
 
     const PAGE_SIZE = 1000;
@@ -297,18 +342,18 @@
     let allPairs = [];
     let filteredPairs = [];
 
-    const elStatusBar   = document.getElementById("statusBar");
-    const elStatusText  = document.getElementById("statusText");
-    const elProgWrap    = document.getElementById("progressWrap");
-    const elProgFill    = document.getElementById("progressFill");
-    const elTableBody   = document.getElementById("tableBody");
-    const elSearch      = document.getElementById("searchInput");
-    const elFilterObs   = document.getElementById("filterObs");
-    const elBtnRefresh  = document.getElementById("btnRefresh");
-    const elBtnExport   = document.getElementById("btnExport");
-    const elBtnClear    = document.getElementById("btnClearFilters");
-    const elFileInput   = document.getElementById("fileInput");
-    const colFilters    = [...document.querySelectorAll("thead tr.filter-row [data-col]")];
+    const elStatusBar = document.getElementById("statusBar");
+    const elStatusText = document.getElementById("statusText");
+    const elProgWrap = document.getElementById("progressWrap");
+    const elProgFill = document.getElementById("progressFill");
+    const elTableBody = document.getElementById("tableBody");
+    const elSearch = document.getElementById("searchInput");
+    const elFilterObs = document.getElementById("filterObs");
+    const elBtnRefresh = document.getElementById("btnRefresh");
+    const elBtnExport = document.getElementById("btnExport");
+    const elBtnClear = document.getElementById("btnClearFilters");
+    const elFileInput = document.getElementById("fileInput");
+    const colFilters = [...document.querySelectorAll("thead tr.filter-row [data-col]")];
 
     function normStr(val) {
       return val == null ? "" : String(val).trim();
@@ -455,11 +500,11 @@
         const reg = normStr(ent.sector_public && ent.sector_public.n_mero_de_registre);
 
         const listFund = Array.isArray(ent.organs_govern) ? ent.organs_govern : [];
-        const listDO   = Array.isArray(ent.organs_govern_dades_obertes) ? ent.organs_govern_dades_obertes : [];
+        const listDO = Array.isArray(ent.organs_govern_dades_obertes) ? ent.organs_govern_dades_obertes : [];
         if (listFund.length === 0 && listDO.length === 0) continue;
 
         const cntFund = listFund.length;
-        const cntDO   = listDO.length;
+        const cntDO = listDO.length;
         const diffCount = cntFund !== cntDO;
         const usedDO = new Array(cntDO).fill(false);
 
@@ -484,7 +529,7 @@
             const md = listDO[matchIdx];
             const cdRaw = normStr(md.carrec);
             const pdRaw = normStr(md.persona);
-            const diffCarrec  = normalizeCompareCarrec(cfRaw) !== normalizeCompareCarrec(cdRaw);
+            const diffCarrec = normalizeCompareCarrec(cfRaw) !== normalizeCompareCarrec(cdRaw);
             const diffPersona = pfRaw !== pdRaw;
 
             if (diffCarrec || diffPersona) {
@@ -596,32 +641,31 @@
       for (let idx = 0; idx < filteredPairs.length; idx++) {
         const p = filteredPairs[idx];
         const pairClass = (idx % 2 === 0) ? "pair-odd" : "pair-even";
-        const clsTotal   = p.DiffTotal ? "diff-cell" : "";
-        const clsCarrec  = p.DiffCarrec ? "diff-cell" : "";
+        const clsTotal = p.DiffTotal ? "diff-cell" : "";
+        const clsCarrec = p.DiffCarrec ? "diff-cell" : "";
         const clsPersona = p.DiffPersona ? "diff-cell" : "";
+
+        const sharedTotal = !p.DiffTotal;
+        const sharedCarrec = !p.DiffCarrec;
+        const sharedPersona = !p.DiffPersona;
 
         chunks.push(
           `<tr class="${pairClass} row-first">` +
-            `<td class="badge-col badge-f">F</td>` +
-            `<td>${p.Grup}</td>` +
-            `<td>${escapeHtml(p.NIF)}</td>` +
-            `<td>${escapeHtml(p.Reg)}</td>` +
-            `<td>${escapeHtml(p.Nom)}</td>` +
-            `<td class="${clsTotal}">${p.FundTotal}</td>` +
-            `<td class="${clsCarrec}">${escapeHtml(p.FundCarrec)}</td>` +
-            `<td class="${clsPersona}">${escapeHtml(p.FundPersona)}</td>` +
-            `<td>${escapeHtml(p.Obs)}</td>` +
+          `<td class="badge-col badge-f">F</td>` +
+          `<td rowspan="2" class="merged-cell">${p.Grup}</td>` +
+          `<td rowspan="2" class="merged-cell">${escapeHtml(p.NIF)}</td>` +
+          `<td rowspan="2" class="merged-cell">${escapeHtml(p.Reg)}</td>` +
+          `<td rowspan="2" class="merged-cell">${escapeHtml(p.Nom)}</td>` +
+          (sharedTotal ? `<td rowspan="2" class="merged-cell">${p.FundTotal}</td>` : `<td class="${clsTotal}">${p.FundTotal}</td>`) +
+          (sharedCarrec ? `<td rowspan="2" class="merged-cell">${escapeHtml(p.FundCarrec)}</td>` : `<td class="${clsCarrec}">${escapeHtml(p.FundCarrec)}</td>`) +
+          (sharedPersona ? `<td rowspan="2" class="merged-cell">${escapeHtml(p.FundPersona)}</td>` : `<td class="${clsPersona}">${escapeHtml(p.FundPersona)}</td>`) +
+          `<td rowspan="2" class="merged-cell">${escapeHtml(p.Obs)}</td>` +
           `</tr>` +
           `<tr class="${pairClass} row-second">` +
-            `<td class="badge-col badge-r">R</td>` +
-            `<td>${p.Grup}</td>` +
-            `<td>${escapeHtml(p.NIF)}</td>` +
-            `<td>${escapeHtml(p.Reg)}</td>` +
-            `<td>${escapeHtml(p.Nom)}</td>` +
-            `<td class="${clsTotal}">${p.DOTotal}</td>` +
-            `<td class="${clsCarrec}">${escapeHtml(p.DOCarrec)}</td>` +
-            `<td class="${clsPersona}">${escapeHtml(p.DOPersona)}</td>` +
-            `<td>${escapeHtml(p.Obs)}</td>` +
+          `<td class="badge-col badge-r">R</td>` +
+          (sharedTotal ? "" : `<td class="${clsTotal}">${p.DOTotal}</td>`) +
+          (sharedCarrec ? "" : `<td class="${clsCarrec}">${escapeHtml(p.DOCarrec)}</td>`) +
+          (sharedPersona ? "" : `<td class="${clsPersona}">${escapeHtml(p.DOPersona)}</td>`) +
           `</tr>`
         );
       }
@@ -730,7 +774,7 @@
         lv.setUint16(6, 0x0800, true); // UTF-8
         lv.setUint16(8, 0, true);      // STORE
         lv.setUint16(10, 0, true);
-        lv.setUint16(12, 0, true);
+        lv.setUint16(12, 0x5421, true);
         lv.setUint32(14, crc, true);
         lv.setUint32(18, dataBytes.length, true);
         lv.setUint32(22, dataBytes.length, true);
@@ -747,7 +791,7 @@
         cv.setUint16(8, 0x0800, true);
         cv.setUint16(10, 0, true);
         cv.setUint16(12, 0, true);
-        cv.setUint16(14, 0, true);
+        cv.setUint16(14, 0x5421, true);
         cv.setUint32(16, crc, true);
         cv.setUint32(20, dataBytes.length, true);
         cv.setUint32(24, dataBytes.length, true);
@@ -782,6 +826,7 @@
 
     function escXml(s) {
       return String(s == null ? "" : s)
+        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
@@ -878,7 +923,14 @@
       const blob = createZipBlob([
         {
           name: "[Content_Types].xml",
-          content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`
+          content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>`
         },
         {
           name: "_rels/.rels",
@@ -896,7 +948,7 @@
         { name: "xl/worksheets/sheet1.xml", content: sheetXml }
       ]);
 
-      const stamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 15);
+      const stamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -939,4 +991,5 @@
     loadFromApis();
   </script>
 </body>
+
 </html>
