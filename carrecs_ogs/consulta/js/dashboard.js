@@ -8,13 +8,14 @@ import { syncEngine } from './modules/sync-engine.js';
 import { CloudService } from './modules/cloud.js';
 import { BoardService } from './modules/board-of-directors.js';
 import { PendingService } from './modules/pending-service.js';
+import { renderFundacioBadgeHTML } from './modules/fundacions-service.js';
 import { initTheme, toggleTheme, parseDate, baseNorm, prepareOrganRenderRows, isPersonaJuridica } from './modules/utils.js';
 
 let allRecords = [];
 let filteredRecords = [];
 let rowsShown = 15;
 let filters = {
-    search: "", dept: "", status: "", caStatus: [], ogsStatus: [], naturezas: [], qualificadors: [], nomenaments: [], categoritzacions: [],
+    search: "", dept: "", status: "", rf: [], caStatus: [], ogsStatus: [], naturezas: [], qualificadors: [], nomenaments: [], categoritzacions: [],
     onlySac: false, onlyGovern: false, onlyVacant: false, onlyPendingValidation: false,
     colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "",
     expireMonths: 1, filterMode: "subtractive"
@@ -78,7 +79,12 @@ async function loadInitialData() {
         let data = await db.getAll(CONFIG.DB.STORES.RECORDS);
         if (data && data.length > 0) {
             allRecords = data;
-            populateDepartaments(); populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); applyFilters(); checkCloudUpdates();
+            const needsFundacioSync = allRecords.some(r => (r.part_natureza || "").toLowerCase().includes("fundaci") && r.fundacio_check === undefined);
+            if (needsFundacioSync) {
+                handleSync();
+                return;
+            }
+            populateDepartaments(); populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); populateRF(); applyFilters(); checkCloudUpdates();
         } else { handleSync(); }
     } catch (e) { console.error(e); }
 }
@@ -96,7 +102,7 @@ async function handleSync(manualCsvText = null) {
             if (info.progress) progressBar.style.width = `${info.progress}%`;
         });
         allRecords = data;
-        populateDepartaments(); populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); applyFilters();
+        populateDepartaments(); populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); populateRF(); applyFilters();
         setTimeout(() => { modal.style.display = 'none'; if (btnSync) btnSync.disabled = false; }, 400);
     } catch (e) { if (btnSync) btnSync.disabled = false; }
 }
@@ -162,6 +168,22 @@ function applyFilters() {
         }
         const matchesNatureza = filters.naturezas.length === 0 || filters.naturezas.includes(r.part_natureza);
         const matchesQualificador = filters.qualificadors.length === 0 || filters.qualificadors.includes(r.part_qualificador);
+        let matchesRF = true;
+        if (filters.rf && filters.rf.length > 0) {
+            const rfCarrec = filters.rf.filter(f => f === 'consta' || f === 'no_consta');
+            const rfSac = filters.rf.filter(f => f === 'consta_sac' || f === 'no_consta_sac');
+            const matchesRfCarrec = rfCarrec.length === 0 || rfCarrec.some(flag => {
+                if (flag === 'consta') return Boolean(r.fundacio_check && (r.fundacio_check.status === 'match' || r.fundacio_check.status === 'variant'));
+                if (flag === 'no_consta') return Boolean(r.fundacio_check && r.fundacio_check.status === 'no_match');
+                return false;
+            });
+            const matchesRfSac = rfSac.length === 0 || rfSac.some(flag => {
+                if (flag === 'consta_sac') return Boolean(r.sac_fundacio_check && (r.sac_fundacio_check.status === 'match' || r.sac_fundacio_check.status === 'variant'));
+                if (flag === 'no_consta_sac') return Boolean(r.sac_fundacio_check && r.sac_fundacio_check.status === 'no_match');
+                return false;
+            });
+            matchesRF = matchesRfCarrec && matchesRfSac;
+        }
         const nomVal = r.tipus_nomenament && r.tipus_nomenament.trim() !== "" ? r.tipus_nomenament : "No informat";
         const matchesNomenament = filters.nomenaments.length === 0 || filters.nomenaments.includes(nomVal);
         const matchesCategoritzacio = filters.categoritzacions.length === 0 || (r.categoritzacio && filters.categoritzacions.includes(r.categoritzacio));
@@ -188,7 +210,7 @@ function applyFilters() {
         }
 
         return matchesSearch && matchesColSac && matchesColCarrec && matchesColEntitat && matchesColOGS && matchesColPersona &&
-            matchesDept && matchesStatus && matchesCaStatus && matchesOgsStatus && matchesNatureza && matchesQualificador && matchesNomenament && matchesCategoritzacio && matchesToggles;
+            matchesDept && matchesStatus && matchesRF && matchesCaStatus && matchesOgsStatus && matchesNatureza && matchesQualificador && matchesNomenament && matchesCategoritzacio && matchesToggles;
     });
 
     const sortKey = sortConfig.key;
@@ -377,10 +399,12 @@ function renderTable() {
                             ? p.tipus_nomenament.trim()
                             : 'Tipus de nomenament no informat';
 
+                        const fundacioHTML = renderFundacioBadgeHTML(p.fundacio_check);
+
                         html += `<td class="td-persona">
                                     <div style="display:flex; align-items:center; justify-content:space-between;">
                                         <div>
-                                            ${personaHTML}${expText}${personaPendingHTML}
+                                            ${personaHTML}${fundacioHTML}${expText}${personaPendingHTML}
                                             <div class="persona-sub" style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">${nomText}</div>
                                         </div>
                                         <div style="display:flex; align-items:center; gap:8px;">
@@ -511,11 +535,11 @@ function setupEventListeners() {
             });
             const expEl = document.getElementById('caExpireMonths');
             const curMonths = expEl ? (parseInt(expEl.value) || 1) : 1;
-            filters = { search: "", dept: "", status: "", caStatus: [], ogsStatus: [], naturezas: [], qualificadors: [], nomenaments: [], categoritzacions: [], onlySac: false, onlyGovern: false, onlyVacant: false, onlyPendingValidation: false, colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "", expireMonths: curMonths, filterMode: "subtractive" };
+            filters = { search: "", dept: "", status: "", rf: [], caStatus: [], ogsStatus: [], naturezas: [], qualificadors: [], nomenaments: [], categoritzacions: [], onlySac: false, onlyGovern: false, onlyVacant: false, onlyPendingValidation: false, colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "", expireMonths: curMonths, filterMode: "subtractive" };
             if (filterCheckbox) filterCheckbox.checked = false;
             if (textSubtractive) textSubtractive.classList.add('active');
             if (textAdditive) textAdditive.classList.remove('active');
-            populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); updateNaturezasUI(); updateQualificadorsUI(); updateNomenamentsUI(); updateCategoritzacionsUI(); updateCaStatusUI(); updateOgsStatusUI(); applyFilters();
+            populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); populateRF(); updateNaturezasUI(); updateQualificadorsUI(); updateNomenamentsUI(); updateCategoritzacionsUI(); updateCaStatusUI(); updateOgsStatusUI(); updateRFUI(); applyFilters();
         });
     }
 
@@ -544,6 +568,7 @@ function setupEventListeners() {
     setupMultiselect('btnNaturezas', 'dropdownNaturezas');
     setupMultiselect('btnQualificadors', 'dropdownQualificadors');
     setupMultiselect('btnNomenaments', 'dropdownNomenaments');
+    setupMultiselect('btnRF', 'dropdownRF');
     document.addEventListener('click', (e) => { document.querySelectorAll('.multiselect-dropdown').forEach(d => { if (!d.contains(e.target)) d.classList.remove('active'); }); });
     document.getElementById('btnSync').addEventListener('click', () => handleSync());
     document.getElementById('themeToggle').addEventListener('click', toggleTheme);
@@ -819,6 +844,43 @@ function updateOgsStatusUI() {
     if (!btn) return;
     btn.innerHTML = `<i data-lucide="user-check" style="width: 16px; margin-right: 4px;"></i> ${filters.ogsStatus.length ? `(${filters.ogsStatus.length}) Estat OGS` : 'Estat càrrecs OGS'}`;
     btn.classList.toggle('btn-primary', filters.ogsStatus.length > 0);
+    if (window.lucide) lucide.createIcons();
+}
+
+function populateRF() {
+    const list = document.getElementById('listRF');
+    if (!list) return;
+    const options = [
+        { value: 'no_consta', label: 'No consta al RF (RSP)', class: 'fundacio-no-match' },
+        { value: 'consta', label: 'Consta al RF (RSP)', class: 'fundacio-match' },
+        { value: 'no_consta_sac', label: 'No consta al RF (SAC)', class: 'fundacio-no-match' },
+        { value: 'consta_sac', label: 'Consta al RF (SAC)', class: 'fundacio-match' }
+    ];
+    list.innerHTML = '';
+    options.forEach(opt => {
+        const item = document.createElement('label');
+        item.className = 'multiselect-item';
+        const isChecked = filters.rf.includes(opt.value);
+        item.innerHTML = `<input type="checkbox" value="${opt.value}" ${isChecked ? 'checked' : ''}><span class="fundacio-check ${opt.class}" style="margin: 0; pointer-events: none;">${opt.label}</span>`;
+        item.querySelector('input').addEventListener('change', (e) => {
+            if (e.target.checked) {
+                if (!filters.rf.includes(opt.value)) filters.rf.push(opt.value);
+            } else {
+                filters.rf = filters.rf.filter(v => v !== opt.value);
+            }
+            updateRFUI();
+            applyFilters();
+        });
+        list.appendChild(item);
+    });
+    updateRFUI();
+}
+
+function updateRFUI() {
+    const btn = document.getElementById('btnRF');
+    if (!btn) return;
+    btn.innerHTML = `<i data-lucide="landmark" style="width: 16px; margin-right: 4px;"></i> ${filters.rf.length ? `(${filters.rf.length}) RF` : 'RF'}`;
+    btn.classList.toggle('btn-primary', filters.rf.length > 0);
     if (window.lucide) lucide.createIcons();
 }
 

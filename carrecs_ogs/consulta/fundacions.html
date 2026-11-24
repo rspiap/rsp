@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="ca">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Comparativa Òrgans de Govern de Fundacions: Registre Fundacions (F) vs RSP (R)</title>
+  <style>
+    :root {
+      --bg: #f4f6f9;
+      --surface: #ffffff;
+      --border: #d7dee4;
+      --group-sep: #5d6d7e;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --primary: #16a085;
+      --primary-dark: #12876f;
+      --blue: #2980b9;
+      --pair-alt: #edf3fa;
+      --red-bg: #fadbd8;
+      --red-fg: #b03a2e;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .header-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      width: 100%;
+    }
+
+    .title-block h1 {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    .title-block .subtitle {
+      font-size: 12.5px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .multi-select {
+      position: relative;
+      display: inline-block;
+    }
+    .multi-btn {
+      height: 34px;
+      padding: 0 12px;
+      font-weight: 500;
+      min-width: 190px;
+      justify-content: space-between;
+    }
+    .multi-menu {
+      position: absolute;
+      top: 38px;
+      left: 0;
+      z-index: 30;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.14);
+      padding: 6px 0;
+      min-width: 260px;
+      display: none;
+    }
+    .multi-menu.open { display: block; }
+    .multi-menu label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .multi-menu label:hover { background: #f1f5f9; }
+    .multi-menu input[type="checkbox"] {
+      width: 15px;
+      height: 15px;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    input[type="search"],
+    select {
+      height: 34px;
+      padding: 0 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      background: #fff;
+      color: var(--text);
+    }
+
+    input[type="search"] {
+      width: 240px;
+    }
+
+    button,
+    .file-btn {
+      height: 34px;
+      padding: 0 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    button:hover,
+    .file-btn:hover {
+      background: #f1f5f9;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    button.primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    button.primary:hover:not(:disabled) {
+      background: var(--primary-dark);
+      border-color: var(--primary-dark);
+    }
+
+    .status-bar {
+      background: #e8f4f2;
+      border-bottom: 1px solid #cce7e1;
+      padding: 7px 20px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .status-bar.error {
+      background: var(--red-bg);
+      border-color: #f1b0a9;
+      color: var(--red-fg);
+    }
+
+    .progress-wrap {
+      width: 220px;
+      height: 8px;
+      background: rgba(0, 0, 0, 0.08);
+      border-radius: 99px;
+      overflow: hidden;
+      display: none;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--primary);
+      transition: width 0.2s ease;
+    }
+
+    .table-wrap {
+      flex: 1;
+      overflow: auto;
+      padding: 12px 16px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface);
+      font-size: 13px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      background: #1f4e78;
+      color: #fff;
+      text-align: left;
+      padding: 9px 10px;
+      font-weight: 600;
+      white-space: nowrap;
+      border-right: 1px solid rgba(255, 255, 255, 0.14);
+    }
+
+    thead th.center {
+      text-align: center;
+    }
+
+    thead tr.filter-row th {
+      top: 35px;
+      z-index: 2;
+      background: #e9eff5;
+      padding: 5px 6px;
+      border-bottom: 2px solid var(--border);
+      border-right: 1px solid var(--border);
+    }
+
+    thead tr.filter-row input,
+    thead tr.filter-row select {
+      width: 100%;
+      height: 26px;
+      padding: 0 6px;
+      font-size: 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      background: #fff;
+      color: var(--text);
+    }
+
+    tbody td {
+      padding: 6px 10px;
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    tbody tr.pair-odd td {
+      background: #ffffff;
+    }
+
+    tbody tr.pair-even td {
+      background: var(--pair-alt);
+    }
+
+    tbody tr.row-second td,
+    tbody tr.row-first td.merged-cell {
+      border-bottom: 2px solid var(--group-sep);
+    }
+
+    tbody td.merged-cell {
+      vertical-align: middle;
+    }
+
+    td.badge-col {
+      text-align: center;
+      font-weight: 700;
+      width: 48px;
+    }
+
+    td.badge-f {
+      color: var(--primary);
+    }
+
+    td.badge-r {
+      color: var(--blue);
+    }
+
+    td.diff-cell {
+      background: var(--red-bg) !important;
+      color: var(--red-fg) !important;
+      font-weight: 700;
+    }
+
+    td.variant-cell {
+      background: #fef3c7 !important;
+      color: #b45309 !important;
+      font-weight: 700;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 20px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 16px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: var(--surface);
+      border-radius: 10px;
+      max-width: 680px;
+      width: 100%;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 45px rgba(0,0,0,0.22);
+      overflow: hidden;
+    }
+    .modal-header {
+      background: #16a085;
+      color: #fff;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .modal-header h2 { margin: 0; font-size: 16px; }
+    .modal-close {
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-size: 20px;
+      line-height: 1;
+      height: auto;
+      padding: 2px 6px;
+      cursor: pointer;
+    }
+    .modal-close:hover { background: rgba(255,255,255,0.18); }
+    .modal-body {
+      padding: 18px 20px;
+      overflow-y: auto;
+      font-size: 13.5px;
+      line-height: 1.55;
+    }
+    .modal-body h3 { margin: 14px 0 6px; font-size: 14px; color: #1f4e78; }
+    .modal-body h3:first-child { margin-top: 0; }
+    .modal-body ul { margin: 4px 0 10px; padding-left: 20px; }
+    .modal-body code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+    .modal-footer {
+      padding: 10px 18px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      background: #f8fafc;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="header-top">
+      <div class="title-block">
+        <h1>Comparativa Òrgans de Govern de Fundacions: Registre Fundacions (F) vs RSP (R)</h1>
+        <div class="subtitle">Creuament en directe de Guia d'Entitats (<code>i46c-ebpp</code>) i Registre del Sector
+          Públic (<code>auai-ppkn</code>)</div>
+      </div>
+      <button id="btnHelp" title="Guia d'ús de la comparativa">Ajuda</button>
+    </div>
+    <div class="toolbar">
+      <input type="search" id="searchInput" placeholder="Cercar fundació, NIF, càrrec, persona...">
+      <div class="multi-select" id="filterObsWrap">
+        <button type="button" id="btnFilterObs" class="multi-btn">Totes les diferències &#9662;</button>
+        <div class="multi-menu" id="filterObsMenu">
+          <label><input type="checkbox" value="Només a Fundacions"> Només a Fundacions (F)</label>
+          <label><input type="checkbox" value="Només a Dades Obertes"> Només a Registre (R)</label>
+          <label><input type="checkbox" value="Càrrec diferent"> Càrrec diferent</label>
+          <label><input type="checkbox" value="Nom similar"> Nom similar (variant ortogràfica)</label>
+          <label><input type="checkbox" value="Format/nom diferent"> Format/nom diferent</label>
+        </div>
+      </div>
+      <button id="btnClearFilters">Netejar filtres</button>
+      <label class="file-btn" title="Opcional: carrega un fitxer memoria_fundacions.json local">
+        Carregar memòria JSON
+        <input type="file" id="fileInput" accept=".json" hidden>
+      </label>
+      <button id="btnRefresh" class="primary">Actualitzar APIs ara</button>
+      <button id="btnExport" disabled>Desar XLSX...</button>
+    </div>
+  </header>
+
+  <div class="status-bar" id="statusBar">
+    <span id="statusText">Iniciant consulta a les APIs de Dades Obertes...</span>
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="center">F / R</th>
+          <th>Grup</th>
+          <th>NIF / CIF</th>
+          <th>Núm. Reg.</th>
+          <th>Fundació</th>
+          <th>Membres</th>
+          <th>Càrrec</th>
+          <th>Persona / Membre</th>
+          <th>Diferència</th>
+        </tr>
+        <tr class="filter-row">
+          <th>
+            <select data-col="fr" title="Filtrar per F o R (mostra sempre el parell F+R)">
+              <option value="">Tots</option>
+              <option value="f">F</option>
+              <option value="r">R</option>
+            </select>
+          </th>
+          <th><input type="text" data-col="grup" placeholder="Grup..."></th>
+          <th><input type="text" data-col="nif" placeholder="NIF..."></th>
+          <th><input type="text" data-col="reg" placeholder="Reg..."></th>
+          <th><input type="text" data-col="nom" placeholder="Filtrar fundació..."></th>
+          <th><input type="text" data-col="membres" placeholder="Núm..."></th>
+          <th><input type="text" data-col="carrec" placeholder="Filtrar càrrec..."></th>
+          <th><input type="text" data-col="persona" placeholder="Filtrar persona..."></th>
+          <th><input type="text" data-col="obs" placeholder="Filtrar diferència..."></th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr>
+          <td colspan="9" class="empty-state">Carregant dades...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+    <div class="modal-backdrop" id="helpModal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 id="helpTitle">Ajuda — Comparativa Òrgans de Govern</h2>
+          <button class="modal-close" id="btnHelpCloseX" aria-label="Tancar">&times;</button>
+        </div>
+        <div class="modal-body">
+          <h3>Què mostra aquesta pantalla?</h3>
+          <p>Creua els membres dels òrgans de govern de cada fundació del Sector Públic entre dues fonts oficials de Dades Obertes:</p>
+          <ul>
+            <li><strong style="color:#16a085">F (Registre Fundacions):</strong> Guia d'Entitats del Departament de Justícia (<code>i46c-ebpp</code>).</li>
+            <li><strong style="color:#2980b9">R (RSP):</strong> Registre del Sector Públic de la Generalitat (<code>auai-ppkn</code>).</li>
+          </ul>
+          <h3>Com interpretar la taula?</h3>
+          <ul>
+            <li>Cada diferència es mostra en un <strong>parell de 2 files</strong> (<code>F</code> a dalt i <code>R</code> a sota) separades visualment per fons alternat i una línia gruixuda.</li>
+            <li>Els camps idèntics entre <code>F</code> i <code>R</code> apareixen en una <strong>mateixa cel·la compartida</strong>; només es desdoblen i es marquen en <strong style="color:#b03a2e">vermell</strong> les cel·les que no coincideixen.</li>
+          </ul>
+          <h3>Com funcionen els filtres?</h3>
+          <ul>
+            <li><strong>Filtres de capçalera:</strong> cerquen per <em>inici de paraula</em>. Per exemple, <code>presi</code> troba <em>President/a</em> però no <em>Vicepresident</em>, mentre que <code>Jornet</code> troba <em>Josep Jornet</em>.</li>
+            <li><strong>Parells sempre junts:</strong> si qualsevol de les dues files (<code>F</code> o <code>R</code>) coincideix amb el filtre, es mostren totes dues files del mateix grup.</li>
+          </ul>
+          <h3>Carregar JSON i exportar a Excel</h3>
+          <ul>
+            <li><strong>Carregar memòria JSON:</strong> permet obrir directament un fitxer <code>memoria_fundacions.json</code> o <code>comparativa_organs_govern.json</code> sense esperar a consultar les APIs.</li>
+            <li><strong>Desar XLSX...:</strong> exporta les files filtrades actuals a un llibre Excel amb el ressaltat en vermell i els colors d'agrupació.</li>
+          </ul>
+        </div>
+        <div class="modal-footer">
+          <button id="btnHelpClose" class="primary">Entesos</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+    const URL_SECTOR_PUBLIC = "https://analisi.transparenciacatalunya.cat/resource/gr39-ik6u.json";
+    const URL_GUIA_ENTITATS = "https://analisi.transparenciacatalunya.cat/resource/y6fz-g3ff.json";
+    const URL_GUIA_GOVERN = "https://analisi.transparenciacatalunya.cat/resource/i46c-ebpp.json";
+    const URL_SECTOR_PUB_GOV = "https://analisi.transparenciacatalunya.cat/resource/auai-ppkn.json";
+
+    const PAGE_SIZE = 1000;
+    const BATCH_SIZE = 50;
+
+    let allPairs = [];
+    let filteredPairs = [];
+
+    const elStatusBar = document.getElementById("statusBar");
+    const elStatusText = document.getElementById("statusText");
+    const elProgWrap = document.getElementById("progressWrap");
+    const elProgFill = document.getElementById("progressFill");
+    const elTableBody = document.getElementById("tableBody");
+    const elSearch = document.getElementById("searchInput");
+    const elFilterObsWrap = document.getElementById("filterObsWrap");
+    const elBtnFilterObs = document.getElementById("btnFilterObs");
+    const elFilterObsMenu = document.getElementById("filterObsMenu");
+    const obsCheckboxes = [...elFilterObsMenu.querySelectorAll('input[type="checkbox"]')];
+    const elBtnRefresh = document.getElementById("btnRefresh");
+    const elBtnExport = document.getElementById("btnExport");
+    const elBtnClear = document.getElementById("btnClearFilters");
+    const elBtnHelp = document.getElementById("btnHelp");
+    const elHelpModal = document.getElementById("helpModal");
+    const elHelpClose = document.getElementById("btnHelpClose");
+    const elHelpCloseX = document.getElementById("btnHelpCloseX");
+    const elFileInput = document.getElementById("fileInput");
+    const colFilters = [...document.querySelectorAll("thead tr.filter-row [data-col]")];
+
+    function normStr(val) {
+      return val == null ? "" : String(val).trim();
+    }
+
+    function setStatus(msg, pct = null, isError = false) {
+      elStatusText.textContent = msg;
+      elStatusBar.classList.toggle("error", isError);
+      if (pct !== null) {
+        elProgWrap.style.display = "block";
+        elProgFill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+      } else {
+        elProgWrap.style.display = "none";
+      }
+    }
+
+    async function fetchPaginated(baseUrl, params) {
+      const results = [];
+      let offset = 0;
+      while (true) {
+        const qs = new URLSearchParams({ ...params, $limit: PAGE_SIZE, $offset: offset });
+        const resp = await fetch(`${baseUrl}?${qs.toString()}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status} en consultar ${baseUrl}`);
+        const batch = await resp.json();
+        results.push(...batch);
+        if (batch.length < PAGE_SIZE) break;
+        offset += PAGE_SIZE;
+      }
+      return results;
+    }
+
+    async function fetchGuiaByCifs(cifs) {
+      const byCif = new Map();
+      const unique = [...new Set(cifs.map(c => c.toUpperCase()).filter(c => c && c !== "NO CONSTA"))].sort();
+      for (let i = 0; i < unique.length; i += BATCH_SIZE) {
+        const chunk = unique.slice(i, i + BATCH_SIZE);
+        const quoted = chunk.map(c => `'${c.replace(/'/g, "''")}'`).join(",");
+        const rows = await fetchPaginated(URL_GUIA_ENTITATS, { $where: `upper(cif) in (${quoted})` });
+        for (const row of rows) {
+          const ck = normStr(row.cif).toUpperCase();
+          if (ck && (!byCif.has(ck) || normStr(row.tipus_entitat) === "Fundació")) {
+            byCif.set(ck, row);
+          }
+        }
+      }
+      return byCif;
+    }
+
+    async function fetchGuiaByNums(nums) {
+      const byNum = new Map();
+      const unique = [...new Set(nums.filter(Boolean))].sort();
+      for (let i = 0; i < unique.length; i += BATCH_SIZE) {
+        const chunk = unique.slice(i, i + BATCH_SIZE);
+        const quoted = chunk.map(n => `'${n.replace(/'/g, "''")}'`).join(",");
+        const rows = await fetchPaginated(URL_GUIA_ENTITATS, { $where: `tipus_entitat='Fundació' AND num_inscripcio in (${quoted})` });
+        for (const row of rows) {
+          const nk = normStr(row.num_inscripcio);
+          if (nk) byNum.set(nk, row);
+        }
+      }
+      return byNum;
+    }
+
+    async function fetchGovernByIds(ids) {
+      const byId = new Map();
+      const unique = [...new Set(ids.filter(Boolean))].sort();
+      for (let i = 0; i < unique.length; i += BATCH_SIZE) {
+        const chunk = unique.slice(i, i + BATCH_SIZE);
+        const quoted = chunk.map(id => `'${id}'`).join(",");
+        const rows = await fetchPaginated(URL_GUIA_GOVERN, {
+          $where: `id_entitat in (${quoted})`,
+          $order: "id_entitat,ordre_carrec,persona"
+        });
+        for (const row of rows) {
+          const eid = normStr(row.id_entitat);
+          if (!eid) continue;
+          if (!byId.has(eid)) byId.set(eid, []);
+          byId.get(eid).push({
+            ordre_carrec: normStr(row.ordre_carrec),
+            carrec: normStr(row.carrec),
+            persona: normStr(row.persona)
+          });
+        }
+      }
+      return byId;
+    }
+
+    async function fetchSectorPubGovernByRegs(regs) {
+      const byReg = new Map();
+      const unique = [...new Set(regs.filter(Boolean))].sort();
+      for (let i = 0; i < unique.length; i += BATCH_SIZE) {
+        const chunk = unique.slice(i, i + BATCH_SIZE);
+        const quoted = chunk.map(r => `'${r.replace(/'/g, "''")}'`).join(",");
+        const rows = await fetchPaginated(URL_SECTOR_PUB_GOV, { $where: `n_mero_de_registre in (${quoted})` });
+        for (const row of rows) {
+          const reg = normStr(row.n_mero_de_registre);
+          if (!reg) continue;
+          if (!byReg.has(reg)) byReg.set(reg, []);
+          const nom = normStr(row.nom);
+          const cog = normStr(row.cognoms);
+          const denom = normStr(row.denominaci_social);
+          const qualif = normStr(row.qualificador_de_persona_f_sica_jur_dica_o_vacant);
+          const membre = normStr(row.membre);
+          let persona = "";
+          if (nom || cog) persona = `${nom} ${cog}`.trim();
+          else if (denom) persona = denom;
+          else if (/Vacant/i.test(qualif)) persona = "[Vacant]";
+          else persona = membre;
+
+          byReg.get(reg).push({
+            carrec: normStr(row.c_rrec_en_l_rgan_de_govern_superior),
+            persona
+          });
+        }
+      }
+      return byReg;
+    }
+
+    function normalizeCompareText(text) {
+      return normStr(text).replace(/\s+/g, " ").toLowerCase();
+    }
+
+    function normalizeCompareCarrec(carrec) {
+      let s = normalizeCompareText(carrec);
+      if (!s) return "";
+      s = s.replace(/\/a\b/g, "");
+      s = s.replace(/\bpresidenta\b/g, "president");
+      s = s.replace(/\bvicepresidenta\b/g, "vicepresident");
+      s = s.replace(/\bsecret[aà]ria\b/g, "secretari");
+      s = s.replace(/\btresorera\b/g, "tresorer");
+      s = s.replace(/\bdirectora\b/g, "director");
+      return s.trim();
+    }
+
+    const NAME_EQUIV = {
+      "ma": "maria", "m": "maria",
+      "josep": "jose", "pep": "jose",
+      "joan": "juan", "francesc": "francisco", "paco": "francisco",
+      "carles": "carlos", "pere": "pedro", "jaume": "jaime",
+      "jordi": "jorge", "xavier": "javier", "antoni": "antonio",
+      "enric": "enrique", "lluis": "luis", "miquel": "miguel",
+      "marc": "marcos", "pau": "pablo", "ricard": "ricardo",
+      "eduard": "eduardo", "albert": "alberto", "ferran": "fernando",
+      "joaquim": "joaquin", "marti": "martin", "guillem": "guillermo",
+      "mateu": "mateo", "esteve": "esteban", "ignasi": "ignacio",
+      "gerard": "gerardo", "anna": "ana", "elisabet": "isabel",
+      "dolors": "dolores", "merce": "mercedes", "carme": "carmen",
+      "angels": "angeles", "angel": "angeles", "montse": "montserrat",
+      "helena": "elena", "esther": "ester"
+    };
+
+    const PARTICLES = new Set(["i", "y", "de", "del", "dels", "la", "les", "el", "els", "d", "s", "l"]);
+
+    function stripDiacritics(s) {
+      return normStr(s)
+        .replace(/·/g, "")
+        .replace(/ª/g, "a")
+        .replace(/º/g, "o")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+    }
+
+    function phoneticCatEs(token) {
+      let t = stripDiacritics(token);
+      if (NAME_EQUIV[t]) t = NAME_EQUIV[t];
+      t = t
+        .replace(/h/g, "")
+        .replace(/ny/g, "n")
+        .replace(/v/g, "b")
+        .replace(/qu([ei])/g, "k$1")
+        .replace(/q/g, "k")
+        .replace(/c([aou])/g, "k$1")
+        .replace(/g([ei])/g, "j$1")
+        .replace(/ç/g, "s")
+        .replace(/z/g, "s")
+        .replace(/c([ei])/g, "s$1")
+        .replace(/tx/g, "ch")
+        .replace(/ix/g, "x")
+        .replace(/(.)\1+/g, "$1");
+      return t;
+    }
+
+    function tokenizeName(name) {
+      return stripDiacritics(name)
+        .replace(/[.,;:/\\\-_'’"()]/g, " ")
+        .split(/\s+/)
+        .filter(t => t && !PARTICLES.has(t));
+    }
+
+    function levenshteinSim(a, b) {
+      if (a === b) return 1;
+      if (!a || !b) return 0;
+      const m = a.length, n = b.length;
+      const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+      for (let i = 0; i <= m; i++) dp[i][0] = i;
+      for (let j = 0; j <= n; j++) dp[0][j] = j;
+      for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+          const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+          dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+        }
+      }
+      return 1 - dp[m][n] / Math.max(m, n);
+    }
+
+    function nameVariantScore(nameA, nameB) {
+      const tokA = tokenizeName(nameA);
+      const tokB = tokenizeName(nameB);
+      if (tokA.length === 0 || tokB.length === 0) return 0;
+      if (tokA[0] === "[vacant]" || tokB[0] === "[vacant]") return 0;
+
+      const phA = tokA.map(phoneticCatEs);
+      const phB = tokB.map(phoneticCatEs);
+
+      if (phA.length === 1 && phB.length === 1) {
+        const sim = levenshteinSim(phA[0], phB[0]);
+        return sim >= 0.85 ? sim : 0;
+      }
+      if (phA.length === 1 || phB.length === 1) return 0;
+
+      const usedB = new Array(phB.length).fill(false);
+      let matchedWeight = 0;
+      let surnameMatched = false;
+
+      for (let i = 0; i < phA.length; i++) {
+        let bestJ = -1;
+        let bestS = 0;
+        for (let j = 0; j < phB.length; j++) {
+          if (usedB[j]) continue;
+          let s = 0;
+          if (phA[i] === phB[j]) {
+            s = 1.0;
+          } else if ((tokA[i].length === 1 && tokB[j].startsWith(tokA[i])) ||
+                     (tokB[j].length === 1 && tokA[i].startsWith(tokB[j])) ||
+                     (phA[i].length === 1 && phB[j].startsWith(phA[i])) ||
+                     (phB[j].length === 1 && phA[i].startsWith(phB[j]))) {
+            s = 0.82;
+          } else {
+            const lsim = levenshteinSim(phA[i], phB[j]);
+            if (lsim >= 0.78) s = lsim;
+          }
+          if (s > bestS) { bestS = s; bestJ = j; }
+        }
+        if (bestJ >= 0 && bestS >= 0.78) {
+          usedB[bestJ] = true;
+          matchedWeight += bestS;
+          if (i > 0 && bestJ > 0) surnameMatched = true;
+        }
+      }
+
+      if (!surnameMatched) return 0;
+      const minLen = Math.min(phA.length, phB.length);
+      const maxLen = Math.max(phA.length, phB.length);
+      if (matchedWeight < 1.7) return 0;
+      const score = (matchedWeight / maxLen) * 0.5 + (matchedWeight / minLen) * 0.5;
+      return score >= 0.78 ? score : 0;
+    }
+
+    function buildComparisonPairs(memoriaObj) {
+      const pairs = [];
+      let grupNum = 0;
+      const keys = Object.keys(memoriaObj).sort();
+
+      for (const key of keys) {
+        const ent = memoriaObj[key];
+        const nif = normStr(ent.nif);
+        const nom = normStr(ent.nom);
+        const reg = normStr(ent.sector_public && ent.sector_public.n_mero_de_registre);
+
+        const listFund = Array.isArray(ent.organs_govern) ? ent.organs_govern : [];
+        const listDO = Array.isArray(ent.organs_govern_dades_obertes) ? ent.organs_govern_dades_obertes : [];
+        if (listFund.length === 0 && listDO.length === 0) continue;
+
+        const cntFund = listFund.length;
+        const cntDO = listDO.length;
+        const diffCount = cntFund !== cntDO;
+        const usedFund = new Array(cntFund).fill(false);
+        const usedDO = new Array(cntDO).fill(false);
+
+        for (let i = 0; i < cntFund; i++) {
+          const mf = listFund[i];
+          const cfRaw = normStr(mf.carrec);
+          const pfRaw = normStr(mf.persona);
+          const pfNorm = normalizeCompareText(pfRaw);
+
+          let matchIdx = -1;
+          for (let j = 0; j < cntDO; j++) {
+            if (usedDO[j]) continue;
+            const pdNorm = normalizeCompareText(listDO[j].persona);
+            if (pfNorm && pdNorm && pfNorm === pdNorm) {
+              matchIdx = j;
+              break;
+            }
+          }
+
+          if (matchIdx >= 0) {
+            usedFund[i] = true;
+            usedDO[matchIdx] = true;
+            const md = listDO[matchIdx];
+            const cdRaw = normStr(md.carrec);
+            const pdRaw = normStr(md.persona);
+            const diffCarrec = normalizeCompareCarrec(cfRaw) !== normalizeCompareCarrec(cdRaw);
+            const diffPersona = pfRaw !== pdRaw;
+
+            if (diffCarrec || diffPersona) {
+              grupNum++;
+              const obs = [];
+              if (diffCarrec) obs.push("Càrrec diferent");
+              if (diffPersona) obs.push("Format/nom diferent");
+              if (diffCount) obs.push("Total membres diferent");
+              pairs.push({
+                Grup: grupNum, NIF: nif, Reg: reg, Nom: nom,
+                FundTotal: cntFund, FundCarrec: cfRaw, FundPersona: pfRaw,
+                DOTotal: cntDO, DOCarrec: cdRaw, DOPersona: pdRaw,
+                DiffTotal: diffCount, DiffCarrec: diffCarrec, DiffPersona: diffPersona, IsVariant: diffPersona,
+                Obs: obs.join(" | ")
+              });
+            }
+          }
+        }
+
+        const candidates = [];
+        for (let i = 0; i < cntFund; i++) {
+          if (usedFund[i]) continue;
+          for (let j = 0; j < cntDO; j++) {
+            if (usedDO[j]) continue;
+            const score = nameVariantScore(listFund[i].persona, listDO[j].persona);
+            if (score > 0) candidates.push({ i, j, score });
+          }
+        }
+        candidates.sort((a, b) => b.score - a.score);
+        for (const cand of candidates) {
+          if (usedFund[cand.i] || usedDO[cand.j]) continue;
+          usedFund[cand.i] = true;
+          usedDO[cand.j] = true;
+          const mf = listFund[cand.i];
+          const md = listDO[cand.j];
+          const cfRaw = normStr(mf.carrec);
+          const pfRaw = normStr(mf.persona);
+          const cdRaw = normStr(md.carrec);
+          const pdRaw = normStr(md.persona);
+          const diffCarrec = normalizeCompareCarrec(cfRaw) !== normalizeCompareCarrec(cdRaw);
+          const obs = ["Nom similar (variant ortogràfica)"];
+          if (diffCarrec) obs.push("Càrrec diferent");
+          if (diffCount) obs.push("Total membres diferent");
+          grupNum++;
+          pairs.push({
+            Grup: grupNum, NIF: nif, Reg: reg, Nom: nom,
+            FundTotal: cntFund, FundCarrec: cfRaw, FundPersona: pfRaw,
+            DOTotal: cntDO, DOCarrec: cdRaw, DOPersona: pdRaw,
+            DiffTotal: diffCount, DiffCarrec: diffCarrec, DiffPersona: true, IsVariant: true,
+            Obs: obs.join(" | ")
+          });
+        }
+
+        for (let i = 0; i < cntFund; i++) {
+          if (usedFund[i]) continue;
+          const mf = listFund[i];
+          grupNum++;
+          pairs.push({
+            Grup: grupNum, NIF: nif, Reg: reg, Nom: nom,
+            FundTotal: cntFund, FundCarrec: normStr(mf.carrec), FundPersona: normStr(mf.persona),
+            DOTotal: cntDO, DOCarrec: "(No consta)", DOPersona: "(No consta)",
+            DiffTotal: diffCount, DiffCarrec: true, DiffPersona: true, IsVariant: false,
+            Obs: "Només a Fundacions (Justícia)"
+          });
+        }
+
+        for (let j = 0; j < cntDO; j++) {
+          if (usedDO[j]) continue;
+          const md = listDO[j];
+          grupNum++;
+          pairs.push({
+            Grup: grupNum, NIF: nif, Reg: reg, Nom: nom,
+            FundTotal: cntFund, FundCarrec: "(No consta)", FundPersona: "(No consta)",
+            DOTotal: cntDO, DOCarrec: normStr(md.carrec), DOPersona: normStr(md.persona),
+            DiffTotal: diffCount, DiffCarrec: true, DiffPersona: true, IsVariant: false,
+            Obs: "Només a Dades Obertes (auai-ppkn)"
+          });
+        }
+      }
+      return pairs;
+    }
+
+    function escapeHtml(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function escapeRegex(s) {
+      return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    function updateObsButtonLabel() {
+      const checked = obsCheckboxes.filter(cb => cb.checked);
+      if (checked.length === 0) {
+        elBtnFilterObs.innerHTML = "Totes les diferències &#9662;";
+      } else if (checked.length === 1) {
+        elBtnFilterObs.textContent = `${checked[0].parentElement.textContent.trim()} \u25BE`;
+      } else {
+        elBtnFilterObs.textContent = `Diferències (${checked.length}) \u25BE`;
+      }
+    }
+
+    function applyFilterAndRender() {
+      const q = elSearch.value.trim().toLowerCase();
+      const selectedObs = obsCheckboxes.filter(cb => cb.checked).map(cb => cb.value);
+      const activeColFilters = colFilters
+        .map(el => {
+          const val = el.value.trim().toLowerCase();
+          const isSelect = el.tagName === "SELECT";
+          return {
+            col: el.dataset.col,
+            val,
+            isSelect,
+            rx: (!isSelect && val) ? new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegex(val)}`, "iu") : null
+          };
+        })
+        .filter(f => f.val !== "");
+
+      filteredPairs = allPairs.filter(p => {
+        if (selectedObs.length > 0 && !selectedObs.some(v => p.Obs.includes(v))) return false;
+        if (q) {
+          const hay = `${p.NIF} ${p.Reg} ${p.Nom} ${p.FundCarrec} ${p.FundPersona} ${p.DOCarrec} ${p.DOPersona} ${p.Obs}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        if (activeColFilters.length > 0) {
+          const rowF = {
+            fr: "f", grup: String(p.Grup), nif: p.NIF.toLowerCase(), reg: p.Reg.toLowerCase(),
+            nom: p.Nom.toLowerCase(), membres: String(p.FundTotal), carrec: p.FundCarrec.toLowerCase(),
+            persona: p.FundPersona.toLowerCase(), obs: p.Obs.toLowerCase()
+          };
+          const rowR = {
+            fr: "r", grup: String(p.Grup), nif: p.NIF.toLowerCase(), reg: p.Reg.toLowerCase(),
+            nom: p.Nom.toLowerCase(), membres: String(p.DOTotal), carrec: p.DOCarrec.toLowerCase(),
+            persona: p.DOPersona.toLowerCase(), obs: p.Obs.toLowerCase()
+          };
+          // Sempre mantenim juntes F i R del mateix grup: n'hi ha prou que coincideixi una de les dues linies
+          for (const f of activeColFilters) {
+            const matchF = f.isSelect ? rowF[f.col] === f.val : f.rx.test(rowF[f.col]);
+            const matchR = f.isSelect ? rowR[f.col] === f.val : f.rx.test(rowR[f.col]);
+            if (!matchF && !matchR) return false;
+          }
+        }
+        return true;
+      });
+
+      elBtnExport.disabled = filteredPairs.length === 0;
+
+      if (filteredPairs.length === 0) {
+        elTableBody.innerHTML = `<tr><td colspan="9" class="empty-state">No s'han trobat diferències amb els filtres actuals.</td></tr>`;
+        setStatus(`Diferències mostrades: 0 parells (de ${allPairs.length} totals).`);
+        return;
+      }
+
+      const chunks = [];
+      for (let idx = 0; idx < filteredPairs.length; idx++) {
+        const p = filteredPairs[idx];
+        const pairClass = (idx % 2 === 0) ? "pair-odd" : "pair-even";
+        const clsTotal = p.DiffTotal ? "diff-cell" : "";
+        const clsCarrec = p.DiffCarrec ? "diff-cell" : "";
+        const clsPersona = p.DiffPersona ? (p.IsVariant ? "variant-cell" : "diff-cell") : "";
+
+        const sharedTotal = !p.DiffTotal;
+        const sharedCarrec = !p.DiffCarrec;
+        const sharedPersona = !p.DiffPersona;
+
+        chunks.push(
+          `<tr class="${pairClass} row-first">` +
+          `<td class="badge-col badge-f">F</td>` +
+          `<td rowspan="2" class="merged-cell">${p.Grup}</td>` +
+          `<td rowspan="2" class="merged-cell">${escapeHtml(p.NIF)}</td>` +
+          `<td rowspan="2" class="merged-cell">${escapeHtml(p.Reg)}</td>` +
+          `<td rowspan="2" class="merged-cell">${escapeHtml(p.Nom)}</td>` +
+          (sharedTotal ? `<td rowspan="2" class="merged-cell">${p.FundTotal}</td>` : `<td class="${clsTotal}">${p.FundTotal}</td>`) +
+          (sharedCarrec ? `<td rowspan="2" class="merged-cell">${escapeHtml(p.FundCarrec)}</td>` : `<td class="${clsCarrec}">${escapeHtml(p.FundCarrec)}</td>`) +
+          (sharedPersona ? `<td rowspan="2" class="merged-cell">${escapeHtml(p.FundPersona)}</td>` : `<td class="${clsPersona}">${escapeHtml(p.FundPersona)}</td>`) +
+          `<td rowspan="2" class="merged-cell">${escapeHtml(p.Obs)}</td>` +
+          `</tr>` +
+          `<tr class="${pairClass} row-second">` +
+          `<td class="badge-col badge-r">R</td>` +
+          (sharedTotal ? "" : `<td class="${clsTotal}">${p.DOTotal}</td>`) +
+          (sharedCarrec ? "" : `<td class="${clsCarrec}">${escapeHtml(p.DOCarrec)}</td>`) +
+          (sharedPersona ? "" : `<td class="${clsPersona}">${escapeHtml(p.DOPersona)}</td>`) +
+          `</tr>`
+        );
+      }
+      elTableBody.innerHTML = chunks.join("");
+      setStatus(`Diferències detectades: ${filteredPairs.length} parells (${filteredPairs.length * 2} files) — F = Fundacions, R = Registre`);
+    }
+
+    async function loadFromApis() {
+      elBtnRefresh.disabled = true;
+      elBtnExport.disabled = true;
+      try {
+        setStatus("Consultant el Registre del Sector Públic (gr39-ik6u)...", 15);
+        const spRows = await fetchPaginated(URL_SECTOR_PUBLIC, { naturalesa_jur_dica_agrupaci: "Fundació" });
+
+        setStatus(`Trobades ${spRows.length} fundacions. Consultant Guia d'Entitats (y6fz-g3ff)...`, 35);
+        const guiaByCif = await fetchGuiaByCifs(spRows.map(r => normStr(r.nif)));
+        const missingNums = spRows
+          .filter(r => !guiaByCif.has(normStr(r.nif).toUpperCase()) && normStr(r.n_mero_del_registre_de_fundacions))
+          .map(r => normStr(r.n_mero_del_registre_de_fundacions));
+        const guiaByNum = await fetchGuiaByNums(missingNums);
+
+        const matchedGuia = new Map();
+        const idEntitats = [];
+        spRows.forEach((spRow, idx) => {
+          const nif = normStr(spRow.nif).toUpperCase();
+          const nreg = normStr(spRow.n_mero_del_registre_de_fundacions);
+          const gRow = (nif && guiaByCif.get(nif)) || (nreg && guiaByNum.get(nreg)) || null;
+          if (gRow) {
+            matchedGuia.set(idx, gRow);
+            const eid = normStr(gRow.id_entitat);
+            if (eid) idEntitats.push(eid);
+          }
+        });
+
+        setStatus(`Consultant òrgans de govern Fundacions (i46c-ebpp) per a ${idEntitats.length} entitats...`, 60);
+        const governById = await fetchGovernByIds(idEntitats);
+
+        setStatus("Consultant òrgans de govern Registre Dades Obertes (auai-ppkn)...", 82);
+        const governDOByReg = await fetchSectorPubGovernByRegs(spRows.map(r => normStr(r.n_mero_de_registre)));
+
+        const memoria = {};
+        spRows.forEach((spRow, idx) => {
+          const nif = normStr(spRow.nif).toUpperCase();
+          const numSp = normStr(spRow.n_mero_de_registre);
+          const key = nif || `REG_${numSp || idx}`;
+          const gRow = matchedGuia.get(idx);
+          const eid = gRow ? normStr(gRow.id_entitat) : "";
+          const nom = normStr(spRow.denominaci) || (gRow ? normStr(gRow.nom_entitat) : "");
+
+          memoria[key] = {
+            clau: key,
+            nif,
+            nom,
+            sector_public: { n_mero_de_registre: numSp },
+            organs_govern: eid ? (governById.get(eid) || []) : [],
+            organs_govern_dades_obertes: numSp ? (governDOByReg.get(numSp) || []) : []
+          };
+        });
+
+        setStatus("Calculant comparativa...", 95);
+        allPairs = buildComparisonPairs(memoria);
+        applyFilterAndRender();
+      } catch (err) {
+        setStatus(`Error en consultar les APIs: ${err.message}`, null, true);
+      } finally {
+        elBtnRefresh.disabled = false;
+      }
+    }
+
+    // =========================================================================
+    // EXPORTADOR XLSX PUR EN JAVASCRIPT (OpenXML + ZIP sense dependències)
+    // =========================================================================
+    const CRC_TABLE = (() => {
+      const t = new Uint32Array(256);
+      for (let i = 0; i < 256; i++) {
+        let c = i;
+        for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+        t[i] = c >>> 0;
+      }
+      return t;
+    })();
+
+    function crc32(bytes) {
+      let crc = 0xffffffff;
+      for (let i = 0; i < bytes.length; i++) {
+        crc = CRC_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+      }
+      return (crc ^ 0xffffffff) >>> 0;
+    }
+
+    function createZipBlob(entries) {
+      const enc = new TextEncoder();
+      const localParts = [];
+      const centralParts = [];
+      let offset = 0;
+
+      for (const { name, content } of entries) {
+        const nameBytes = enc.encode(name);
+        const dataBytes = enc.encode(content);
+        const crc = crc32(dataBytes);
+
+        const lh = new ArrayBuffer(30);
+        const lv = new DataView(lh);
+        lv.setUint32(0, 0x04034b50, true);
+        lv.setUint16(4, 20, true);
+        lv.setUint16(6, 0x0800, true); // UTF-8
+        lv.setUint16(8, 0, true);      // STORE
+        lv.setUint16(10, 0, true);
+        lv.setUint16(12, 0x5421, true);
+        lv.setUint32(14, crc, true);
+        lv.setUint32(18, dataBytes.length, true);
+        lv.setUint32(22, dataBytes.length, true);
+        lv.setUint16(26, nameBytes.length, true);
+        lv.setUint16(28, 0, true);
+
+        localParts.push(new Uint8Array(lh), nameBytes, dataBytes);
+
+        const ch = new ArrayBuffer(46);
+        const cv = new DataView(ch);
+        cv.setUint32(0, 0x02014b50, true);
+        cv.setUint16(4, 20, true);
+        cv.setUint16(6, 20, true);
+        cv.setUint16(8, 0x0800, true);
+        cv.setUint16(10, 0, true);
+        cv.setUint16(12, 0, true);
+        cv.setUint16(14, 0x5421, true);
+        cv.setUint32(16, crc, true);
+        cv.setUint32(20, dataBytes.length, true);
+        cv.setUint32(24, dataBytes.length, true);
+        cv.setUint16(28, nameBytes.length, true);
+        cv.setUint16(30, 0, true);
+        cv.setUint16(32, 0, true);
+        cv.setUint16(34, 0, true);
+        cv.setUint16(36, 0, true);
+        cv.setUint32(38, 0, true);
+        cv.setUint32(42, offset, true);
+
+        centralParts.push(new Uint8Array(ch), nameBytes);
+        offset += 30 + nameBytes.length + dataBytes.length;
+      }
+
+      const centralSize = centralParts.reduce((s, a) => s + a.length, 0);
+      const eocd = new ArrayBuffer(22);
+      const ev = new DataView(eocd);
+      ev.setUint32(0, 0x06054b50, true);
+      ev.setUint16(4, 0, true);
+      ev.setUint16(6, 0, true);
+      ev.setUint16(8, entries.length, true);
+      ev.setUint16(10, entries.length, true);
+      ev.setUint32(12, centralSize, true);
+      ev.setUint32(16, offset, true);
+      ev.setUint16(20, 0, true);
+
+      return new Blob([...localParts, ...centralParts, new Uint8Array(eocd)], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      });
+    }
+
+    function escXml(s) {
+      return String(s == null ? "" : s)
+        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&apos;");
+    }
+
+    function exportCompareXlsx(pairs) {
+      const cols = [
+        { title: "F / R", width: 8 },
+        { title: "Grup", width: 8 },
+        { title: "NIF / CIF", width: 14 },
+        { title: "Núm. Reg.", width: 12 },
+        { title: "Fundació", width: 42 },
+        { title: "Membres", width: 10 },
+        { title: "Càrrec", width: 28 },
+        { title: "Persona / Membre", width: 38 },
+        { title: "Diferència", width: 28 }
+      ];
+
+      const colsXml = cols.map((c, i) => `<col min="${i + 1}" max="${i + 1}" width="${c.width}" customWidth="1"/>`).join("");
+      const rowsXml = [];
+
+      rowsXml.push(
+        `<row r="1" ht="24" customHeight="1">` +
+        cols.map((c, i) => `<c r="${String.fromCharCode(65 + i)}1" t="inlineStr" s="1"><is><t>${escXml(c.title)}</t></is></c>`).join("") +
+        `</row>`
+      );
+
+      let rowNum = 2;
+      pairs.forEach((p, idx) => {
+        const isAlt = (idx % 2) === 1;
+        const baseStyle = isAlt ? 3 : 2;
+        const fStyle = isAlt ? 6 : 5;
+        const rStyle = isAlt ? 8 : 7;
+
+        const twoRows = [
+          { badgeStyle: fStyle, values: ["F", p.Grup, p.NIF, p.Reg, p.Nom, p.FundTotal, p.FundCarrec, p.FundPersona, p.Obs] },
+          { badgeStyle: rStyle, values: ["R", p.Grup, p.NIF, p.Reg, p.Nom, p.DOTotal, p.DOCarrec, p.DOPersona, p.Obs] }
+        ];
+
+        for (const rd of twoRows) {
+          const cells = rd.values.map((val, c) => {
+            let style = baseStyle;
+            if (c === 0) style = rd.badgeStyle;
+            else if (c === 5 && p.DiffTotal) style = 4;
+            else if (c === 6 && p.DiffCarrec) style = 4;
+            else if (c === 7 && p.DiffPersona) style = 4;
+            return `<c r="${String.fromCharCode(65 + c)}${rowNum}" t="inlineStr" s="${style}"><is><t xml:space="preserve">${escXml(val)}</t></is></c>`;
+          }).join("");
+          rowsXml.push(`<row r="${rowNum}">${cells}</row>`);
+          rowNum++;
+        }
+      });
+
+      const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+  <cols>${colsXml}</cols>
+  <sheetData>${rowsXml.join("")}</sheetData>
+</worksheet>`;
+
+      const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="5">
+    <font><sz val="11"/><name val="Calibri"/></font>
+    <font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
+    <font><b/><sz val="11"/><color rgb="FFB03A2E"/><name val="Calibri"/></font>
+    <font><b/><sz val="11"/><color rgb="FF16A085"/><name val="Calibri"/></font>
+    <font><b/><sz val="11"/><color rgb="FF2980B9"/><name val="Calibri"/></font>
+  </fonts>
+  <fills count="5">
+    <fill><patternFill patternType="none"/></fill>
+    <fill><patternFill patternType="gray125"/></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FF1F4E78"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFEDF3FA"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFFADBD8"/></patternFill></fill>
+  </fills>
+  <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="9">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+    <xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="top" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="3" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="left" vertical="top" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="2" fillId="4" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="left" vertical="top" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="top"/></xf>
+    <xf numFmtId="0" fontId="3" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top"/></xf>
+    <xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="top"/></xf>
+    <xf numFmtId="0" fontId="4" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top"/></xf>
+  </cellXfs>
+</styleSheet>`;
+
+      const blob = createZipBlob([
+        {
+          name: "[Content_Types].xml",
+          content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>`
+        },
+        {
+          name: "_rels/.rels",
+          content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`
+        },
+        {
+          name: "xl/workbook.xml",
+          content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Comparativa Òrgans" sheetId="1" r:id="rId1"/></sheets></workbook>`
+        },
+        {
+          name: "xl/_rels/workbook.xml.rels",
+          content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`
+        },
+        { name: "xl/styles.xml", content: stylesXml },
+        { name: "xl/worksheets/sheet1.xml", content: sheetXml }
+      ]);
+
+      const stamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `comparativa_organs_govern_${stamp}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    elSearch.addEventListener("input", applyFilterAndRender);
+    elBtnFilterObs.addEventListener("click", (e) => {
+      e.stopPropagation();
+      elFilterObsMenu.classList.toggle("open");
+    });
+    obsCheckboxes.forEach(cb => {
+      cb.addEventListener("change", () => {
+        updateObsButtonLabel();
+        applyFilterAndRender();
+      });
+    });
+    document.addEventListener("click", (e) => {
+      if (!elFilterObsWrap.contains(e.target)) elFilterObsMenu.classList.remove("open");
+    });
+    colFilters.forEach(el => {
+      el.addEventListener(el.tagName === "SELECT" ? "change" : "input", applyFilterAndRender);
+    });
+    elBtnClear.addEventListener("click", () => {
+      elSearch.value = "";
+      obsCheckboxes.forEach(cb => { cb.checked = false; });
+      updateObsButtonLabel();
+      colFilters.forEach(el => { el.value = ""; });
+      applyFilterAndRender();
+    });
+    elBtnRefresh.addEventListener("click", loadFromApis);
+    elBtnExport.addEventListener("click", () => exportCompareXlsx(filteredPairs));
+
+    function closeHelp() { elHelpModal.classList.remove("open"); }
+    elBtnHelp.addEventListener("click", () => elHelpModal.classList.add("open"));
+    elHelpClose.addEventListener("click", closeHelp);
+    elHelpCloseX.addEventListener("click", closeHelp);
+    elHelpModal.addEventListener("click", (e) => { if (e.target === elHelpModal) closeHelp(); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeHelp(); });
+
+    elFileInput.addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const mem = JSON.parse(text);
+        allPairs = Array.isArray(mem.parells) ? mem.parells : buildComparisonPairs(mem);
+        applyFilterAndRender();
+      } catch (err) {
+        setStatus(`Error en llegir el fitxer JSON: ${err.message}`, null, true);
+      } finally {
+        elFileInput.value = "";
+      }
+    });
+
+    loadFromApis();
+  </script>
+</body>
+
+</html>

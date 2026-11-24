@@ -20,10 +20,10 @@ export function baseNormPersona(raw) {
     if (!raw) return "";
     let s = raw.toString().toLowerCase()
         .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    
+
     // Eliminem el " i " en la comparació
     s = s.replace(/\bi\b/g, " ");
-    
+
     // Separem per qualsevol caràcter no alfanumèric, filtrem buits, ordenem i unim
     return s.split(/[^a-z0-9]+/)
         .filter(word => word.length > 0)
@@ -82,15 +82,15 @@ function updateThemeIcons() {
 /**
  * Gestió de Popovers de Filtre
  */
-window.toggleFilterPopover = function(id) {
+window.toggleFilterPopover = function (id) {
     const popover = document.getElementById('popover' + id);
     if (!popover) return;
-    
+
     const isShowing = popover.classList.contains('show');
-    
+
     // Tanquem tots els altres popovers primer
     document.querySelectorAll('.filter-popover').forEach(p => p.classList.remove('show'));
-    
+
     if (!isShowing) {
         popover.classList.add('show');
         const input = popover.querySelector('input');
@@ -117,13 +117,13 @@ document.addEventListener('keydown', (e) => {
 export function parseDate(dStr) {
     if (!dStr) return null;
     const cleanStr = dStr.trim();
-    
+
     // Cas 1: ISO YYYY-MM-DD (molt comú en APIs)
     const isoMatch = cleanStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (isoMatch) {
         return new Date(parseInt(isoMatch[1]), parseInt(isoMatch[2]) - 1, parseInt(isoMatch[3]));
     }
-    
+
     // Cas 2: Europeu DD/MM/YYYY
     if (cleanStr.includes('/')) {
         const p = cleanStr.split('/');
@@ -131,7 +131,7 @@ export function parseDate(dStr) {
             return new Date(parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0]));
         }
     }
-    
+
     // Cas 3: Altres formats reconeguts per JS
     const d = new Date(cleanStr);
     return isNaN(d.getTime()) ? null : d;

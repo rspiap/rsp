@@ -33,6 +33,28 @@ export const API = {
     },
 
     /**
+     * Descarrega dades d'Open Data Catalunya amb paràmetres de consulta ($where, $order, etc.)
+     */
+    async fetchOpenDataWhere(resourceId, params = {}, pageSize = 1000) {
+        const allData = [];
+        let offset = 0;
+        while (true) {
+            const qs = new URLSearchParams({ ...params, $limit: pageSize, $offset: offset });
+            const url = `${CONFIG.OPEN_DATA.BASE_URL}/resource/${resourceId}.json?${qs.toString()}`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Open Data error (${resourceId}): ${response.statusText}`);
+
+            const chunk = await response.json();
+            if (!chunk || chunk.length === 0) break;
+
+            allData.push(...chunk);
+            if (chunk.length < pageSize) break;
+            offset += pageSize;
+        }
+        return allData;
+    },
+
+    /**
      * Obté les metadades d'un recurs d'Open Data per comprovar actualitzacions
      */
     async fetchMetadata(resourceId) {

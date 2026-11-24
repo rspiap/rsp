@@ -7,6 +7,7 @@ import { db } from './db.js';
 import { API } from './api.js';
 import { CloudService } from './cloud.js';
 import { PendingService } from './pending-service.js';
+import { FundacionsService } from './fundacions-service.js';
 import { baseNorm, baseNormPersona, getSmartKey, parseDate } from './utils.js';
 
 export class SyncEngine {
@@ -139,6 +140,14 @@ export class SyncEngine {
                 }
             });
 
+            // 4b. Open Data (Registre de Fundacions per comprovar noms de càrrecs)
+            let fundacionsLookup = new Map();
+            try {
+                fundacionsLookup = await FundacionsService.fetchFundacionsGovernLookup(participacioRaw, onProgress);
+            } catch (errFund) {
+                console.warn("[SyncEngine] No s'ha pogut consultar el Registre de Fundacions:", errFund);
+            }
+
             // 5. Open Data (Board of Directors dataset for expiration dates)
             if (onProgress) onProgress({ step: 'Obtenint dates de vigència dels Consells...', progress: 60 });
             await new Promise(r => setTimeout(r, 400));
@@ -208,7 +217,7 @@ export class SyncEngine {
             await PendingService.loadPendingData();
             await new Promise(r => setTimeout(r, 400));
             
-            const finalRecords = this.processRecords(persones, sexeLookup, sacLookup, participacioLookup, consellLookup, consellWithMembers, sexeEntities, sexeEntityLookup, onProgress);
+            const finalRecords = this.processRecords(persones, sexeLookup, sacLookup, participacioLookup, consellLookup, consellWithMembers, sexeEntities, sexeEntityLookup, fundacionsLookup, onProgress);
 
             // 8. Persistència
             if (onProgress) onProgress({ step: 'Desant a la base de dades local...', progress: 95 });
@@ -246,7 +255,7 @@ export class SyncEngine {
         return data;
     }
 
-    processRecords(persones, sexeLookup, sacLookup, participacioLookup, consellLookup, consellWithMembers, sexeEntities = new Map(), sexeEntityLookup = new Map(), onProgress) {
+    processRecords(persones, sexeLookup, sacLookup, participacioLookup, consellLookup, consellWithMembers, sexeEntities = new Map(), sexeEntityLookup = new Map(), fundacionsLookup = new Map(), onProgress) {
         const finalRecords = [];
         const total = persones.length;
         const memberPersonCounts = new Map();
@@ -432,6 +441,15 @@ export class SyncEngine {
                 record.status = "No vinculat";
             }
 
+            const isFundacio = (record.part_natureza || "").toLowerCase().includes("fundaci") || fundacionsLookup.has(nReg) || fundacionsLookup.has(nEns);
+            if (isFundacio) {
+                const fundEntry = fundacionsLookup.get(nReg) || fundacionsLookup.get(nEns);
+                record.fundacio_check = FundacionsService.matchPersonInFundacio(record, fundEntry);
+                if (record.sac_nom_responsable) {
+                    record.sac_fundacio_check = FundacionsService.matchNameInFundacio(record.sac_nom_responsable, fundEntry);
+                }
+            }
+
             finalRecords.push(record);
             if (i % 10000 === 0 && onProgress) {
                 onProgress({ step: `Processant registres... (${i} / ${total})`, progress: 75 + (i/total * 20) });
@@ -496,6 +514,12 @@ export class SyncEngine {
                                 syntheticRecord.part_dept_adscripcio = partExtra.deptAdscripcio;
                                 syntheticRecord.part_natureza = partExtra.natureza;
                                 syntheticRecord.part_qualificador = partExtra.qualificadorParticipacio;
+                            }
+
+                            const isFundacio = (syntheticRecord.part_natureza || "").toLowerCase().includes("fundaci") || fundacionsLookup.has(entityObj.cleanReg) || fundacionsLookup.has(entityObj.ensNorm);
+                            if (isFundacio) {
+                                const fundEntry = fundacionsLookup.get(entityObj.cleanReg) || fundacionsLookup.get(entityObj.ensNorm);
+                                syntheticRecord.fundacio_check = FundacionsService.matchPersonInFundacio(syntheticRecord, fundEntry);
                             }
 
                             const vDataFinalObj = consellLookup.get(entityObj.cleanReg) || consellLookup.get(entityObj.ensNorm);

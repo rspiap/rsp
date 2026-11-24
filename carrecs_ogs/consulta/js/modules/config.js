@@ -9,6 +9,8 @@ export const CONFIG = {
         EXTRA_RESOURCE_ID: 'sexe-cpsh', // Registre del sector públic (enriquiment)
         PARTICIPACIO_RESOURCE_ID: 'gr39-ik6u', // Participació de la Generalitat (tooltips)
         CONSELL_ADMON_RESOURCE_ID: 'nmgt-rq9t',
+        GUIA_ENTITATS_RESOURCE_ID: 'y6fz-g3ff', // Guia d'entitats (Registre de Fundacions)
+        GUIA_GOVERN_RESOURCE_ID: 'i46c-ebpp',   // Òrgans de govern (Registre de Fundacions)
         BASE_URL: 'https://analisi.transparenciacatalunya.cat'
     },
 

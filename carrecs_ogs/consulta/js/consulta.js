@@ -7,14 +7,15 @@ import { db } from './modules/db.js';
 import { syncEngine } from './modules/sync-engine.js';
 import { BoardService } from './modules/board-of-directors.js';
 import { PendingService } from './modules/pending-service.js';
+import { renderFundacioBadgeHTML } from './modules/fundacions-service.js';
 import { initTheme, toggleTheme, parseDate, baseNorm, prepareOrganRenderRows, isPersonaJuridica } from './modules/utils.js';
 
 let allRecords = [];
 let filteredRecords = [];
 let rowsShown = 15;
 let renderedGroupsCount = 0;
-let filters = { 
-    search: "", dept: "", status: "", caStatus: [], ogsStatus: [], naturezas: [], qualificadors: [], nomenaments: [], categoritzacions: [], 
+let filters = {
+    search: "", dept: "", status: "", rf: [], caStatus: [], ogsStatus: [], naturezas: [], qualificadors: [], nomenaments: [], categoritzacions: [],
     onlySac: false, onlyGovern: false, onlyVacant: false, onlyPendingValidation: false,
     colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "",
     expireMonths: 1, filterMode: "subtractive"
@@ -78,7 +79,15 @@ async function loadData() {
         await PendingService.loadPendingData();
         allRecords = await db.getAll(CONFIG.DB.STORES.RECORDS);
         if (allRecords.length > 0) {
-            applyFilters(); populateDepartaments(); populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus();
+            const needsFundacioSync = allRecords.some(r =>
+                (r.part_natureza || "").toLowerCase().includes("fundaci") &&
+                (r.fundacio_check === undefined || (r.codi_sac && r.sac_nom_responsable && r.status !== 'Validat' && r.sac_fundacio_check === undefined))
+            );
+            if (needsFundacioSync) {
+                handleSync();
+                return;
+            }
+            applyFilters(); populateDepartaments(); populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); populateRF(); populateRF();
         } else { handleSync(); }
     } catch (e) { console.error(e); }
 }
@@ -95,7 +104,7 @@ async function handleSync() {
             if (stepText) stepText.textContent = info.step;
             if (progressBar) progressBar.style.width = `${info.progress}%`;
         });
-        applyFilters(); populateDepartaments(); populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus();
+        applyFilters(); populateDepartaments(); populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); populateRF();
         setTimeout(() => { if (modal) modal.style.display = 'none'; if (btn) btn.disabled = false; }, 400);
     } catch (e) { if (btn) btn.disabled = false; }
 }
@@ -148,6 +157,22 @@ function applyFilters() {
         }
         const matchesNatureza = filters.naturezas.length === 0 || filters.naturezas.includes(r.part_natureza);
         const matchesQualificador = filters.qualificadors.length === 0 || filters.qualificadors.includes(r.part_qualificador);
+        let matchesRF = true;
+        if (filters.rf && filters.rf.length > 0) {
+            const rfCarrec = filters.rf.filter(f => f === 'consta' || f === 'no_consta');
+            const rfSac = filters.rf.filter(f => f === 'consta_sac' || f === 'no_consta_sac');
+            const matchesRfCarrec = rfCarrec.length === 0 || rfCarrec.some(flag => {
+                if (flag === 'consta') return Boolean(r.fundacio_check && (r.fundacio_check.status === 'match' || r.fundacio_check.status === 'variant'));
+                if (flag === 'no_consta') return Boolean(r.fundacio_check && r.fundacio_check.status === 'no_match');
+                return false;
+            });
+            const matchesRfSac = rfSac.length === 0 || rfSac.some(flag => {
+                if (flag === 'consta_sac') return Boolean(r.sac_fundacio_check && (r.sac_fundacio_check.status === 'match' || r.sac_fundacio_check.status === 'variant'));
+                if (flag === 'no_consta_sac') return Boolean(r.sac_fundacio_check && r.sac_fundacio_check.status === 'no_match');
+                return false;
+            });
+            matchesRF = matchesRfCarrec && matchesRfSac;
+        }
         const nomVal = r.tipus_nomenament && r.tipus_nomenament.trim() !== "" ? r.tipus_nomenament : "No informat";
         const matchesNomenament = filters.nomenaments.length === 0 || filters.nomenaments.includes(nomVal);
         const matchesCategoritzacio = filters.categoritzacions.length === 0 || (r.categoritzacio && filters.categoritzacions.includes(r.categoritzacio));
@@ -161,9 +186,9 @@ function applyFilters() {
             const anyActive = filters.onlySac || filters.onlyGovern || filters.onlyVacant || filters.onlyPendingValidation;
             if (anyActive) {
                 matchesToggles = (filters.onlySac && satisfiesSac) ||
-                                 (filters.onlyGovern && satisfiesGovern) ||
-                                 (filters.onlyVacant && satisfiesVacant) ||
-                                 (filters.onlyPendingValidation && satisfiesPending);
+                    (filters.onlyGovern && satisfiesGovern) ||
+                    (filters.onlyVacant && satisfiesVacant) ||
+                    (filters.onlyPendingValidation && satisfiesPending);
             }
         } else {
             const matchesSac = !filters.onlySac || satisfiesSac;
@@ -173,8 +198,8 @@ function applyFilters() {
             matchesToggles = matchesSac && matchesGovern && matchesVacant && matchesPendingValidation;
         }
 
-        return matchesSearch && matchesColSac && matchesColCarrec && matchesColEntitat && matchesColOGS && matchesColPersona && 
-               matchesDept && matchesStatus && matchesCaStatus && matchesOgsStatus && matchesNatureza && matchesQualificador && matchesNomenament && matchesCategoritzacio && matchesToggles;
+        return matchesSearch && matchesColSac && matchesColCarrec && matchesColEntitat && matchesColOGS && matchesColPersona &&
+            matchesDept && matchesStatus && matchesRF && matchesCaStatus && matchesOgsStatus && matchesNatureza && matchesQualificador && matchesNomenament && matchesCategoritzacio && matchesToggles;
     });
 
     const updateIcon = (id, val) => {
@@ -326,8 +351,8 @@ function renderTable(append = false) {
 
                             // 3. Canvi de Persona/Estat (Level 5)
                             const nMembre = (n.NOMBRE_PF ? `${n.NOMBRE_PF} ${n.APELLIDOS_PF}` : n.NOMBRE_PJ) ||
-                                            (n.NOMBRE_PERSONA_REPRESENTANTE ? `${n.NOMBRE_PERSONA_REPRESENTANTE} ${n.APELLIDOS_PERSONA_REPRESENTANTE}` : '') ||
-                                            n.MIEMBRO_ORGANO_GOBIERNO || "";
+                                (n.NOMBRE_PERSONA_REPRESENTANTE ? `${n.NOMBRE_PERSONA_REPRESENTANTE} ${n.APELLIDOS_PERSONA_REPRESENTANTE}` : '') ||
+                                n.MIEMBRO_ORGANO_GOBIERNO || "";
                             const nData = n.FECHA_INICIO_VIGENCIA ? ` (des de ${n.FECHA_INICIO_VIGENCIA})` : "";
 
                             if (isDeletion) {
@@ -356,7 +381,7 @@ function renderTable(append = false) {
                                     const dFinal = parseDate(firstP.data_final_de_vig_ncia);
                                     if (dFinal) {
                                         const today = new Date();
-                                        today.setHours(0,0,0,0);
+                                        today.setHours(0, 0, 0, 0);
                                         const diffDays = (dFinal - today) / (1000 * 60 * 60 * 24);
                                         const maxDays = (filters.expireMonths || 1) * 30;
                                         if (diffDays < 0) btnClass = "btn-ca-red";
@@ -415,13 +440,13 @@ function renderTable(append = false) {
                         else statusBadge = '<span class="badge badge-no-aplica">No aplica</span>';
 
                         const isJuridica = isPersonaJuridica(p);
-                        
+
                         // Lògica de caducitat individual
                         const dFinalInd = parseDate(p.data_final_individual);
                         let expStyle = "";
                         let expText = "";
                         if (dFinalInd) {
-                            const today = new Date(); today.setHours(0,0,0,0);
+                            const today = new Date(); today.setHours(0, 0, 0, 0);
                             const diffDays = (dFinalInd - today) / (1000 * 60 * 60 * 24);
                             const maxDaysInd = (filters.expireMonths || 1) * 30;
                             if (diffDays < 0) {
@@ -449,15 +474,18 @@ function renderTable(append = false) {
                             }
                         }
 
-                        let sacInfoHTML = (p.codi_sac && p.sac_nom_responsable && p.status !== 'Validat') ? `<div class="sac-ref-box"><div style="font-size: 0.55rem; text-transform: uppercase; color: #ff6b6b; font-weight: 700;">Ref. SAC:</div><div style="font-weight: 600; color: #ff6b6b;">${p.sac_nom_responsable}</div></div>` : '';
+                        const sacFundacioHTML = p.sac_fundacio_check ? renderFundacioBadgeHTML(p.sac_fundacio_check) : '';
+                        let sacInfoHTML = (p.codi_sac && p.sac_nom_responsable && p.status !== 'Validat') ? `<div class="sac-ref-box"><div style="font-size: 0.55rem; text-transform: uppercase; color: #ff6b6b; font-weight: 700;">Ref. SAC:</div><div style="font-weight: 600; color: #ff6b6b;">${p.sac_nom_responsable}</div>${sacFundacioHTML}</div>` : '';
 
                         const nomText = (p.tipus_nomenament && p.tipus_nomenament.trim() && p.tipus_nomenament.trim().toLowerCase() !== 'no informat' && p.tipus_nomenament.trim().toLowerCase() !== 'tipus de nomenament no informat')
                             ? p.tipus_nomenament.trim()
                             : 'Tipus de nomenament no informat';
 
+                        const fundacioHTML = renderFundacioBadgeHTML(p.fundacio_check);
+
                         html += `<td class="td-persona">
                                     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                                        <div>${nomHTML}${expText}${personaPendingHTML}<div class="persona-sub">${nomText}</div>${sacInfoHTML}</div>
+                                        <div>${nomHTML}${fundacioHTML}${expText}${personaPendingHTML}<div class="persona-sub">${nomText}</div>${sacInfoHTML}</div>
                                         <div style="text-align:right;">
                                             <div>${statusBadge}</div>
                                         </div>
@@ -510,20 +538,20 @@ function setupEventListeners() {
         });
         const expEl = document.getElementById('caExpireMonths');
         const curMonths = expEl ? (parseInt(expEl.value) || 1) : 1;
-        filters = { search: "", dept: "", status: "", caStatus: [], ogsStatus: [], naturezas: [], qualificadors: [], nomenaments: [], categoritzacions: [], onlySac: false, onlyGovern: false, onlyVacant: false, onlyPendingValidation: false, colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "", expireMonths: curMonths, filterMode: "subtractive" };
+        filters = { search: "", dept: "", status: "", rf: [], caStatus: [], ogsStatus: [], naturezas: [], qualificadors: [], nomenaments: [], categoritzacions: [], onlySac: false, onlyGovern: false, onlyVacant: false, onlyPendingValidation: false, colSac: "", colCarrec: "", colEntitat: "", colOGS: "", colPersona: "", expireMonths: curMonths, filterMode: "subtractive" };
         const filterCheckbox = document.getElementById('filterModeCheckbox');
         const textSubtractive = document.getElementById('textModeSubtractive');
         const textAdditive = document.getElementById('textModeAdditive');
         if (filterCheckbox) filterCheckbox.checked = false;
         if (textSubtractive) textSubtractive.classList.add('active');
         if (textAdditive) textAdditive.classList.remove('active');
-        populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); updateNaturezasUI(); updateQualificadorsUI(); updateNomenamentsUI(); updateCategoritzacionsUI(); updateCaStatusUI(); updateOgsStatusUI(); applyFilters();
+        populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); populateRF(); updateNaturezasUI(); updateQualificadorsUI(); updateNomenamentsUI(); updateCategoritzacionsUI(); updateCaStatusUI(); updateOgsStatusUI(); updateRFUI(); applyFilters();
     });
 
     const filterCheckbox = document.getElementById('filterModeCheckbox');
     const textSubtractive = document.getElementById('textModeSubtractive');
     const textAdditive = document.getElementById('textModeAdditive');
-    
+
     if (filterCheckbox && textSubtractive && textAdditive) {
         textSubtractive.addEventListener('click', () => {
             filterCheckbox.checked = false;
@@ -534,7 +562,7 @@ function setupEventListeners() {
             triggerChange();
         });
         filterCheckbox.addEventListener('change', () => triggerChange());
-        
+
         function triggerChange() {
             const isAdditive = filterCheckbox.checked;
             filters.filterMode = isAdditive ? 'additive' : 'subtractive';
@@ -569,6 +597,7 @@ function setupEventListeners() {
     setupMultiselect('btnNaturezas', 'dropdownNaturezas');
     setupMultiselect('btnQualificadors', 'dropdownQualificadors');
     setupMultiselect('btnNomenaments', 'dropdownNomenaments');
+    setupMultiselect('btnRF', 'dropdownRF');
     document.addEventListener('click', (e) => { document.querySelectorAll('.multiselect-dropdown').forEach(d => { if (!d.contains(e.target)) d.classList.remove('active'); }); });
     safeAddListener('btnExportXLSX', 'click', exportToXLSX);
     const btnSync = document.getElementById('btnSync'); if (btnSync) btnSync.addEventListener('click', () => handleSync());
@@ -793,6 +822,43 @@ function updateOgsStatusUI() {
     if (window.lucide) lucide.createIcons();
 }
 
+function populateRF() {
+    const list = document.getElementById('listRF');
+    if (!list) return;
+    const options = [
+        { value: 'no_consta', label: 'No consta al RF (RSP)', class: 'fundacio-no-match' },
+        { value: 'consta', label: 'Consta al RF (RSP)', class: 'fundacio-match' },
+        { value: 'no_consta_sac', label: 'No consta al RF (SAC)', class: 'fundacio-no-match' },
+        { value: 'consta_sac', label: 'Consta al RF (SAC)', class: 'fundacio-match' }
+    ];
+    list.innerHTML = '';
+    options.forEach(opt => {
+        const item = document.createElement('label');
+        item.className = 'multiselect-item';
+        const isChecked = filters.rf.includes(opt.value);
+        item.innerHTML = `<input type="checkbox" value="${opt.value}" ${isChecked ? 'checked' : ''}><span class="fundacio-check ${opt.class}" style="margin: 0; pointer-events: none;">${opt.label}</span>`;
+        item.querySelector('input').addEventListener('change', (e) => {
+            if (e.target.checked) {
+                if (!filters.rf.includes(opt.value)) filters.rf.push(opt.value);
+            } else {
+                filters.rf = filters.rf.filter(v => v !== opt.value);
+            }
+            updateRFUI();
+            applyFilters();
+        });
+        list.appendChild(item);
+    });
+    updateRFUI();
+}
+
+function updateRFUI() {
+    const btn = document.getElementById('btnRF');
+    if (!btn) return;
+    btn.innerHTML = `<i data-lucide="landmark" style="width: 16px; margin-right: 4px;"></i> ${filters.rf.length ? `(${filters.rf.length}) RF` : 'RF'}`;
+    btn.classList.toggle('btn-primary', filters.rf.length > 0);
+    if (window.lucide) lucide.createIcons();
+}
+
 function exportToXLSX() {
     if (filteredRecords.length === 0) return;
     if (typeof XLSX === 'undefined') {
@@ -846,7 +912,7 @@ document.addEventListener('mouseout', (e) => { if (e.target.closest('.has-toolti
 window.openSacDocsModal = (id) => {
     console.log("[SAC] Obrint info per ID:", id);
     const record = allRecords.find(r => r.id == id);
-    
+
     if (!record) {
         console.error("[SAC] Record no trobat per ID:", id);
         return;
@@ -856,10 +922,10 @@ window.openSacDocsModal = (id) => {
         alert("Aquest càrrec no té informació de 'relacions' registrada al SAC.");
         return;
     }
-    
+
     let rels = null;
     try { rels = JSON.parse(record.sac_relacions); } catch (e) { console.error(e); }
-    
+
     const container = document.getElementById('sacDocsContent');
     const modalTitle = document.querySelector('#sacDocsModal h2');
     if (modalTitle) modalTitle.textContent = "Documentació acreditativa";
@@ -882,11 +948,11 @@ window.openSacDocsModal = (id) => {
                 <div style="font-size:0.7rem; font-weight:800; color:var(--primary); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.5rem; padding-bottom:2px; border-bottom:1px solid rgba(var(--primary-rgb), 0.3); display:inline-block;">${type}</div>
                 <div style="display:flex; flex-direction:column; gap:0.25rem;">
                     ${items.map(item => {
-                        const titol = item.titol || item.descripcio || item.nom || "Document / Enllaç";
-                        const link = item.url || item.path || "";
-                        
-                        if (link) {
-                            return `
+                const titol = item.titol || item.descripcio || item.nom || "Document / Enllaç";
+                const link = item.url || item.path || "";
+
+                if (link) {
+                    return `
                                 <div style="padding:0.4rem 0.6rem; border-radius:4px; transition: background 0.2s; background:rgba(255,255,255,0.02);">
                                     <a href="${link}" target="_blank" style="font-weight:600; color:var(--text-main); font-size:0.85rem; text-decoration:none; display:flex; align-items:center; gap:6px;">
                                         <i data-lucide="external-link" style="width:12px; color:var(--primary); opacity:0.7;"></i>
@@ -894,21 +960,21 @@ window.openSacDocsModal = (id) => {
                                     </a>
                                 </div>
                             `;
-                        } else {
-                            return `
+                } else {
+                    return `
                                 <div style="padding:0.4rem 0.6rem; border-radius:4px; background:rgba(255,255,255,0.01);">
                                     <div style="font-weight:600; color:var(--text-muted); font-size:0.85rem;">${titol}</div>
                                 </div>
                             `;
-                        }
-                    }).join('')}
+                }
+            }).join('')}
                 </div>
             </div>`;
         }
         html += '</div>';
         container.innerHTML = `<div style="padding:0.5rem;">${html}</div>`;
     }
-    
+
     document.getElementById('sacDocsModal').style.display = 'flex';
     if (window.lucide) lucide.createIcons();
 };
