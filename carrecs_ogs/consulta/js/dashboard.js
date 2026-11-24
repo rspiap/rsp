@@ -9,7 +9,7 @@ import { CloudService } from './modules/cloud.js';
 import { BoardService } from './modules/board-of-directors.js';
 import { PendingService } from './modules/pending-service.js';
 import { renderFundacioBadgeHTML } from './modules/fundacions-service.js';
-import { initTheme, toggleTheme, parseDate, baseNorm, prepareOrganRenderRows, isPersonaJuridica } from './modules/utils.js';
+import { initTheme, toggleTheme, parseDate, baseNorm, prepareOrganRenderRows, isPersonaJuridica, readFiltersFromURL, syncFiltersToURL, setupCopyLinkButton } from './modules/utils.js';
 
 let allRecords = [];
 let filteredRecords = [];
@@ -69,6 +69,7 @@ function initExpireMonths() {
 document.addEventListener('DOMContentLoaded', async () => {
     initTheme();
     initExpireMonths();
+    readFiltersFromURL(filters);
     setupEventListeners();
     await loadInitialData();
 });
@@ -84,12 +85,25 @@ async function loadInitialData() {
                 handleSync();
                 return;
             }
-            populateDepartaments(); populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); populateRF(); applyFilters(); checkCloudUpdates();
+            populateDepartaments(); populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); populateRF(); applyFilters(); checkCloudUpdates(); checkOpenDataUpdates();
         } else { handleSync(); }
     } catch (e) { console.error(e); }
 }
 
+let isSyncing = false;
+
+async function checkOpenDataUpdates() {
+    if (isSyncing) return;
+    const hasUpdates = await syncEngine.checkForDatasetUpdates();
+    if (hasUpdates && !isSyncing) {
+        console.log("[Dashboard] Detectada actualització a Open Data. Ressincronitzant automàticament...");
+        handleSync();
+    }
+}
+
 async function handleSync(manualCsvText = null) {
+    if (isSyncing) return;
+    isSyncing = true;
     const modal = document.getElementById('syncModal');
     const stepText = document.getElementById('syncStep');
     const progressBar = document.getElementById('syncProgressBar');
@@ -105,6 +119,7 @@ async function handleSync(manualCsvText = null) {
         populateDepartaments(); populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); populateRF(); applyFilters();
         setTimeout(() => { modal.style.display = 'none'; if (btnSync) btnSync.disabled = false; }, 400);
     } catch (e) { if (btnSync) btnSync.disabled = false; }
+    finally { isSyncing = false; }
 }
 
 async function checkCloudUpdates() {
@@ -212,6 +227,8 @@ function applyFilters() {
         return matchesSearch && matchesColSac && matchesColCarrec && matchesColEntitat && matchesColOGS && matchesColPersona &&
             matchesDept && matchesStatus && matchesRF && matchesCaStatus && matchesOgsStatus && matchesNatureza && matchesQualificador && matchesNomenament && matchesCategoritzacio && matchesToggles;
     });
+
+    syncFiltersToURL(filters);
 
     const sortKey = sortConfig.key;
     const sortDir = sortConfig.direction === 'asc' ? 1 : -1;
@@ -575,6 +592,7 @@ function setupEventListeners() {
     document.getElementById('loadMore').addEventListener('click', () => { rowsShown += 20; renderTable(); });
 
     document.getElementById('btnExportXLSX').addEventListener('click', exportToXLSX);
+    setupCopyLinkButton('btnCopyLink');
     document.getElementById('btnOpenSyncModal').addEventListener('click', () => { document.getElementById('syncModal').style.display = 'flex'; });
     document.getElementById('btnCloseSyncModal').addEventListener('click', () => { document.getElementById('syncModal').style.display = 'none'; });
     document.getElementById('btnStartSync').addEventListener('click', () => {
@@ -700,6 +718,7 @@ function populateDepartaments() {
     let html = '<option value="">Tots els Departaments</option>';
     sorted.forEach(d => html += `<option value="${d}">${d}</option>`);
     select.innerHTML = html;
+    if (filters.dept) select.value = filters.dept;
 }
 
 function populateNaturezas() {

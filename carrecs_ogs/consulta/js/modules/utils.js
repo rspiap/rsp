@@ -263,3 +263,134 @@ export function prepareOrganRenderRows(persons, pendingService = null) {
     }
 }
 
+const URL_STRING_FILTERS = [
+    ['search', 'globalSearch'],
+    ['dept', 'filterDepartament'],
+    ['status', 'filterStatus'],
+    ['colSac', 'colFilterSAC'],
+    ['colCarrec', 'colFilterCarrec'],
+    ['colEntitat', 'colFilterEntitat'],
+    ['colOGS', 'colFilterOGS'],
+    ['colPersona', 'colFilterPersona']
+];
+
+const URL_ARRAY_FILTERS = ['caStatus', 'ogsStatus', 'naturezas', 'qualificadors', 'nomenaments', 'categoritzacions', 'rf'];
+
+const URL_BOOL_FILTERS = [
+    ['onlySac', 'toggleSac'],
+    ['onlyGovern', 'toggleGovern'],
+    ['onlyVacant', 'toggleVacant'],
+    ['onlyPendingValidation', 'togglePendingValidation']
+];
+
+/**
+ * Llegeix els filtres des de window.location.search i actualitza l'estat i els inputs del DOM
+ */
+export function readFiltersFromURL(filters) {
+    if (typeof window === 'undefined' || !window.location.search) return;
+    const params = new URLSearchParams(window.location.search);
+
+    for (const [key, domId] of URL_STRING_FILTERS) {
+        if (params.has(key)) {
+            const val = params.get(key) || "";
+            filters[key] = val;
+            const el = document.getElementById(domId);
+            if (el) el.value = val;
+        }
+    }
+
+    for (const key of URL_ARRAY_FILTERS) {
+        const vals = params.getAll(key).filter(Boolean);
+        if (vals.length > 0) {
+            filters[key] = vals;
+        }
+    }
+
+    for (const [key, btnId] of URL_BOOL_FILTERS) {
+        if (params.get(key) === '1' || params.get(key) === 'true') {
+            filters[key] = true;
+            const btn = document.getElementById(btnId);
+            if (btn) btn.classList.add('btn-primary');
+        }
+    }
+
+    if (params.get('filterMode') === 'additive') {
+        filters.filterMode = 'additive';
+        const cb = document.getElementById('filterModeCheckbox');
+        const sub = document.getElementById('textModeSubtractive');
+        const add = document.getElementById('textModeAdditive');
+        if (cb) cb.checked = true;
+        if (sub) sub.classList.remove('active');
+        if (add) add.classList.add('active');
+    }
+
+    if (params.has('expireMonths')) {
+        const m = parseInt(params.get('expireMonths'), 10);
+        if (!isNaN(m) && m >= 1 && m <= 120) {
+            filters.expireMonths = m;
+            const expEl = document.getElementById('caExpireMonths');
+            if (expEl) expEl.value = String(m);
+        }
+    }
+}
+
+/**
+ * Sincronitza els filtres actius amb la URL mitjançant history.replaceState
+ */
+export function syncFiltersToURL(filters) {
+    if (typeof window === 'undefined' || !window.history?.replaceState) return;
+    const params = new URLSearchParams();
+
+    for (const [key] of URL_STRING_FILTERS) {
+        if (filters[key]) params.set(key, filters[key]);
+    }
+
+    for (const key of URL_ARRAY_FILTERS) {
+        if (Array.isArray(filters[key])) {
+            for (const v of filters[key]) {
+                if (v) params.append(key, v);
+            }
+        }
+    }
+
+    for (const [key] of URL_BOOL_FILTERS) {
+        if (filters[key]) params.set(key, '1');
+    }
+
+    if (filters.filterMode === 'additive') {
+        params.set('filterMode', 'additive');
+    }
+
+    if (params.toString() && filters.expireMonths && filters.expireMonths !== 1) {
+        params.set('expireMonths', String(filters.expireMonths));
+    }
+
+    const qs = params.toString();
+    const newUrl = `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash || ''}`;
+    window.history.replaceState(null, '', newUrl);
+}
+
+/**
+ * Configura el botó per copiar l'enllaç actual amb els filtres al porta-retalls
+ */
+export function setupCopyLinkButton(btnId = 'btnCopyLink') {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+        try {
+            await navigator.clipboard.writeText(window.location.href);
+            const origHTML = btn.innerHTML;
+            btn.innerHTML = `<i data-lucide="check" style="width: 14px; margin-right: 4px;"></i>Copiat!`;
+            btn.classList.add('btn-primary');
+            if (window.lucide) lucide.createIcons();
+            setTimeout(() => {
+                btn.innerHTML = origHTML;
+                btn.classList.remove('btn-primary');
+                if (window.lucide) lucide.createIcons();
+            }, 1800);
+        } catch (e) {
+            prompt("Copia aquest enllaç:", window.location.href);
+        }
+    });
+}
+

@@ -8,7 +8,7 @@ import { syncEngine } from './modules/sync-engine.js';
 import { BoardService } from './modules/board-of-directors.js';
 import { PendingService } from './modules/pending-service.js';
 import { renderFundacioBadgeHTML } from './modules/fundacions-service.js';
-import { initTheme, toggleTheme, parseDate, baseNorm, prepareOrganRenderRows, isPersonaJuridica } from './modules/utils.js';
+import { initTheme, toggleTheme, parseDate, baseNorm, prepareOrganRenderRows, isPersonaJuridica, readFiltersFromURL, syncFiltersToURL, setupCopyLinkButton } from './modules/utils.js';
 
 let allRecords = [];
 let filteredRecords = [];
@@ -69,6 +69,7 @@ function initExpireMonths() {
 document.addEventListener('DOMContentLoaded', async () => {
     initTheme();
     initExpireMonths();
+    readFiltersFromURL(filters);
     setupEventListeners();
     await loadData();
 });
@@ -87,12 +88,26 @@ async function loadData() {
                 handleSync();
                 return;
             }
-            applyFilters(); populateDepartaments(); populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); populateRF(); populateRF();
+            populateDepartaments(); populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); populateRF(); applyFilters();
+            checkOpenDataUpdates();
         } else { handleSync(); }
     } catch (e) { console.error(e); }
 }
 
+let isSyncing = false;
+
+async function checkOpenDataUpdates() {
+    if (isSyncing) return;
+    const hasUpdates = await syncEngine.checkForDatasetUpdates();
+    if (hasUpdates && !isSyncing) {
+        console.log("[Consulta] Detectada actualització a Open Data. Ressincronitzant automàticament...");
+        handleSync();
+    }
+}
+
 async function handleSync() {
+    if (isSyncing) return;
+    isSyncing = true;
     const btn = document.getElementById('btnSync');
     const modal = document.getElementById('syncModal');
     try {
@@ -104,9 +119,10 @@ async function handleSync() {
             if (stepText) stepText.textContent = info.step;
             if (progressBar) progressBar.style.width = `${info.progress}%`;
         });
-        applyFilters(); populateDepartaments(); populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); populateRF();
+        populateDepartaments(); populateNaturezas(); populateQualificadors(); populateNomenaments(); populateCategoritzacions(); populateCaStatus(); populateOgsStatus(); populateRF(); applyFilters();
         setTimeout(() => { if (modal) modal.style.display = 'none'; if (btn) btn.disabled = false; }, 400);
     } catch (e) { if (btn) btn.disabled = false; }
+    finally { isSyncing = false; }
 }
 
 function applyFilters() {
@@ -201,6 +217,8 @@ function applyFilters() {
         return matchesSearch && matchesColSac && matchesColCarrec && matchesColEntitat && matchesColOGS && matchesColPersona &&
             matchesDept && matchesStatus && matchesRF && matchesCaStatus && matchesOgsStatus && matchesNatureza && matchesQualificador && matchesNomenament && matchesCategoritzacio && matchesToggles;
     });
+
+    syncFiltersToURL(filters);
 
     const updateIcon = (id, val) => {
         const icon = document.getElementById('iconFilter' + id);
@@ -600,6 +618,7 @@ function setupEventListeners() {
     setupMultiselect('btnRF', 'dropdownRF');
     document.addEventListener('click', (e) => { document.querySelectorAll('.multiselect-dropdown').forEach(d => { if (!d.contains(e.target)) d.classList.remove('active'); }); });
     safeAddListener('btnExportXLSX', 'click', exportToXLSX);
+    setupCopyLinkButton('btnCopyLink');
     const btnSync = document.getElementById('btnSync'); if (btnSync) btnSync.addEventListener('click', () => handleSync());
 
     document.querySelectorAll('.sortable-header').forEach(th => {
@@ -649,6 +668,7 @@ function populateDepartaments() {
     if (entSet.size > 0) { html += '<optgroup label="Entitats">'; Array.from(entSet).sort().forEach(d => html += `<option value="${d}">${d}</option>`); html += '</optgroup>'; }
     if (carSet.size > 0) { html += '<optgroup label="Càrrecs">'; Array.from(carSet).sort().forEach(d => html += `<option value="${d}">${d}</option>`); html += '</optgroup>'; }
     select.innerHTML = html;
+    if (filters.dept) select.value = filters.dept;
 }
 
 function populateNaturezas() {
@@ -659,7 +679,8 @@ function populateNaturezas() {
     nats.forEach(nat => {
         const item = document.createElement('label');
         item.className = 'multiselect-item';
-        item.innerHTML = `<input type="checkbox" value="${nat}"><span>${nat}</span>`;
+        const isChecked = filters.naturezas.includes(nat);
+        item.innerHTML = `<input type="checkbox" value="${nat}" ${isChecked ? 'checked' : ''}><span>${nat}</span>`;
         item.querySelector('input').addEventListener('change', (e) => {
             if (e.target.checked) filters.naturezas.push(nat);
             else filters.naturezas = filters.naturezas.filter(v => v !== nat);
@@ -668,6 +689,7 @@ function populateNaturezas() {
         });
         list.appendChild(item);
     });
+    updateNaturezasUI();
 }
 function updateNaturezasUI() {
     const btn = document.getElementById('btnNaturezas');
@@ -702,6 +724,7 @@ function populateQualificadors() {
         });
         list.appendChild(item);
     });
+    updateQualificadorsUI();
 }
 function updateQualificadorsUI() {
     const btn = document.getElementById('btnQualificadors');
@@ -716,10 +739,13 @@ function populateNomenaments() {
     const types = [...new Set(allRecords.map(r => r.tipus_nomenament && r.tipus_nomenament.trim() !== "" ? r.tipus_nomenament : "No informat"))].sort((a, b) => a === "No informat" ? 1 : b === "No informat" ? -1 : a.localeCompare(b));
     list.innerHTML = '';
     types.forEach(type => {
-        const item = document.createElement('label'); item.className = 'multiselect-item'; item.innerHTML = `<input type="checkbox" value="${type}"><span>${type}</span>`;
+        const item = document.createElement('label'); item.className = 'multiselect-item';
+        const isChecked = filters.nomenaments.includes(type);
+        item.innerHTML = `<input type="checkbox" value="${type}" ${isChecked ? 'checked' : ''}><span>${type}</span>`;
         item.querySelector('input').addEventListener('change', (e) => { if (e.target.checked) filters.nomenaments.push(type); else filters.nomenaments = filters.nomenaments.filter(v => v !== type); updateNomenamentsUI(); applyFilters(); });
         list.appendChild(item);
     });
+    updateNomenamentsUI();
 }
 function updateNomenamentsUI() {
     const btn = document.getElementById('btnNomenaments'); if (!btn) return;
@@ -732,10 +758,13 @@ function populateCategoritzacions() {
     const cats = [...new Set(allRecords.map(r => r.categoritzacio))].filter(Boolean).sort();
     list.innerHTML = '';
     cats.forEach(cat => {
-        const item = document.createElement('label'); item.className = 'multiselect-item'; item.innerHTML = `<input type="checkbox" value="${cat}"><span>${cat}</span>`;
+        const item = document.createElement('label'); item.className = 'multiselect-item';
+        const isChecked = filters.categoritzacions.includes(cat);
+        item.innerHTML = `<input type="checkbox" value="${cat}" ${isChecked ? 'checked' : ''}><span>${cat}</span>`;
         item.querySelector('input').addEventListener('change', (e) => { if (e.target.checked) filters.categoritzacions.push(cat); else filters.categoritzacions = filters.categoritzacions.filter(v => v !== cat); updateCategoritzacionsUI(); applyFilters(); });
         list.appendChild(item);
     });
+    updateCategoritzacionsUI();
 }
 function updateCategoritzacionsUI() {
     const btn = document.getElementById('btnCategoritzacions'); if (!btn) return;

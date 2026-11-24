@@ -16,6 +16,50 @@ export class SyncEngine {
     }
 
     /**
+     * Llista de tots els datasets d'Open Data monitoritzats per detectar actualitzacions
+     */
+    getMonitoredResourceIds() {
+        return [
+            CONFIG.OPEN_DATA.RESOURCE_ID,
+            CONFIG.OPEN_DATA.EXTRA_RESOURCE_ID,
+            CONFIG.OPEN_DATA.PARTICIPACIO_RESOURCE_ID,
+            CONFIG.OPEN_DATA.CONSELL_ADMON_RESOURCE_ID,
+            CONFIG.OPEN_DATA.GUIA_ENTITATS_RESOURCE_ID,
+            CONFIG.OPEN_DATA.GUIA_GOVERN_RESOURCE_ID
+        ].filter(Boolean);
+    }
+
+    /**
+     * Desa la marca de temps (rowsUpdatedAt) de tots els datasets monitoritzats
+     */
+    async saveAllDatasetTimestamps() {
+        const ids = this.getMonitoredResourceIds();
+        await Promise.all(ids.map(async (id) => {
+            const ts = await API.fetchMetadata(id);
+            if (ts) await db.save(CONFIG.DB.STORES.METADATA, ts, `ts_${id}`);
+        }));
+    }
+
+    /**
+     * Comprova en paral·lel si algun dels 6 datasets d'Open Data té dades més recents
+     */
+    async checkForDatasetUpdates() {
+        try {
+            const ids = this.getMonitoredResourceIds();
+            const checks = await Promise.all(ids.map(async (id) => {
+                const remoteTs = await API.fetchMetadata(id);
+                if (!remoteTs) return false;
+                const localTs = await db.getByKey(CONFIG.DB.STORES.METADATA, `ts_${id}`);
+                return !localTs || Number(remoteTs) > Number(localTs);
+            }));
+            return checks.some(Boolean);
+        } catch (e) {
+            console.warn("[SyncEngine] No s'han pogut comprovar actualitzacions remotes:", e);
+            return false;
+        }
+    }
+
+    /**
      * Sincronització completa: Open Data + Algolia + SAC Mapping
      */
     async runFullSync(manualCsvText = null, onProgress) {
@@ -24,19 +68,19 @@ export class SyncEngine {
 
             if (onProgress) onProgress({ step: 'Connectant amb el SAC (Algolia)...', progress: 5 });
             await new Promise(r => setTimeout(r, 400));
-            
+
             const resourceId = CONFIG.OPEN_DATA.RESOURCE_ID;
-            
+
             // 1. Algolia (Cache de 24h)
             const algoliaCache = await db.getByKey(CONFIG.DB.STORES.ALGOLIA_CACHE, 'all_hits');
-            
+
             if (algoliaCache && (Date.now() - algoliaCache.timestamp < 24 * 60 * 60 * 1000)) {
                 if (onProgress) onProgress({ step: 'Usant dades del SAC des de la memòria cau...', progress: 10 });
                 this.algoliaLookup = new Map(algoliaCache.data.map(item => [item.key, item.val]));
             } else {
                 if (onProgress) onProgress({ step: 'Descarregant dades actualitzades del SAC...', progress: 10 });
                 this.algoliaLookup = await API.fetchAlgolia(count => {
-                    if (onProgress) onProgress({ step: `Descarregant SAC... (${count} registres)`, progress: 10 + Math.min(10, (count/15000)*10) });
+                    if (onProgress) onProgress({ step: `Descarregant SAC... (${count} registres)`, progress: 10 + Math.min(10, (count / 15000) * 10) });
                 });
                 const cacheArray = [];
                 this.algoliaLookup.forEach((val, key) => cacheArray.push({ key, val }));
@@ -46,15 +90,15 @@ export class SyncEngine {
             // 2. Open Data (Main dataset)
             if (onProgress) onProgress({ step: 'Obtenint dades del Sector Públic (Open Data)...', progress: 25 });
             await new Promise(r => setTimeout(r, 400));
-            
+
             const persones = await API.fetchOpenData(resourceId, count => {
-                if (onProgress) onProgress({ step: `Descarregant records públics... (${count})`, progress: 25 + Math.min(20, (count/300000)*20) });
+                if (onProgress) onProgress({ step: `Descarregant records públics... (${count})`, progress: 25 + Math.min(20, (count / 300000) * 20) });
             });
 
             // 3. Open Data (Extra dataset for enrichment)
             if (onProgress) onProgress({ step: 'Enriquint amb dades del Registre (Sector Públic)...', progress: 50 });
             await new Promise(r => setTimeout(r, 400));
-            
+
             const sexeRaw = await API.fetchOpenData(CONFIG.OPEN_DATA.EXTRA_RESOURCE_ID);
             const sexeLookup = new Map();
             const sexeEntities = new Map();
@@ -63,14 +107,14 @@ export class SyncEngine {
             sexeRaw.forEach(d => {
                 const ensNorm = baseNorm(d.denominaci);
                 const membreNorm = baseNorm(d.denominaci_membre);
-                const extra = { 
-                    dept: d.departament || null, 
+                const extra = {
+                    dept: d.departament || null,
                     partici: d.part_cip_o_organisme || null,
                     categoritzacio: d.categoritzaci_part_cip || null
                 };
-                
+
                 if (ensNorm && membreNorm) sexeLookup.set(`${ensNorm}|${membreNorm}`, extra);
-                
+
                 const rawReg = (d.n_mero_de_registre || d.registre_del_sector_p_blic_n_mero || "").toString().trim();
                 const cleanReg = rawReg.replace(/^0+/, '');
                 if (cleanReg) {
@@ -113,11 +157,11 @@ export class SyncEngine {
                     }
                 }
             });
-            
+
             // 4. Open Data (Participació dataset for tooltips)
             if (onProgress) onProgress({ step: 'Obtenint dades de participació (Tooltips)...', progress: 55 });
             await new Promise(r => setTimeout(r, 400));
-            
+
             const participacioRaw = await API.fetchOpenData(CONFIG.OPEN_DATA.PARTICIPACIO_RESOURCE_ID);
             const participacioLookup = new Map();
             participacioRaw.forEach(d => {
@@ -151,25 +195,25 @@ export class SyncEngine {
             // 5. Open Data (Board of Directors dataset for expiration dates)
             if (onProgress) onProgress({ step: 'Obtenint dates de vigència dels Consells...', progress: 60 });
             await new Promise(r => setTimeout(r, 400));
-            
+
             const consellRaw = await API.fetchOpenData(CONFIG.OPEN_DATA.CONSELL_ADMON_RESOURCE_ID);
             const consellLookup = new Map();
             const consellWithMembers = new Set();
             const today = new Date();
-            today.setHours(0,0,0,0);
+            today.setHours(0, 0, 0, 0);
 
             consellRaw.forEach(d => {
                 const reg = d.n_mero_de_registre;
                 const nom = d.denominaci;
                 const dFinalStr = d.data_final_de_vig_ncia;
                 const carrec = d.c_rrec_en_l_rgan_de_govern_superior;
-                
+
                 // Skip entities that have no board member entries (empty placeholder rows)
                 if (!carrec || carrec.trim() === "") return;
 
                 if (reg) consellWithMembers.add(reg.toString().trim().replace(/^0+/, ''));
                 if (nom) consellWithMembers.add(baseNorm(nom));
-                
+
                 if (!dFinalStr) return;
 
                 const dFinal = parseDate(dFinalStr);
@@ -177,7 +221,7 @@ export class SyncEngine {
                 const ts = dFinal.getTime();
 
                 const processEntry = (key) => {
-                    const existing = consellLookup.get(key); 
+                    const existing = consellLookup.get(key);
                     if (!existing || ts < existing.ts) {
                         consellLookup.set(key, { ts, str: dFinalStr });
                     }
@@ -190,7 +234,7 @@ export class SyncEngine {
             // 6. Mapatge SAC (Cloud o CSV)
             if (onProgress) onProgress({ step: 'Llegint mapatge personalitzat (SAC Mapping)...', progress: 70 });
             await new Promise(r => setTimeout(r, 400));
-            
+
             let sacLookup = new Map();
             let sourceMapping = null;
 
@@ -216,7 +260,7 @@ export class SyncEngine {
             if (onProgress) onProgress({ step: 'Carregant canvis pendents de validar...', progress: 85 });
             await PendingService.loadPendingData();
             await new Promise(r => setTimeout(r, 400));
-            
+
             const finalRecords = this.processRecords(persones, sexeLookup, sacLookup, participacioLookup, consellLookup, consellWithMembers, sexeEntities, sexeEntityLookup, fundacionsLookup, onProgress);
 
             // 8. Persistència
@@ -225,13 +269,12 @@ export class SyncEngine {
             if (consellRaw && consellRaw.length > 0) {
                 await db.save(CONFIG.DB.STORES.METADATA, consellRaw, 'ca_raw_records');
             }
-            
-            const cloudTimestamp = await API.fetchMetadata(resourceId);
-            if (cloudTimestamp) await db.save(CONFIG.DB.STORES.METADATA, cloudTimestamp, `ts_${resourceId}`);
+
+            await this.saveAllDatasetTimestamps();
 
             if (onProgress) onProgress({ step: 'Sincronització completada amb èxit!', progress: 100 });
             await new Promise(r => setTimeout(r, 1000));
-            
+
             // Retornem les dades directament de la DB per assegurar que tenen l'ID auto-incrementat
             return await db.getAll(CONFIG.DB.STORES.RECORDS);
         } catch (error) {
@@ -264,7 +307,7 @@ export class SyncEngine {
         const fieldKeysSet = new Set();
         persones.slice(0, 1000).forEach(rec => Object.keys(rec).forEach(key => fieldKeysSet.add(key)));
         const fieldKeys = Array.from(fieldKeysSet);
-        
+
         const findK = (keys) => fieldKeys.find(k => keys.some(kw => k.toLowerCase().includes(kw))) || keys[0];
 
         const k = {
@@ -299,7 +342,7 @@ export class SyncEngine {
             const nReg = vReg.toString().trim().replace(/^0+/, '');
 
             const extra = sexeLookup.get(`${nEns}|${nMembre}`) || sexeLookup.get(`${nEns}|${nCarrec}`) || sexeLookup.get(nReg);
-            
+
             // Recompte de persones reals trobades per membre de l'entitat
             const entityObj = (nReg && sexeEntityLookup.get(nReg)) || (nEns && sexeEntityLookup.get(nEns));
             let matchedMember = null;
@@ -399,7 +442,7 @@ export class SyncEngine {
                 record.part_natureza = partExtra.natureza;
                 record.part_qualificador = partExtra.qualificadorParticipacio;
             }
-            
+
             const vDataFinalObj = consellLookup.get(nReg) || consellLookup.get(nEns);
             if (vDataFinalObj) {
                 record.data_final_de_vig_ncia = vDataFinalObj.str;
@@ -423,7 +466,7 @@ export class SyncEngine {
 
                     const n1 = baseNormPersona(`${record.persona_nom} ${record.persona_cognoms}`);
                     const n2 = baseNormPersona(record.sac_nom_responsable);
-                    
+
                     // Extracció de relacions
                     const rawRel = alg.relacions || (alg.dadesOrganigrama ? alg.dadesOrganigrama.relacions : null);
                     if (rawRel) {
@@ -452,7 +495,7 @@ export class SyncEngine {
 
             finalRecords.push(record);
             if (i % 10000 === 0 && onProgress) {
-                onProgress({ step: `Processant registres... (${i} / ${total})`, progress: 75 + (i/total * 20) });
+                onProgress({ step: `Processant registres... (${i} / ${total})`, progress: 75 + (i / total * 20) });
             }
         }
 
@@ -556,7 +599,7 @@ export class SyncEngine {
             sacFields.sac_unitat = alg.unitatResp.unitat;
             sacFields.sac_departament = alg.unitatResp.departament;
             sacFields.sac_carrec = alg.dadesOrganigrama.carrec;
-            
+
             // Relacions
             const rawRel = alg.relacions || (alg.dadesOrganigrama ? alg.dadesOrganigrama.relacions : null);
             sacFields.sac_relacions = rawRel ? JSON.stringify(rawRel) : "";
@@ -571,12 +614,12 @@ export class SyncEngine {
         }
 
         const updated = { ...record, ...sacFields, status };
-        
+
         // Persistir a DB
         const transaction = db.db.transaction([CONFIG.DB.STORES.RECORDS], 'readwrite');
         const store = transaction.objectStore(CONFIG.DB.STORES.RECORDS);
         store.put(updated);
-        
+
         return updated;
     }
 }
