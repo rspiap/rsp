@@ -146,9 +146,9 @@ export function nameVariantScore(nameA, nameB) {
             if (phA[i] === phB[j]) {
                 s = 1.0;
             } else if ((tokA[i].length === 1 && tokB[j].startsWith(tokA[i])) ||
-                       (tokB[j].length === 1 && tokA[i].startsWith(tokB[j])) ||
-                       (phA[i].length === 1 && phB[j].startsWith(phA[i])) ||
-                       (phB[j].length === 1 && phA[i].startsWith(phB[j]))) {
+                (tokB[j].length === 1 && tokA[i].startsWith(tokB[j])) ||
+                (phA[i].length === 1 && phB[j].startsWith(phA[i])) ||
+                (phB[j].length === 1 && phA[i].startsWith(phB[j]))) {
                 s = 0.82;
             } else {
                 const lsim = levenshteinSim(phA[i], phB[j]);
@@ -302,9 +302,10 @@ export function parseDate(dStr) {
  */
 export function isPersonaJuridica(p) {
     if (!p) return false;
-    const qualif = (p.qualificador || "").toLowerCase();
-    const membreTipus = (p.membre_tipus || "").toLowerCase();
-    return /j[uú]r/.test(qualif) || /j[uú]r/.test(membreTipus);
+    const qualif = (p.qualificador || "").toLowerCase().trim();
+    if (/f[ií]sic|vacant/.test(qualif)) return false;
+    if (/j[uú]r/.test(qualif)) return true;
+    return Boolean((p.denom_social && p.denom_social.trim()) || (p.nom_rep && p.nom_rep.trim()) || (p.cognoms_rep && p.cognoms_rep.trim()));
 }
 
 /**

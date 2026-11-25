@@ -9,6 +9,7 @@ import { BoardService } from './modules/board-of-directors.js';
 import { PendingService } from './modules/pending-service.js';
 import { renderFundacioBadgeHTML } from './modules/fundacions-service.js';
 import { initHelpModal } from './modules/help-modal.js';
+import { initTableContextMenu } from './modules/context-menu.js';
 import { initTheme, toggleTheme, parseDate, baseNorm, prepareOrganRenderRows, isPersonaJuridica, readFiltersFromURL, syncFiltersToURL, setupCopyLinkButton } from './modules/utils.js';
 
 let allRecords = [];
@@ -73,6 +74,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     readFiltersFromURL(filters);
     setupEventListeners();
     initHelpModal('consulta');
+    initTableContextMenu('tableBody');
     await loadData();
 });
 
@@ -82,8 +84,8 @@ async function loadData() {
         await PendingService.loadPendingData();
         allRecords = await db.getAll(CONFIG.DB.STORES.RECORDS);
         if (allRecords.length > 0) {
-            const hasSacVariantV2 = await db.getByKey(CONFIG.DB.STORES.METADATA, 'sac_variant_match_v2');
-            const needsFundacioSync = !hasSacVariantV2 || allRecords.some(r =>
+            const hasSacVariantV6 = await db.getByKey(CONFIG.DB.STORES.METADATA, 'sac_variant_match_v6');
+            const needsFundacioSync = !hasSacVariantV6 || allRecords.some(r =>
                 (r.part_natureza || "").toLowerCase().includes("fundaci") &&
                 (r.fundacio_check === undefined || (r.codi_sac && r.sac_nom_responsable && r.status !== 'Validat' && r.sac_fundacio_check === undefined))
             );
@@ -383,12 +385,15 @@ function renderTable(append = false) {
                             }
                         }
 
+                        const escAttr = (v) => String(v || '').replace(/"/g, '&quot;');
+                        const cellDataAttrs = `data-sac="${escAttr(p.codi_sac)}" data-reg="${escAttr(p.n_registre || ent.reg)}" data-entitat="${escAttr(ent.name || p.entitat)}" data-cognoms="${escAttr(p.persona_cognoms)}" data-fund-id="${escAttr(p.fundacio_id_entitat)}" data-is-fundacio="${(ent.natureza || p.part_natureza || '').toLowerCase().includes('fundaci') ? '1' : '0'}" data-is-mercantil="${(ent.natureza || p.part_natureza || '').toLowerCase().includes('mercantil') ? '1' : '0'}"`;
+
                         html += `<tr class="${rowClass}">`;
-                        if (isFirstOfSAC) html += `<td rowspan="${sacRows}" class="td-sac"><span class="parent-sac-badge">${sg.sac || '---'}</span></td>`;
+                        if (isFirstOfSAC) html += `<td rowspan="${sacRows}" class="td-sac" ${cellDataAttrs}><span class="parent-sac-badge">${sg.sac || '---'}</span></td>`;
                         if (isFirstOfCarrec) {
                             const first = cg.entities[0].ogs[0].persons[0];
                             let sacHTML = first.sac_carrec ? `<div class="clickable-sac" style="margin-top:8px; cursor:pointer;" data-record-id="${first.id}"><div style="font-size:0.6rem; color:var(--primary); font-weight:700; display:flex; align-items:center; gap:4px;">(SAC:) <i data-lucide="info" style="width:10px; height:10px;"></i></div><div style="font-size:0.75rem; color:var(--text-main); line-height:1.2;">${first.sac_carrec.toLowerCase()}</div><div style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">${first.sac_unitat || ''}</div></div>` : '';
-                            html += `<td rowspan="${carrecRows}" class="td-carrec"><div class="cell-main-title">${cg.name}</div>${carrecPendingHTML}${sacHTML}</td>`;
+                            html += `<td rowspan="${carrecRows}" class="td-carrec" ${cellDataAttrs}><div class="cell-main-title">${cg.name}</div>${carrecPendingHTML}${sacHTML}</td>`;
                         }
                         if (isFirstOfEntitat) {
                             const firstP = ent.ogs[0].persons[0];
@@ -412,7 +417,7 @@ function renderTable(append = false) {
                                 caBtn = `<div style="margin-left:12px;"><button onclick="openConsellModal('${ent.reg || '-'}', '${ent.name.replace(/'/g, "\\'")}')" class="btn ${btnClass}" style="padding: 6px 12px; font-size: 0.7rem; font-weight: 800; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); white-space: nowrap;">CA</button></div>`;
                             }
 
-                            html += `<td rowspan="${entRows}" class="td-entitat has-tooltip" 
+                            html += `<td rowspan="${entRows}" class="td-entitat has-tooltip" ${cellDataAttrs}
                                         data-grau="${firstP.part_grau || '-'}" 
                                         data-via="${firstP.part_via || '-'}" 
                                         data-total="${firstP.part_total || '-'}" 
@@ -431,7 +436,7 @@ function renderTable(append = false) {
                             const deptText = p.departament ? `(${p.departament})` : '';
                             const displayOrg = p.sac_unitat ? `${p.sac_unitat} ${deptText}` : (p.departament || '');
                             const catHTML = p.categoritzacio ? `<div style="margin-top:2px; font-weight:700; color:var(--text-muted); font-size:0.6rem; text-transform:uppercase;">${p.categoritzacio}</div>` : '';
-                            html += `<td rowspan="${ogRows}" class="td-organ">
+                            html += `<td rowspan="${ogRows}" class="td-organ" ${cellDataAttrs}>
                                         <div class="cell-main-title">${og.name}</div>
                                         <div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">${displayOrg}</div>
                                         <div style="margin-top:8px; font-size:0.65rem; color:var(--text-muted); border-top:1px solid rgba(255,255,255,0.05); padding-top:4px;">${p.part_cip_o_organisme || ''}${catHTML}</div>
@@ -440,7 +445,7 @@ function renderTable(append = false) {
                         }
 
                         if (rowItem.isGrouped) {
-                            html += `<td class="td-persona">
+                            html += `<td class="td-persona" ${cellDataAttrs}>
                                         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                                             <div>
                                                 <div class="persona-nom" style="color:var(--text-muted); font-style:italic;">${rowItem.titleText || (rowItem.count > 1 ? `${rowItem.count} persones no informades` : "Persona no informada")}</div>
@@ -507,11 +512,12 @@ function renderTable(append = false) {
                             ? p.tipus_nomenament.trim()
                             : 'Tipus de nomenament no informat';
 
+                        const repFundacioHTML = p.rep_fundacio_check ? renderFundacioBadgeHTML(p.rep_fundacio_check, 'Representant') : '';
                         const fundacioHTML = renderFundacioBadgeHTML(p.fundacio_check);
 
-                        html += `<td class="td-persona">
+                        html += `<td class="td-persona" ${cellDataAttrs}>
                                     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                                        <div>${nomHTML}${fundacioHTML}${expText}${personaPendingHTML}<div class="persona-sub">${nomText}</div>${sacInfoHTML}</div>
+                                        <div>${nomHTML}${repFundacioHTML}${fundacioHTML}${expText}${personaPendingHTML}<div class="persona-sub">${nomText}</div>${sacInfoHTML}</div>
                                         <div style="text-align:right;">
                                             <div>${statusBadge}</div>
                                         </div>

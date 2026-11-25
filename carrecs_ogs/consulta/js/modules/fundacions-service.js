@@ -222,29 +222,44 @@ export const FundacionsService = {
         }
 
         return this.matchNamesInFundacio(candidateNames, fundacioEntry);
+    },
+
+    /**
+     * En el cas d'una persona jurídica, comprova específicament si la persona representant
+     * consta o no al Registre de Fundacions.
+     */
+    matchRepresentativeInFundacio(record, fundacioEntry) {
+        if (!record || !isPersonaJuridica(record)) return null;
+        const rep = `${record.nom_rep || ''} ${record.cognoms_rep || ''}`.trim();
+        const repName = rep || normStr(record.persona_nom);
+        if (!repName) return null;
+        const low = repName.toLowerCase();
+        if (low === 'no informat' || low === 'persona no informada' || low === 'representant pendent') return null;
+        return this.matchNamesInFundacio([repName], fundacioEntry);
     }
 };
 
 /**
  * Genera el bloc HTML del nivell de comprovació amb el Registre de Fundacions.
  */
-export function renderFundacioBadgeHTML(check) {
+export function renderFundacioBadgeHTML(check, prefix = '') {
     if (!check || !check.status || check.status === 'no_person') return '';
+    const pfx = prefix ? `${escapeHtml(prefix)}: ` : '';
 
     if (check.status === 'match') {
         const title = `Coincideix al Reg. Fundacions: ${check.matchedPersona}${check.matchedCarrec ? ` (${check.matchedCarrec})` : ''}`;
-        return `<div class="fundacio-check fundacio-match" title="${escapeHtml(title)}">✓ Consta al Reg. Fundacions</div>`;
+        return `<div class="fundacio-check fundacio-match" title="${escapeHtml(title)}">✓ ${pfx}Consta al Reg. Fundacions</div>`;
     }
     if (check.status === 'variant') {
         const title = `Possible coincidència al Reg. Fundacions: ${check.matchedPersona}${check.matchedCarrec ? ` (${check.matchedCarrec})` : ''}`;
-        return `<div class="fundacio-check fundacio-variant" title="${escapeHtml(title)}">≈ Reg. Fundacions: ${escapeHtml(check.matchedPersona)}</div>`;
+        return `<div class="fundacio-check fundacio-variant" title="${escapeHtml(title)}">≈ ${pfx}Reg. Fundacions: ${escapeHtml(check.matchedPersona)}</div>`;
     }
     if (check.status === 'no_match') {
         const title = `No s'ha trobat cap coincidència entre els ${check.totalFundacio || 0} membres del Registre de Fundacions`;
-        return `<div class="fundacio-check fundacio-no-match" title="${escapeHtml(title)}">✗ No consta al Reg. Fundacions</div>`;
+        return `<div class="fundacio-check fundacio-no-match" title="${escapeHtml(title)}">✗ ${pfx}No consta al Reg. Fundacions</div>`;
     }
     if (check.status === 'no_data') {
-        return `<div class="fundacio-check fundacio-no-data" title="Aquesta fundació no té membres informats al Registre de Fundacions">Sense dades al Reg. Fundacions</div>`;
+        return `<div class="fundacio-check fundacio-no-data" title="Aquesta fundació no té membres informats al Registre de Fundacions">${pfx}Sense dades al Reg. Fundacions</div>`;
     }
     return '';
 }

@@ -271,7 +271,7 @@ export class SyncEngine {
             }
 
             await this.saveAllDatasetTimestamps();
-            await db.save(CONFIG.DB.STORES.METADATA, true, 'sac_variant_match_v2');
+            await db.save(CONFIG.DB.STORES.METADATA, true, 'sac_variant_match_v6');
 
             if (onProgress) onProgress({ step: 'Sincronització completada amb èxit!', progress: 100 });
             await new Promise(r => setTimeout(r, 1000));
@@ -492,7 +492,9 @@ export class SyncEngine {
             const isFundacio = (record.part_natureza || "").toLowerCase().includes("fundaci") || fundacionsLookup.has(nReg) || fundacionsLookup.has(nEns);
             if (isFundacio) {
                 const fundEntry = fundacionsLookup.get(nReg) || fundacionsLookup.get(nEns);
+                record.fundacio_id_entitat = fundEntry?.id_entitat || "";
                 record.fundacio_check = FundacionsService.matchPersonInFundacio(record, fundEntry);
+                record.rep_fundacio_check = FundacionsService.matchRepresentativeInFundacio(record, fundEntry);
                 if (record.sac_nom_responsable) {
                     record.sac_fundacio_check = FundacionsService.matchNameInFundacio(record.sac_nom_responsable, fundEntry);
                 }
@@ -567,6 +569,7 @@ export class SyncEngine {
                             const isFundacio = (syntheticRecord.part_natureza || "").toLowerCase().includes("fundaci") || fundacionsLookup.has(entityObj.cleanReg) || fundacionsLookup.has(entityObj.ensNorm);
                             if (isFundacio) {
                                 const fundEntry = fundacionsLookup.get(entityObj.cleanReg) || fundacionsLookup.get(entityObj.ensNorm);
+                                syntheticRecord.fundacio_id_entitat = fundEntry?.id_entitat || "";
                                 syntheticRecord.fundacio_check = FundacionsService.matchPersonInFundacio(syntheticRecord, fundEntry);
                             }
 
