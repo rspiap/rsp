@@ -8,6 +8,7 @@ import { syncEngine } from './modules/sync-engine.js';
 import { BoardService } from './modules/board-of-directors.js';
 import { PendingService } from './modules/pending-service.js';
 import { renderFundacioBadgeHTML } from './modules/fundacions-service.js';
+import { initHelpModal } from './modules/help-modal.js';
 import { initTheme, toggleTheme, parseDate, baseNorm, prepareOrganRenderRows, isPersonaJuridica, readFiltersFromURL, syncFiltersToURL, setupCopyLinkButton } from './modules/utils.js';
 
 let allRecords = [];
@@ -71,6 +72,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initExpireMonths();
     readFiltersFromURL(filters);
     setupEventListeners();
+    initHelpModal('consulta');
     await loadData();
 });
 
@@ -80,7 +82,8 @@ async function loadData() {
         await PendingService.loadPendingData();
         allRecords = await db.getAll(CONFIG.DB.STORES.RECORDS);
         if (allRecords.length > 0) {
-            const needsFundacioSync = allRecords.some(r =>
+            const hasSacVariantV2 = await db.getByKey(CONFIG.DB.STORES.METADATA, 'sac_variant_match_v2');
+            const needsFundacioSync = !hasSacVariantV2 || allRecords.some(r =>
                 (r.part_natureza || "").toLowerCase().includes("fundaci") &&
                 (r.fundacio_check === undefined || (r.codi_sac && r.sac_nom_responsable && r.status !== 'Validat' && r.sac_fundacio_check === undefined))
             );
@@ -493,7 +496,12 @@ function renderTable(append = false) {
                         }
 
                         const sacFundacioHTML = p.sac_fundacio_check ? renderFundacioBadgeHTML(p.sac_fundacio_check) : '';
-                        let sacInfoHTML = (p.codi_sac && p.sac_nom_responsable && p.status !== 'Validat') ? `<div class="sac-ref-box"><div style="font-size: 0.55rem; text-transform: uppercase; color: #ff6b6b; font-weight: 700;">Ref. SAC:</div><div style="font-weight: 600; color: #ff6b6b;">${p.sac_nom_responsable}</div>${sacFundacioHTML}</div>` : '';
+                        let sacInfoHTML = '';
+                        if (p.codi_sac && p.sac_nom_responsable && p.status !== 'Validat') {
+                            sacInfoHTML = `<div class="sac-ref-box"><div style="font-size: 0.55rem; text-transform: uppercase; color: #ff6b6b; font-weight: 700;">Ref. SAC:</div><div style="font-weight: 600; color: #ff6b6b;">${p.sac_nom_responsable}</div>${sacFundacioHTML}</div>`;
+                        } else if (p.codi_sac && p.sac_nom_responsable && p.status === 'Validat' && p.sac_match_variant) {
+                            sacInfoHTML = `<div class="sac-ref-box sac-ref-variant"><div style="font-size: 0.55rem; text-transform: uppercase; color: #f59e0b; font-weight: 700;">Ref. SAC (variant):</div><div style="font-weight: 600; color: #f59e0b;">${p.sac_nom_responsable}</div></div>`;
+                        }
 
                         const nomText = (p.tipus_nomenament && p.tipus_nomenament.trim() && p.tipus_nomenament.trim().toLowerCase() !== 'no informat' && p.tipus_nomenament.trim().toLowerCase() !== 'tipus de nomenament no informat')
                             ? p.tipus_nomenament.trim()

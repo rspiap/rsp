@@ -14,6 +14,7 @@ import { db } from './modules/db.js';
 import { API } from './modules/api.js';
 import { CONFIG } from './modules/config.js';
 import { parseDate, baseNorm, initTheme, toggleTheme, isPersonaJuridica } from './modules/utils.js';
+import { initHelpModal } from './modules/help-modal.js';
 
 // Estat global de la vista
 const state = {
@@ -32,6 +33,7 @@ const state = {
 document.addEventListener('DOMContentLoaded', async () => {
     initTheme();
     setupEventListeners();
+    initHelpModal('caducitats');
     initAutoSync();
     await loadData();
 });

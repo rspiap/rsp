@@ -9,6 +9,7 @@ import { CloudService } from './modules/cloud.js';
 import { BoardService } from './modules/board-of-directors.js';
 import { PendingService } from './modules/pending-service.js';
 import { renderFundacioBadgeHTML } from './modules/fundacions-service.js';
+import { initHelpModal } from './modules/help-modal.js';
 import { initTheme, toggleTheme, parseDate, baseNorm, prepareOrganRenderRows, isPersonaJuridica, readFiltersFromURL, syncFiltersToURL, setupCopyLinkButton } from './modules/utils.js';
 
 let allRecords = [];
@@ -71,6 +72,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initExpireMonths();
     readFiltersFromURL(filters);
     setupEventListeners();
+    initHelpModal('consulta');
     await loadInitialData();
 });
 
@@ -80,7 +82,8 @@ async function loadInitialData() {
         let data = await db.getAll(CONFIG.DB.STORES.RECORDS);
         if (data && data.length > 0) {
             allRecords = data;
-            const needsFundacioSync = allRecords.some(r => (r.part_natureza || "").toLowerCase().includes("fundaci") && r.fundacio_check === undefined);
+            const hasSacVariantV2 = await db.getByKey(CONFIG.DB.STORES.METADATA, 'sac_variant_match_v2');
+            const needsFundacioSync = !hasSacVariantV2 || allRecords.some(r => (r.part_natureza || "").toLowerCase().includes("fundaci") && r.fundacio_check === undefined);
             if (needsFundacioSync) {
                 handleSync();
                 return;

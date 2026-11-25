@@ -8,7 +8,7 @@ import { API } from './api.js';
 import { CloudService } from './cloud.js';
 import { PendingService } from './pending-service.js';
 import { FundacionsService } from './fundacions-service.js';
-import { baseNorm, baseNormPersona, getSmartKey, parseDate } from './utils.js';
+import { baseNorm, baseNormPersona, getSmartKey, parseDate, getPersonNameMatchType } from './utils.js';
 
 export class SyncEngine {
     constructor() {
@@ -271,6 +271,7 @@ export class SyncEngine {
             }
 
             await this.saveAllDatasetTimestamps();
+            await db.save(CONFIG.DB.STORES.METADATA, true, 'sac_variant_match_v2');
 
             if (onProgress) onProgress({ step: 'Sincronització completada amb èxit!', progress: 100 });
             await new Promise(r => setTimeout(r, 1000));
@@ -464,8 +465,8 @@ export class SyncEngine {
                     record.sac_departament = alg.unitatResp.departament;
                     record.sac_carrec = alg.dadesOrganigrama.carrec;
 
-                    const n1 = baseNormPersona(`${record.persona_nom} ${record.persona_cognoms}`);
-                    const n2 = baseNormPersona(record.sac_nom_responsable);
+                    const rspPersonName = (`${record.persona_nom || ''} ${record.persona_cognoms || ''}`.trim())
+                        || (`${record.nom_rep || ''} ${record.cognoms_rep || ''}`.trim());
 
                     // Extracció de relacions
                     const rawRel = alg.relacions || (alg.dadesOrganigrama ? alg.dadesOrganigrama.relacions : null);
@@ -475,9 +476,13 @@ export class SyncEngine {
                         record.sac_relacions = "";
                     }
 
-                    // Validació robusta: si coincideix el nom, és Validat.
-                    if (n1 === n2 && n1 !== "") {
+                    // Validació robusta: coincidència exacta o per variació ortogràfica/fonètica
+                    const matchType = getPersonNameMatchType(rspPersonName, record.sac_nom_responsable);
+                    if (matchType) {
                         record.status = "Validat";
+                        record.sac_match_variant = (matchType === 'variant');
+                    } else {
+                        record.sac_match_variant = false;
                     }
                 }
             } else {
@@ -606,9 +611,15 @@ export class SyncEngine {
         }
 
         if (codi && nomSAC) {
-            const n1 = baseNormPersona(`${record.persona_nom} ${record.persona_cognoms}`);
-            const n2 = baseNormPersona(nomSAC);
-            if (n1 === n2 && n1 !== "") status = "Validat";
+            const rspPersonName = (`${record.persona_nom || ''} ${record.persona_cognoms || ''}`.trim())
+                || (`${record.nom_rep || ''} ${record.cognoms_rep || ''}`.trim());
+            const matchType = getPersonNameMatchType(rspPersonName, nomSAC);
+            if (matchType) {
+                status = "Validat";
+                sacFields.sac_match_variant = (matchType === 'variant');
+            } else {
+                sacFields.sac_match_variant = false;
+            }
         } else if (!codi) {
             status = "No vinculat";
         }

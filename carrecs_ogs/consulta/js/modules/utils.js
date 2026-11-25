@@ -31,6 +31,166 @@ export function baseNormPersona(raw) {
         .join("");
 }
 
+const NAME_EQUIV = {
+    "ma": "maria", "m": "maria",
+    "josep": "jose", "pep": "jose",
+    "joan": "juan", "francesc": "francisco", "paco": "francisco",
+    "carles": "carlos", "pere": "pedro", "jaume": "jaime",
+    "jordi": "jorge", "xavier": "javier", "antoni": "antonio",
+    "enric": "enrique", "lluis": "luis", "miquel": "miguel",
+    "marc": "marcos", "pau": "pablo", "ricard": "ricardo",
+    "eduard": "eduardo", "albert": "alberto", "ferran": "fernando",
+    "joaquim": "joaquin", "marti": "martin", "guillem": "guillermo",
+    "mateu": "mateo", "esteve": "esteban", "ignasi": "ignacio",
+    "gerard": "gerardo", "anna": "ana", "elisabet": "isabel",
+    "dolors": "dolores", "merce": "mercedes", "carme": "carmen",
+    "angels": "angeles", "angel": "angeles", "montse": "montserrat",
+    "helena": "elena", "esther": "ester"
+};
+
+const NAME_PARTICLES = new Set(["i", "y", "de", "del", "dels", "la", "les", "el", "els", "d", "s", "l"]);
+
+export function normalizeCompareText(text) {
+    let s = (text == null ? "" : String(text).trim()).replace(/\s+/g, " ");
+    if (s.includes(",")) {
+        const parts = s.split(",").map(p => p.trim()).filter(Boolean);
+        if (parts.length === 2) {
+            s = `${parts[1]} ${parts[0]}`;
+        }
+    }
+    return s.toLowerCase();
+}
+
+function stripNameDiacritics(s) {
+    return (s == null ? "" : String(s).trim())
+        .replace(/·/g, "")
+        .replace(/ª/g, "a")
+        .replace(/º/g, "o")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+}
+
+function phoneticCatEs(token) {
+    let t = stripNameDiacritics(token);
+    if (NAME_EQUIV[t]) t = NAME_EQUIV[t];
+    t = t
+        .replace(/h/g, "")
+        .replace(/ny/g, "n")
+        .replace(/v/g, "b")
+        .replace(/qu([ei])/g, "k$1")
+        .replace(/q/g, "k")
+        .replace(/c([aou])/g, "k$1")
+        .replace(/g([ei])/g, "j$1")
+        .replace(/ç/g, "s")
+        .replace(/z/g, "s")
+        .replace(/c([ei])/g, "s$1")
+        .replace(/tx/g, "ch")
+        .replace(/ix/g, "x")
+        .replace(/(.)\1+/g, "$1");
+    return t;
+}
+
+function tokenizeName(name) {
+    return stripNameDiacritics(name)
+        .replace(/[.,;:/\\\-_'’"()]/g, " ")
+        .split(/\s+/)
+        .filter(t => t && !NAME_PARTICLES.has(t));
+}
+
+function levenshteinSim(a, b) {
+    if (a === b) return 1;
+    if (!a || !b) return 0;
+    const m = a.length, n = b.length;
+    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+        }
+    }
+    return 1 - dp[m][n] / Math.max(m, n);
+}
+
+/**
+ * Calcula la similitud entre dos noms de persona tenint en compte variants català/castellà,
+ * fonètica, inicials, partícules i ordre de cognoms.
+ */
+export function nameVariantScore(nameA, nameB) {
+    const tokA = tokenizeName(nameA);
+    const tokB = tokenizeName(nameB);
+    if (tokA.length === 0 || tokB.length === 0) return 0;
+    if (tokA[0] === "[vacant]" || tokB[0] === "[vacant]") return 0;
+
+    const phA = tokA.map(phoneticCatEs);
+    const phB = tokB.map(phoneticCatEs);
+
+    if (phA.length === 1 && phB.length === 1) {
+        const sim = levenshteinSim(phA[0], phB[0]);
+        return sim >= 0.85 ? sim : 0;
+    }
+    if (phA.length === 1 || phB.length === 1) return 0;
+
+    const usedB = new Array(phB.length).fill(false);
+    let matchedWeight = 0;
+    let surnameMatched = false;
+
+    for (let i = 0; i < phA.length; i++) {
+        let bestJ = -1;
+        let bestS = 0;
+        for (let j = 0; j < phB.length; j++) {
+            if (usedB[j]) continue;
+            let s = 0;
+            if (phA[i] === phB[j]) {
+                s = 1.0;
+            } else if ((tokA[i].length === 1 && tokB[j].startsWith(tokA[i])) ||
+                       (tokB[j].length === 1 && tokA[i].startsWith(tokB[j])) ||
+                       (phA[i].length === 1 && phB[j].startsWith(phA[i])) ||
+                       (phB[j].length === 1 && phA[i].startsWith(phB[j]))) {
+                s = 0.82;
+            } else {
+                const lsim = levenshteinSim(phA[i], phB[j]);
+                if (lsim >= 0.78) s = lsim;
+            }
+            if (s > bestS) { bestS = s; bestJ = j; }
+        }
+        if (bestJ >= 0 && bestS >= 0.78) {
+            usedB[bestJ] = true;
+            matchedWeight += bestS;
+            if (i > 0 && bestJ > 0) surnameMatched = true;
+        }
+    }
+
+    if (!surnameMatched) return 0;
+    const minLen = Math.min(phA.length, phB.length);
+    const maxLen = Math.max(phA.length, phB.length);
+    if (matchedWeight < 1.7) return 0;
+    const score = (matchedWeight / maxLen) * 0.5 + (matchedWeight / minLen) * 0.5;
+    return score >= 0.78 ? score : 0;
+}
+
+/**
+ * Comprova si dos noms de persona representen la mateixa persona i indica si és coincidència 'exact' o 'variant'.
+ */
+export function getPersonNameMatchType(nameA, nameB) {
+    if (!nameA || !nameB) return null;
+    const n1 = baseNormPersona(nameA);
+    const n2 = baseNormPersona(nameB);
+    if (!n1 || !n2) return null;
+    if (n1 === n2) return 'exact';
+    if (normalizeCompareText(nameA) === normalizeCompareText(nameB)) return 'exact';
+    return nameVariantScore(nameA, nameB) >= 0.78 ? 'variant' : null;
+}
+
+/**
+ * Comprova si dos noms de persona representen la mateixa persona (coincidència exacta o per variant).
+ */
+export function arePersonNamesMatching(nameA, nameB) {
+    return Boolean(getPersonNameMatchType(nameA, nameB));
+}
+
 /**
  * Generació de clau intel·ligent (SmartKey)
  * Combina entitat, membre i càrrec per identificar un registre únicament

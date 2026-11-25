@@ -32,15 +32,21 @@
                 <i data-lucide="sun" style="width: 20px; height: 20px;"></i>
             </button>
             <h1>Estat de Caducitat dels Mandats</h1>
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; width: 100%; flex-wrap: wrap; gap: 1rem;">
+            <div
+                style="display: flex; justify-content: space-between; align-items: flex-end; width: 100%; flex-wrap: wrap; gap: 1rem;">
                 <p class="subtitle" style="margin: 0;">
                     Òrgans de Govern Superior (OGS) i Consells d'Administració del Sector Públic
                 </p>
-                <div>
-                    <a href="index.html" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 8px; text-decoration: none;">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <a href="index.html" class="btn btn-secondary"
+                        style="display: inline-flex; align-items: center; gap: 8px; text-decoration: none;">
                         <i data-lucide="table" style="width: 16px; height: 16px;"></i>
                         Taula de Consulta
                     </a>
+                    <button id="btnHelp" class="btn btn-secondary" type="button" title="Ajuda i FAQs">
+                        <i data-lucide="help-circle" style="width: 16px; height: 16px; margin-right: 6px;"></i>
+                        Ajuda
+                    </button>
                 </div>
             </div>
         </header>
@@ -49,7 +55,8 @@
         <div class="dashboard-toolbar glass">
             <div class="toolbar-group">
                 <!-- Casella de configuració de mesos -->
-                <div class="months-input-wrapper" title="Estableix els mesos futurs per considerar un mandat a punt de caducar (franja taronja)">
+                <div class="months-input-wrapper"
+                    title="Estableix els mesos futurs per considerar un mandat a punt de caducar (franja taronja)">
                     <label for="monthsInput">
                         <i data-lucide="clock" style="width: 16px; height: 16px; color: var(--gauge-orange);"></i>
                         Propera caducitat (mesos):
@@ -77,14 +84,16 @@
                     <button type="button" id="btnQualificadors" class="btn">Qualificador</button>
                     <div id="dropdownQualificadors" class="multiselect-dropdown">
                         <div class="multiselect-list" id="listQualificadors">
-                            <div style="padding: 0.5rem; text-align: center; color: var(--text-muted);">Carregant...</div>
+                            <div style="padding: 0.5rem; text-align: center; color: var(--text-muted);">Carregant...
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
             <div class="toolbar-group">
-                <div style="font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 12px;">
+                <div
+                    style="font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 12px;">
                     <span style="display: flex; align-items: center; gap: 5px;">
                         <span class="stat-dot green" style="width: 8px; height: 8px;"></span> Vigent (> X mesos)
                     </span>
@@ -103,7 +112,8 @@
 
         <!-- Indicador de Càrrega -->
         <div id="dashboardLoader" class="loading-state" style="display: none;">
-            <i data-lucide="loader-2" class="spin" style="width: 36px; height: 36px; color: var(--primary); margin-bottom: 0.5rem;"></i>
+            <i data-lucide="loader-2" class="spin"
+                style="width: 36px; height: 36px; color: var(--primary); margin-bottom: 0.5rem;"></i>
             <div>Processant registres del Sector Públic...</div>
         </div>
 
@@ -132,7 +142,8 @@
         <div class="modal-content detail-modal-content glass">
             <div class="detail-modal-header">
                 <div>
-                    <h3 id="modalTitle" style="font-size: 1.25rem; font-weight: 800; color: var(--text-main); margin-bottom: 2px;">
+                    <h3 id="modalTitle"
+                        style="font-size: 1.25rem; font-weight: 800; color: var(--text-main); margin-bottom: 2px;">
                         Detall de Naturalesa Jurídica
                     </h3>
                     <p id="modalSubtitle" style="font-size: 0.8rem; color: var(--text-muted); margin: 0;"></p>
@@ -142,8 +153,8 @@
 
             <!-- Barra de cerca dins el modal -->
             <div style="margin-bottom: 1rem;">
-                <input type="text" id="modalSearchInput" placeholder="Cercar per entitat, persona, càrrec o codi SAC..." 
-                       style="width: 100%; padding: 10px 14px; background: var(--input-bg); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-main); font-size: 0.85rem; outline: none;">
+                <input type="text" id="modalSearchInput" placeholder="Cercar per entitat, persona, càrrec o codi SAC..."
+                    style="width: 100%; padding: 10px 14px; background: var(--input-bg); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-main); font-size: 0.85rem; outline: none;">
             </div>
 
             <div class="detail-table-wrapper">
